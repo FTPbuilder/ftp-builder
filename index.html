@@ -138,7 +138,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.3.2';
+const APP_VERSION = '0.3.3';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1513,25 +1513,28 @@ const Health = (() => {
       <p class="small muted" style="margin-top:0">Un Raccourci iOS envoie chaque jour sommeil, VFC, FC repos, poids et entraînements (montre, Withings, Strava, Garmin Connect…) vers l'app.</p>
       <p class="small">${H.token ? (last ? `Dernier envoi : <b>${last.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</b>` : 'Clé créée, aucun envoi reçu pour l’instant.') : 'Aucune clé pour l’instant.'}</p>
       <div id="hKeyBox"></div>
-      <div class="row"><button class="btn" id="hKeyBtn">${H.token ? 'Régénérer ma clé' : 'Générer ma clé'}</button><button class="btn ghost" id="hReload">Actualiser</button></div></div>`;
+      <div class="row"><button class="btn primary" id="hKeyBtn">${H.token ? 'Générer une nouvelle clé' : 'Générer ma clé'}</button><button class="btn ghost" id="hReload">Actualiser</button></div></div>`;
   }
-  async function genKey(){
-    const sb = Cloud.sb;
-    if (H.token && !confirmTwice()) return;
-    const { data, error } = await sb.rpc('create_ingest_token');
-    if (error) return toast('Erreur : ' + error.message);
+  async function genKey(btn){
+    const sb = Cloud.sb, box = $('#hKeyBox');
+    if (!sb || !Cloud.user) { box.innerHTML = '<div class="note bad">Connecte-toi d’abord (carte Compte ci-dessus).</div>'; return; }
+    btn.disabled = true; btn.textContent = 'Génération…';
+    let data, error;
+    try { ({ data, error } = await sb.rpc('create_ingest_token')); } catch(e) { error = e; }
+    btn.disabled = false; btn.textContent = 'Générer une nouvelle clé';
+    if (error || !data) { box.innerHTML = `<div class="note bad">Impossible de générer la clé : ${esc(error?.message || 'réponse vide')}. Vérifie ta connexion et réessaie.</div>`; return; }
     H.token = { last: null }; persist();
     $('#hKeyBox').innerHTML = `<div class="note" style="margin-top:8px"><b>Ta clé (affichée une seule fois) :</b>
       <div class="num small" style="word-break:break-all;margin:6px 0;user-select:all">Bearer ${data}</div>
       <div class="row"><button class="btn sm" data-copy="Bearer ${data}">Copier « Bearer … »</button></div>
       <div class="small" style="margin-top:10px"><b>Adresse :</b> <span class="num" style="word-break:break-all;user-select:all">${INGEST_URL}</span></div>
       <div class="row" style="margin-top:6px"><button class="btn sm" data-copy="${INGEST_URL}">Copier l'adresse</button></div>
-      <p class="tiny muted" style="margin:8px 0 0">Colle-les dans le raccourci (voir le guide). Ne partage pas cette clé : elle permet d'écrire dans tes données.</p></div>`;
+      <p class="tiny muted" style="margin:8px 0 0">Colle-les dans le raccourci (voir le guide). Ne partage pas cette clé : elle permet d'écrire dans tes données. Générer une nouvelle clé désactive l'ancienne.</p></div>`;
+    box.scrollIntoView({ behavior:'smooth', block:'center' });
   }
-  let _arm = 0; function confirmTwice(){ const n = Date.now(); if (n - _arm < 4000) return true; _arm = n; toast('Touchez encore pour remplacer la clé (l’ancienne ne marchera plus)'); return false; }
   document.addEventListener('click', async e => {
     const b = e.target.closest('#hKeyBtn,#hReload,[data-copy],[data-hweight]'); if (!b) return;
-    if (b.id === 'hKeyBtn') genKey();
+    if (b.id === 'hKeyBtn') genKey(b);
     else if (b.id === 'hReload') { await load(Cloud.sb); render(); toast('Données Santé actualisées'); }
     else if (b.dataset.copy) { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Copié'); } catch(err){ toast('Sélectionne le texte et copie-le'); } }
     else if (b.dataset.hweight) { S.profile.weightKg = +b.dataset.hweight; save(); render(); toast('Poids mis à jour'); }
