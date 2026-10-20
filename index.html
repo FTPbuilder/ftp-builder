@@ -138,7 +138,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.3.3';
+const APP_VERSION = '0.4.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -594,7 +594,7 @@ function countDone(){ return S.plan.filter(s => s.status==='done').length + S.ac
 
 /* ============ charge CTL / ATL ============ */
 function loadSeries(){
-  const hw = Health.extraWorkouts();
+  const hw = [...Health.extraWorkouts(), ...Health.exerciseLoad()];
   if (!S.activities.length && !hw.length) return [];
   const byDay = {}; for (const a of S.activities) byDay[a.date] = (byDay[a.date]||0) + (a.tss||0);
   for (const w of hw) byDay[w.date] = (byDay[w.date]||0) + w.tss;
@@ -663,6 +663,7 @@ function todayHTML(){
       <div class="kpi"><div class="v num">${p.goalFtp}<small> W</small></div><div class="l">Objectif ${fmtShort(p.goalDate)}</div></div>
     </div><div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
     <div class="tiny muted" style="margin-top:6px">${Math.max(diffDays(t,p.endDate),0)} jours restants · ${S.plan.filter(s=>s.status==='planned'&&mandatory(s)).length} séances clés prévues restantes</div></div>`;
+  h += challengesHTML();
   h += Health.todayCard();
   for (const n of notes) h += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
   window._coach = notes;
@@ -936,6 +937,57 @@ function importJSON(){
   inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!d.version) throw new Error('Fichier non reconnu'); S = Object.assign(blank(), d); save(); TAB='today'; render(); toast('Données importées'); } catch(e){ toast(e.message); } };
   inp.click();
 }
+
+
+/* ============ défis (squats, chaise…) ============ */
+const DEFAULT_CHALLENGES = () => [
+  { id:'squats', name:'Squats', unit:'squats', target:10000, step:[20,50,100], start:'2026-10-21', end:'2027-03-15', entries:{} },
+  { id:'chaise', name:'Chaise', unit:'min', target:300, step:[1,2,5], start:'2026-10-21', end:'2027-03-15', entries:{} },
+];
+function challenges(){ if (!S.challenges) S.challenges = DEFAULT_CHALLENGES(); return S.challenges; }
+const chTotal = c => Object.values(c.entries).reduce((a,b)=>a+b,0);
+const fmtCh = (c, v) => c.unit === 'min' ? (v >= 60 ? `${Math.floor(v/60)} h ${pad(Math.round(v%60))}` : `${(+v.toFixed(1)).toLocaleString('fr-FR')} min`) : Math.round(v).toLocaleString('fr-FR');
+function challengesHTML(){
+  const t = todayISO();
+  return `<div class="card"><div class="row between"><h2>Défis</h2><span class="muted small">jusqu'au ${fmtShort(challenges()[0].end)}</span></div>` + challenges().map(c => {
+    const done = chTotal(c), pct = clamp(done/c.target*100, 0, 100);
+    const totalDays = Math.max(diffDays(c.start, c.end) + 1, 1), elapsed = clamp(diffDays(c.start, t) + 1, 0, totalDays);
+    const expected = c.target * elapsed / totalDays, ahead = done - expected;
+    const left = Math.max(c.target - done, 0), daysLeft = Math.max(diffDays(t, c.end) + 1, 1);
+    const perDay = left / daysLeft, today = c.entries[t] || 0;
+    const stCol = ahead >= 0 ? 'var(--ok)' : ahead > -c.target*0.03 ? 'var(--warn)' : 'var(--bad)';
+    return `<div style="margin-top:14px">
+      <div class="row between"><b>${esc(c.name)}</b><span class="num small"><b>${fmtCh(c, done)}</b> / ${fmtCh(c, c.target)} · ${Math.floor(pct)} %</span></div>
+      <div class="bar" style="margin:8px 0;position:relative"><i style="width:${pct}%"></i><span title="Rythme prévu" style="position:absolute;top:-3px;bottom:-3px;left:${clamp(expected/c.target*100,0,100)}%;width:2px;background:var(--text);opacity:.5"></span></div>
+      <div class="tiny muted">Aujourd'hui : <b style="color:var(--text)">${fmtCh(c, today)}</b> · objectif du jour ~${fmtCh(c, perDay)} · <span style="color:${stCol}">${ahead >= 0 ? `${fmtCh(c, ahead)} d'avance` : `${fmtCh(c, -ahead)} de retard`}</span></div>
+      <div class="row" style="margin-top:8px;gap:6px">${c.step.map(s => `<button class="btn sm" data-chadd="${c.id}" data-v="${s}">+${s}${c.unit==='min'?' min':''}</button>`).join('')}
+        <input type="text" inputmode="decimal" id="chIn-${c.id}" placeholder="${c.unit==='min'?'min':'nb'}" style="width:76px;min-height:32px;padding:4px 8px">
+        <button class="btn sm primary" data-chadd="${c.id}">Ajouter</button>
+        <button class="btn sm ghost" data-chedit="${c.id}">Historique</button></div>
+    </div>`;
+  }).join('') + `</div>`;
+}
+function chAdd(id, v){
+  const c = challenges().find(x => x.id === id); if (!c || !(v > 0)) return toast('Indique un nombre');
+  const t = todayISO(); c.entries[t] = +((c.entries[t] || 0) + v).toFixed(2);
+  save(); render(); toast(`+${fmtCh(c, v)} ${c.unit==='min'?'de chaise':'squats'} 💪`);
+}
+function chEditDlg(id){
+  const c = challenges().find(x => x.id === id); if (!c) return;
+  const days = Object.keys(c.entries).sort().reverse();
+  openDlg(`<h2>${esc(c.name)}</h2><p class="muted small">Corrige un jour (0 pour l'effacer) ou modifie l'objectif.</p>
+    <div class="grid2"><div><label class="f" for="chT">Objectif (${c.unit==='min'?'minutes':'répétitions'})</label><input type="number" id="chT" value="${c.target}"></div><div><label class="f" for="chE">Échéance</label><input type="date" id="chE" value="${c.end}"></div></div>
+    <label class="f" for="chD">Ajouter ou corriger un jour</label><div class="row"><input type="date" id="chD" value="${todayISO()}" style="flex:1"><input type="text" inputmode="decimal" id="chV" placeholder="total du jour" style="width:120px"><button class="btn" id="chSet">OK</button></div>
+    <div style="margin-top:12px">${days.length ? days.map(d => `<div class="hist"><div style="flex:1">${fmtDate(d)}</div><b class="num">${fmtCh(c, c.entries[d])}</b></div>`).join('') : '<p class="muted small">Aucune saisie pour l’instant.</p>'}</div>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="chSave">Enregistrer</button></div>`);
+  $('#chSet').onclick = () => { const d = $('#chD').value, v = parseFloat(String($('#chV').value).replace(',','.')); if (!d || isNaN(v)) return toast('Date et valeur'); if (v <= 0) delete c.entries[d]; else c.entries[d] = v; save(); chEditDlg(id); render(); };
+  $('#chSave').onclick = () => { const tv = +$('#chT').value; if (tv > 0) c.target = tv; if ($('#chE').value) c.end = $('#chE').value; save(); closeDlg(); render(); };
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-chadd]');
+  if (a) { const id = a.dataset.chadd; const v = a.dataset.v ? +a.dataset.v : parseFloat(String($('#chIn-'+id).value).replace(',','.')); chAdd(id, v); return; }
+  const ed = e.target.closest('[data-chedit]'); if (ed) chEditDlg(ed.dataset.chedit);
+});
 
 /* ============ test : 20 min <-> rampe ERG ============ */
 function switchTestProtocol(proto){
@@ -1495,6 +1547,9 @@ const Health = (() => {
       if (nights.length) h += `<div style="display:flex;align-items:flex-end;gap:4px;height:70px;margin-top:14px">${nights.map(s=>`<div title="${fmtShort(s.night)} · ${fmtDur(s.asleep_min*60)}" style="flex:1;max-width:24px;height:${clamp(s.asleep_min/600*100,5,100)}%;border-radius:4px 4px 0 0;background:${s.asleep_min>=420?'var(--z2)':s.asleep_min>=360?'var(--warn)':'var(--bad)'}"></div>`).join('')}</div><div class="tiny muted" style="margin-top:4px">Sommeil des 14 dernières nuits · moyenne ${fmtDur(nights.reduce((a,s)=>a+s.asleep_min,0)/nights.length*60)}</div>`;
       h += `</div>`;
     }
+    const exm = exerciseLoad().filter(x => x.date >= addDays(t,-13));
+    if (exm.length && !H.workouts.length) h += `<div class="card"><h2>Autres sports</h2><div style="display:flex;align-items:flex-end;gap:4px;height:70px">${exm.map(x=>`<div title="${fmtShort(x.date)} · ${x.minutes} min" style="flex:1;max-width:24px;height:${clamp(x.minutes/120*100,5,100)}%;border-radius:4px 4px 0 0;background:var(--z3)"></div>`).join('')}</div>
+      <p class="tiny muted" style="margin:6px 0 0">Minutes d'exercice Apple Santé hors vélo, 14 derniers jours : ${exm.reduce((a,x)=>a+x.minutes,0)} min. Comptées dans ta forme/fatigue (~0,9 TSS/min).</p></div>`;
     const ex = extraWorkouts().slice(-12).reverse();
     if (ex.length) {
       const week = ex.filter(e => e.date >= addDays(t,-6));
@@ -1540,7 +1595,18 @@ const Health = (() => {
     else if (b.dataset.hweight) { S.profile.weightKg = +b.dataset.hweight; save(); render(); toast('Poids mis à jour'); }
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Cloud.user && Date.now() - H.loadedAt > 60000) { H.loadedAt = Date.now(); load(Cloud.sb).then(render); } });
-  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness };
+  // plan B : minutes d'exercice du jour (Apple Santé) moins le temps des séances vélo déjà dans l'app
+  function exerciseLoad(){
+    const out = [];
+    for (const x of H.daily.filter(x => x.metric === 'exercise_min')) {
+      if (H.workouts.some(w => iso(new Date(w.start_at)) === x.day)) continue; // séances détaillées déjà comptées
+      const bikeMin = S.activities.filter(a => a.date === x.day).reduce((s,a) => s + (a.durationS||0)/60, 0);
+      const extra = x.value - bikeMin;
+      if (extra >= 10) out.push({ date: x.day, minutes: Math.round(extra), tss: Math.round(extra * 0.9) });
+    }
+    return out;
+  }
+  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness, exerciseLoad };
 })();
 
 // ressenti a posteriori pour une activité importée (Strava)
