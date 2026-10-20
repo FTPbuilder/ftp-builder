@@ -90,10 +90,12 @@ nav.tabs button.on{color:var(--accent)}
 .note.ok{background:color-mix(in srgb,var(--ok) 12%,var(--card));border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
 .note.bad{background:color-mix(in srgb,var(--bad) 12%,var(--card));border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
-.day{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:6px 4px;text-align:center;font-size:12px}
+.day{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:4px 3px 6px;text-align:center;font-size:12px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;min-width:0}
 .day.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,var(--bg2))}
-.day button{background:none;border:0;cursor:pointer;width:100%;font-weight:600;padding:4px 0}
-.day input{width:100%;min-height:30px;padding:4px;text-align:center;font-size:12px;border-radius:7px}
+.day button{background:none;border:0;cursor:pointer;width:100%;font-weight:600;padding:10px 0;font-size:13px}
+.day.on button{color:var(--accent)}
+.day input:disabled{opacity:.35;pointer-events:none}
+.day input{width:100%;min-height:32px;padding:4px 0;text-align:center;font-size:12px;border-radius:7px;min-width:0}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{border:1px solid var(--line);background:var(--bg2);border-radius:9px;padding:7px 11px;cursor:pointer;min-width:38px}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -126,12 +128,12 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
   <button data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
 </div></nav>
 <dialog id="dlg"><div class="card" id="dlgBody"></div></dialog>
-<input type="file" id="fileIn" accept=".fit,.gz,.FIT" class="hidden">
+<input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.2.1';
+const APP_VERSION = '0.2.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -335,11 +337,35 @@ const FIT_EPOCH = 631065600;
 const FIT = {
   async readFile(file){
     let buf = await file.arrayBuffer(); const u = new Uint8Array(buf);
-    if (u[0] === 0x1f && u[1] === 0x8b) {
+    if (u[0] === 0x50 && u[1] === 0x4b) buf = await FIT.unzipFirstFit(buf);
+    else if (u[0] === 0x1f && u[1] === 0x8b) {
       if (!('DecompressionStream' in window)) throw new Error('Décompression .gz non supportée par ce navigateur');
       buf = await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
     }
     return FIT.decode(buf);
+  },
+  async unzipFirstFit(buf){ // export « fichier original » de Garmin Connect = .zip contenant le .fit
+    const dv = new DataView(buf); let eocd = -1;
+    for (let i = buf.byteLength - 22; i >= Math.max(0, buf.byteLength - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) throw new Error('Archive .zip illisible');
+    let p = dv.getUint32(eocd + 16, true); const n = dv.getUint16(eocd + 10, true);
+    for (let k = 0; k < n; k++) {
+      if (dv.getUint32(p, true) !== 0x02014b50) break;
+      const method = dv.getUint16(p + 10, true), csize = dv.getUint32(p + 20, true);
+      const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+      const name = new TextDecoder().decode(new Uint8Array(buf, p + 46, nl));
+      p += 46 + nl + xl + cl;
+      if (!/\.fit$/i.test(name)) continue;
+      const start = off + 30 + dv.getUint16(off + 26, true) + dv.getUint16(off + 28, true);
+      const data = buf.slice(start, start + csize);
+      if (method === 0) return data;
+      if (method === 8) {
+        if (!('DecompressionStream' in window)) throw new Error('Décompression .zip non supportée : mets à jour ton navigateur');
+        return await new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).arrayBuffer();
+      }
+      throw new Error('Format de compression non supporté');
+    }
+    throw new Error('Aucun fichier .fit dans cette archive');
   },
   decode(buf){
     const dv = new DataView(buf); const hs = dv.getUint8(0);
@@ -792,7 +818,7 @@ function qHTML(p, onboarding){
     <div id="goalCheck" class="small" style="margin-top:10px"></div>
   </div>
   <div class="card"><h2>Tes disponibilités</h2>
-    <p class="muted small" style="margin-top:0">Touche les jours où tu peux rouler et indique la durée max (min).</p>
+    <p class="muted small" style="margin-top:0">Touche un jour pour l'activer ou le retirer, puis ajuste sa durée max en minutes.</p>
     <div class="days">${dayCells}</div>
     <div class="grid2" style="margin-top:6px">
       <div><label class="f">Séances clés / semaine (home trainer)</label><div class="seg" data-seg="keyPerWeek">${[1,2,3].map(n=>`<button type="button" class="${p.keyPerWeek===n?'on':''}" data-v="${n}">${n}</button>`).join('')}</div></div>
@@ -835,7 +861,13 @@ function bindQuestionnaire(onboarding){
   let base = onboarding ? _draft : structuredClone(S.profile);
   const refresh = () => { base = readForm(base); if (onboarding) _draft = base; $('#goalCheck').innerHTML = goalCheckText(base); };
   f.addEventListener('input', refresh);
-  f.querySelectorAll('.day button').forEach(b => b.onclick = () => { const el = b.parentElement, d = +el.dataset.day; base.days[d].avail = !base.days[d].avail; el.classList.toggle('on', base.days[d].avail); el.querySelector('input').disabled = !base.days[d].avail; refresh(); });
+  f.querySelectorAll('.day').forEach(el => el.addEventListener('click', e => {
+    const inp = el.querySelector('input');
+    if (e.target === inp && !inp.disabled) return; // saisie des minutes
+    e.preventDefault();
+    const d = +el.dataset.day; base.days[d].avail = !base.days[d].avail;
+    el.classList.toggle('on', base.days[d].avail); inp.disabled = !base.days[d].avail; refresh();
+  }));
   f.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b => b.onclick = () => { base[seg.dataset.seg] = +b.dataset.v; seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); refresh(); }));
   $('#prefill').onclick = () => pickFile(async file => {
     try {
@@ -945,7 +977,7 @@ function logDlg(planId){
   const plan = planId ? S.plan.find(s=>s.id===planId) : null;
   openDlg(`<h2>${plan ? esc(WORKOUTS[plan.workoutId].name) : 'Nouvelle séance'}</h2>${plan?`<p class="muted small" style="margin-top:4px">${fmtDate(plan.date)}</p>`:''}
     <div class="seg" id="logMode" style="margin:12px 0"><button type="button" class="on" data-m="file">Fichier .fit</button><button type="button" data-m="manual">Saisie manuelle</button><button type="button" data-m="strava">Strava</button></div>
-    <div id="logFile"><div class="drop" id="dropZone">Dépose ou choisis un fichier <b>.fit</b> ou <b>.fit.gz</b><br><span class="tiny">Garmin Connect › activité › ⚙ › Exporter l'original · Strava › … › Exporter l'original</span></div></div>
+    <div id="logFile"><div class="drop" id="dropZone">Dépose ou choisis un fichier <b>.fit</b>, <b>.zip</b> (Garmin) ou <b>.fit.gz</b><br><span class="tiny">Garmin Connect › activité › ⚙ › Exporter l'original · Strava › … › Exporter l'original</span></div></div>
     <div id="logManual" class="hidden"><div class="grid2">
       <div><label class="f">Date</label><input type="date" id="mDate" value="${plan?.date || todayISO()}"></div>
       <div><label class="f">Durée (min)</label><input type="number" id="mDur" min="5" max="600" value="${plan ? Math.round(wDur(plan.workoutId)/60) : 60}"></div>
