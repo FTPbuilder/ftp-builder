@@ -28,7 +28,9 @@ h1,h2,h3,.disp{font-family:"Barlow Condensed","Arial Narrow",Inter,system-ui,san
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--accent)}
 .app{max-width:760px;margin:0 auto;padding:16px 16px calc(96px + env(safe-area-inset-bottom))}
-header.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+header.top{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;margin-bottom:14px;flex-wrap:wrap}
+html,body{max-width:100%;overflow-x:hidden}
+@media (max-width:420px){ .brand h1{font-size:24px} .brand small{display:none} header.top .chip{font-size:11px;padding:3px 8px} }
 .brand{display:flex;align-items:baseline;gap:8px}
 .brand h1{font-size:28px;font-weight:700;text-transform:uppercase}
 .brand h1 b{color:var(--accent)}
@@ -101,7 +103,10 @@ nav.tabs button.on{color:var(--accent)}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 dialog{border:0;padding:0;background:transparent;max-width:640px;width:calc(100% - 24px);color:var(--text)}
 dialog::backdrop{background:rgba(0,0,0,.55)}
-dialog .card{max-height:88vh;overflow:auto;margin:0}
+dialog .card{max-height:88vh;overflow-y:auto;overflow-x:hidden;margin:0}
+dialog{margin:auto;box-sizing:border-box}
+.grid2>*,.grid3>*,.grid4>*{min-width:0}
+input[type=date]{min-width:0;max-width:100%;-webkit-appearance:none;appearance:none}
 .x{float:right;background:none;border:0;font-size:22px;cursor:pointer;color:var(--muted);line-height:1}
 svg.chart{width:100%;height:auto;display:block}
 svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
@@ -133,7 +138,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.3.0';
+const APP_VERSION = '0.3.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -185,8 +190,8 @@ const CD = (m=8) => [S_(m,50,'Retour au calme','cooldown')];
 const WORKOUTS = {
   test20: { name:'Test FTP 20 min', type:'test', goal:"Mesurer ta FTP : 95 % de ta puissance moyenne sur les 20 min. Mode résistance (pas ERG) sur l'effort, pars prudemment les 5 premières minutes puis accélère.",
     steps:[...WU, R_(3,[S_(1,105,'Activation'), S_(1,55,'Récup','rest')]), S_(5,110,'5 min à fond (vider l\'anaérobie)','active',{max:true}), S_(10,52,'Récup','rest'), S_(20,102,'20 MIN À FOND, régulier','active',{max:true}), ...CD(10)] },
-  ramp: { name:'Test rampe', type:'test', goal:"Paliers d'1 min de plus en plus durs jusqu'à l'épuisement. FTP = 75 % de ta meilleure minute.",
-    steps:[S_(5,45,'Échauffement','warmup'), ...Array.from({length:20},(_,i)=>S_(1,45+i*6,`Palier ${i+1}`,'active')), ...CD(5)] },
+  ramp: { name:'Test rampe ERG', type:'test', goal:"Tout en ERG : l'Edge règle la résistance, toi tu gardes 85-95 rpm. Paliers d'1 min de +8 % (~+20 W) jusqu'à ce que la cadence s'effondre : arrête-toi là. FTP = 75 % de ta meilleure minute. Plus court et moins mental qu'un 20 min, mais il peut surestimer la FTP des profils explosifs.",
+    steps:[S_(5,45,'Échauffement','warmup'), S_(3,55,'Échauffement','warmup'), ...Array.from({length:18},(_,i)=>S_(1,50+i*8,`Palier ${i+1}`,'active',{cad:90})), ...CD(8)] },
   ss_3x10: { name:'Sweet spot 3 × 10 min', type:'ss', goal:"Construire le moteur aérobie au meilleur rapport fatigue / gain (88-93 % FTP).", steps:[...WU, R_(3,[S_(10,90,'Sweet spot',null,{cad:90}), S_(5,55,'Récup','rest')]), ...CD()] },
   ss_3x12: { name:'Sweet spot 3 × 12 min', type:'ss', goal:"Allonger le temps passé sous le seuil.", steps:[...WU, R_(3,[S_(12,90,'Sweet spot',null,{cad:90}), S_(4,55,'Récup','rest')]), ...CD()] },
   ss_3x15: { name:'Sweet spot 3 × 15 min', type:'ss', goal:"Gros bloc sweet spot : endurance au seuil.", steps:[...WU, R_(3,[S_(15,91,'Sweet spot',null,{cad:90}), S_(5,55,'Récup','rest')]), ...CD(6)] },
@@ -286,6 +291,7 @@ function generatePlan(p, keepFrom){
   const add = (ws, dow, wid, kind, k) => {
     const date = addDays(ws, dow);
     if (date < p.startDate || date > p.endDate) return;
+    if ((p.absences||[]).some(a => date >= a.from && date <= a.to)) return;
     if (keepFrom && date < keepFrom) return;
     const max = p.days[dow]?.max || 60;
     plan.push({ id: uid(), date, week: k.i, block: k.block, kind, workoutId: kind==='test' ? wid : fitTo(wid, max), status:'planned' });
@@ -673,7 +679,9 @@ function todayHTML(){
       ${s.status==='done' ? `<div class="note ok" style="margin:10px 0 0">Séance faite ✔</div>` : `<div class="row" style="margin-top:10px">
         <button class="btn primary" data-log="${s.id}">J'ai fait la séance</button>
         <button class="btn" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>
-        <button class="btn ghost" data-open="${s.id}">Détails</button></div>`}
+        <button class="btn ghost" data-open="${s.id}">Détails</button>
+        <button class="btn ghost" data-absence="1">✈︎ Absent ?</button></div>
+        ${W.type==='test' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}`}
     </div>`;
   }
   if (!show.length) h += `<div class="card"><h2>Plan terminé</h2><p class="muted">Plus aucune séance prévue. Régénère un plan depuis le Profil.</p></div>`;
@@ -696,7 +704,8 @@ function calHTML(){
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
   let h = `<div class="card"><div class="row between"><h2>Calendrier</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
-    <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button></div></div>`;
+    <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
+    ${absencesHTML()}</div>`;
   for (const k of keys) {
     const list = weeks[k]; const done = list.filter(s=>s.status==='done').length;
     const tss = list.reduce((a,s)=>a+wTSS(s.workoutId),0);
@@ -928,6 +937,121 @@ function importJSON(){
   inp.click();
 }
 
+/* ============ test : 20 min <-> rampe ERG ============ */
+function switchTestProtocol(proto){
+  const wid = proto === 'ramp' ? 'ramp' : 'test20';
+  S.profile.testProtocol = proto;
+  let n = 0; for (const s of S.plan) if (s.status === 'planned' && WORKOUTS[s.workoutId].type === 'test') { s.workoutId = wid; n++; }
+  save(); closeDlg(); render();
+  toast(`${n} test${n>1?'s':''} passé${n>1?'s':''} en ${proto==='ramp'?'rampe ERG':'20 min'}`);
+}
+
+/* ============ absences : reprogrammer les séances ============ */
+function absencesHTML(){
+  const list = (S.profile.absences || []).filter(a => a.to >= addDays(todayISO(), -14));
+  if (!list.length) return '';
+  return `<div style="margin-top:12px">${list.map(a => `<div class="hist"><span>✈︎</span><div style="flex:1"><b>${fmtShort(a.from)} → ${fmtShort(a.to)}</b><div class="tiny muted">${a.moves.length} séance${a.moves.length>1?'s':''} reprogrammée${a.moves.length>1?'s':''}${a.label?` · ${esc(a.label)}`:''}</div></div><button class="btn sm ghost" data-undoabs="${a.id}">Annuler</button></div>`).join('')}</div>`;
+}
+const dayFree = (date, exceptIds, absFrom, absTo) => !(date >= absFrom && date <= absTo) && !S.plan.some(x => x.date === date && x.status !== 'skipped' && !exceptIds.has(x.id) && mandatory(x));
+function hardOk(s, date, moved){
+  if (!isHard(s.workoutId)) return true;
+  return !S.plan.some(x => x.id !== s.id && x.status !== 'skipped' && isHard(moved.get(x.id)?.workoutId || x.workoutId) && Math.abs(diffDays(moved.get(x.id)?.date || x.date, date)) < 2 && !(moved.get(x.id)?.skip));
+}
+// propose une nouvelle date pour chaque séance tombant pendant l'absence
+function planAbsence(from, to){
+  const p = S.profile, t = todayISO();
+  const hit = S.plan.filter(s => s.status === 'planned' && s.date >= from && s.date <= to).sort((a,b) => (mandatory(b)-mandatory(a)) || a.date.localeCompare(b.date));
+  const moved = new Map(); // id -> {date, skip}
+  const taken = new Set();
+  for (const s of hit) {
+    if (!mandatory(s)) { moved.set(s.id, { date: s.date, skip: true, reason: 'optionnelle' }); continue; }
+    const cands = [];
+    for (let k = -4; k <= 9; k++) {
+      const d = k < 0 ? addDays(from, k) : addDays(to, k + 1);
+      if (d <= t || d > p.endDate) continue; // à partir de demain
+      if (taken.has(d)) continue;
+      const avail = p.days[dowMon(d)]?.avail;
+      if (!dayFree(d, new Set([s.id]), from, to)) continue;
+      if (!hardOk(s, d, moved)) continue;
+      // éviter d'empiler le test juste avant/après une séance clé
+      const dist = k < 0 ? -k : k + 1;
+      const score = (avail ? 0 : 6) + dist + (k < 0 ? 0.5 : 0) + (WORKOUTS[s.workoutId].type === 'test' && k < 0 && dist === 1 ? 2 : 0);
+      cands.push({ d, score });
+    }
+    cands.sort((a,b) => a.score - b.score);
+    if (cands.length) { moved.set(s.id, { date: cands[0].d, skip: false }); taken.add(cands[0].d); }
+    else moved.set(s.id, { date: s.date, skip: true, reason: 'pas de créneau' });
+  }
+  // un test doit précéder les séances clés suivantes (leurs watts en dépendent) : on échange
+  for (const [id, m] of [...moved]) {
+    const s = S.plan.find(x => x.id === id);
+    if (m.skip || WORKOUTS[s.workoutId].type !== 'test') continue;
+    const before = S.plan.filter(x => x.status === 'planned' && !moved.has(x.id) && mandatory(x) && WORKOUTS[x.workoutId].type !== 'test' && x.date > to && x.date < m.date).sort((a,b)=>a.date.localeCompare(b.date))[0];
+    if (before) { const d = m.date; moved.set(id, { date: before.date, skip: false }); moved.set(before.id, { date: d, skip: false, reason: 'échangée avec le test pour qu’il passe en premier' }); }
+  }
+  // les séances optionnelles qui gênent un créneau choisi sont sautées
+  const bump = [];
+  for (const [id, m] of moved) if (!m.skip) for (const x of S.plan) if (x.date === m.date && x.status === 'planned' && !mandatory(x) && !moved.has(x.id)) bump.push(x);
+  for (const x of bump) moved.set(x.id, { date: x.date, skip: true, reason: 'remplacée par une séance déplacée' });
+  return { hit: [...moved.keys()].map(id => S.plan.find(s => s.id === id)), moved };
+}
+function absenceDlg(){
+  const t = todayISO();
+  openDlg(`<h2>Absence / vacances</h2><p class="muted small">Indique tes dates : je propose où recaser chaque séance, tu ajustes si besoin.</p>
+    <div class="grid2"><div><label class="f" for="abFrom">Du</label><input type="date" id="abFrom" value="${addDays(t,2)}"></div><div><label class="f" for="abTo">Au (inclus)</label><input type="date" id="abTo" value="${addDays(t,5)}"></div></div>
+    <label class="f" for="abLabel">Note (facultatif)</label><input type="text" id="abLabel" placeholder="Vacances, déplacement pro…">
+    <div id="abPrev" style="margin-top:12px"></div>`);
+  const prev = () => {
+    const from = $('#abFrom').value, to = $('#abTo').value;
+    if (!from || !to || to < from) { $('#abPrev').innerHTML = '<p class="small" style="color:var(--bad)">Vérifie les dates.</p>'; return; }
+    const { hit, moved } = planAbsence(from, to);
+    if (!hit.length) { $('#abPrev').innerHTML = `<div class="note ok">Aucune séance prévue sur ces dates : rien à déplacer.</div><div class="row"><button class="btn primary" id="abOk">Enregistrer l'absence</button></div>`; $('#abOk').onclick = () => applyAbsence(from, to, new Map()); return; }
+    $('#abPrev').innerHTML = `<h3>${hit.length} séance${hit.length>1?'s':''} concernée${hit.length>1?'s':''}</h3>` + hit.sort((a,b)=>a.date.localeCompare(b.date)).map(s => {
+      const m = moved.get(s.id);
+      return `<div class="hist" style="flex-wrap:wrap"><div style="flex:1;min-width:160px"><b>${esc(WORKOUTS[s.workoutId].name)}</b><div class="tiny muted">prévue ${fmtDate(s.date)}${mandatory(s)?'':' · optionnelle'}</div></div>
+        <div class="row" style="gap:6px"><select data-abmode="${s.id}" style="width:auto;min-height:36px;padding:4px 8px"><option value="move" ${m.skip?'':'selected'}>Déplacer au</option><option value="skip" ${m.skip?'selected':''}>Sauter</option></select>
+        <input type="date" data-abdate="${s.id}" value="${m.date}" style="width:auto;min-height:36px;padding:4px 8px" ${m.skip?'disabled':''}></div>
+        ${m.reason ? `<div class="tiny muted" style="width:100%">${esc(m.reason)}</div>` : ''}<div class="tiny" data-abwarn="${s.id}" style="width:100%;color:var(--warn)"></div></div>`;
+    }).join('') + `<div class="row" style="margin-top:12px"><button class="btn primary" id="abOk">Appliquer</button></div>`;
+    const check = () => {
+      const tmp = new Map(); dlgBody.querySelectorAll('[data-abmode]').forEach(sel => { const id = sel.dataset.abmode; tmp.set(id, { skip: sel.value==='skip', date: dlgBody.querySelector(`[data-abdate="${id}"]`).value }); });
+      for (const [id, m] of tmp) { const s = S.plan.find(x=>x.id===id); const w = dlgBody.querySelector(`[data-abwarn="${id}"]`); dlgBody.querySelector(`[data-abdate="${id}"]`).disabled = m.skip;
+        w.textContent = m.skip ? '' : (m.date >= from && m.date <= to) ? '⚠️ toujours pendant ton absence' : tentativeConflict(s, m.date, tmp); }
+      return tmp;
+    };
+    dlgBody.querySelectorAll('[data-abmode],[data-abdate]').forEach(el => el.onchange = check); check();
+    $('#abOk').onclick = () => applyAbsence(from, to, check());
+  };
+  $('#abFrom').onchange = prev; $('#abTo').onchange = prev; prev();
+}
+function tentativeConflict(s, date, tmp){ // comme hardConflict, mais avec les déplacements proposés
+  if (!isHard(s.workoutId)) return '';
+  const near = S.plan.find(x => { if (x.id === s.id) return false; const m = tmp.get(x.id); if (m?.skip || (!m && x.status === 'skipped')) return false;
+    return isHard(x.workoutId) && Math.abs(diffDays(m ? m.date : x.date, date)) < 2; });
+  return near ? `⚠️ ${WORKOUTS[near.workoutId].name} à moins de 48 h` : '';
+}
+function applyAbsence(from, to, choices){
+  const p = S.profile; p.absences ||= [];
+  const rec = { id: uid(), from, to, label: $('#abLabel')?.value.trim() || '', moves: [] };
+  for (const [id, m] of choices) {
+    const s = S.plan.find(x => x.id === id); if (!s) continue;
+    rec.moves.push({ id, date: s.date, status: s.status, week: s.week });
+    if (m.skip) s.status = 'skipped';
+    else { s.date = m.date; s.week = Math.floor(diffDays(monday(p.startDate), m.date)/7); }
+  }
+  // jours indisponibles mémorisés pour les prochaines régénérations
+  p.absences.push(rec);
+  S.plan.sort((a,b)=>a.date.localeCompare(b.date));
+  save(); closeDlg(); render();
+  const mv = rec.moves.length; toast(mv ? `Absence enregistrée · ${mv} séance${mv>1?'s':''} reprogrammée${mv>1?'s':''}` : 'Absence enregistrée');
+}
+function undoAbsence(id){
+  const p = S.profile; const a = (p.absences||[]).find(x => x.id === id); if (!a) return;
+  for (const m of a.moves) { const s = S.plan.find(x => x.id === m.id); if (s && s.status !== 'done') { s.date = m.date; s.status = m.status; s.week = m.week; } }
+  p.absences = p.absences.filter(x => x.id !== id);
+  S.plan.sort((x,y)=>x.date.localeCompare(y.date)); save(); render(); toast('Absence annulée, séances remises à leur place');
+}
+
 /* ============ dialogues ============ */
 const dlg = $('#dlg'), dlgBody = $('#dlgBody');
 function openDlg(html){ dlgBody.innerHTML = `<button class="x" data-close aria-label="Fermer">×</button>` + html; if (!dlg.open) dlg.showModal(); }
@@ -948,6 +1072,7 @@ function sessionDlg(id){
       ${s.status!=='done' ? `<button class="btn primary" data-log="${s.id}">J'ai fait la séance</button>` : `<button class="btn" data-act="${act?.id}">Voir l'activité</button>`}
       <button class="btn" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>
     </div>
+    ${W.type==='test' && s.status==='planned' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}
     <label class="f">Déplacer au</label><div class="row"><input type="date" id="mvDate" value="${s.date}" style="flex:1"><button class="btn" id="mvBtn">Déplacer</button></div>
     <div id="mvWarn" class="tiny" style="color:var(--warn);margin-top:4px"></div>
     <label class="f">Remplacer par</label><div class="row"><select id="rpSel" style="flex:1">${opts}</select><button class="btn" id="rpBtn">Remplacer</button></div>
@@ -1102,7 +1227,7 @@ function activityDlg(id){
 
 /* ============ délégation des clics ============ */
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-open],[data-log],[data-export],[data-act],[data-lib],[data-add],[data-coach],#expJson,#impJson,#reset');
+  const t = e.target.closest('[data-open],[data-log],[data-export],[data-act],[data-lib],[data-add],[data-absence],[data-undoabs],[data-proto],[data-coach],#expJson,#impJson,#reset');
   if (!t) return;
   if (t.dataset.open) sessionDlg(t.dataset.open);
   else if (t.dataset.log !== undefined) logDlg(t.dataset.log);
@@ -1110,6 +1235,9 @@ document.addEventListener('click', e => {
   else if (t.dataset.act) activityDlg(t.dataset.act);
   else if (t.dataset.lib) openDlg(`<h2>${esc(WORKOUTS[t.dataset.lib].name)}</h2><p class="muted small">${esc(WORKOUTS[t.dataset.lib].goal)}</p>${profileBars(t.dataset.lib)}<div style="margin-top:10px">${stepsTable(t.dataset.lib)}</div><div class="row" style="margin-top:12px"><button class="btn" data-export-lib="${t.dataset.lib}">Envoyer sur l'Edge (.fit)</button></div>`);
   else if (t.dataset.add) addSessionDlg();
+  else if (t.dataset.absence) absenceDlg();
+  else if (t.dataset.undoabs) undoAbsence(t.dataset.undoabs);
+  else if (t.dataset.proto) switchTestProtocol(t.dataset.proto);
   else if (t.dataset.coach) { const n = window._coach?.[+t.dataset.coach]; if (n?.action) { n.action.f(); save(); render(); toast('Cibles ajustées'); } }
   else if (t.id === 'expJson') exportJSON();
   else if (t.id === 'impJson') importJSON();
