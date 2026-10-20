@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confidentialité · FTP Builder</title>
+<link rel="icon" href="icon.svg">
+<style>
+:root{--bg:#f5f4f1;--card:#fff;--text:#16181d;--muted:#666c78;--line:#e1dfda;--accent:#e2561b}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1115;--card:#1c2029;--text:#eef0f4;--muted:#9aa1b0;--line:#2a2f3b;--accent:#ff6a2b}}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:720px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:30px;line-height:1.15;margin:0 0 4px}
+h2{font-size:19px;margin:32px 0 8px}
+p,li{color:var(--text)}
+.muted{color:var(--muted);font-size:14px}
+a{color:var(--accent)}
+ul{padding-left:20px}
+table{width:100%;border-collapse:collapse;font-size:14px;margin-top:8px}
+td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+.back{display:inline-block;margin-bottom:20px}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="./">← Retour à FTP Builder</a>
+<h1>Politique de confidentialité</h1>
+<p class="muted">FTP Builder · dernière mise à jour : 20 octobre 2026</p>
+
+<p>FTP Builder est une application gratuite et personnelle de suivi d'entraînement vélo, éditée par Arnaud Lacaze (particulier). Cette page explique quelles données sont utilisées, pourquoi, et comment les supprimer.</p>
+
+<h2>Données utilisées</h2>
+<table>
+<tr><th>Donnée</th><th>Pourquoi</th></tr>
+<tr><td>Adresse e-mail (et nom/photo de profil si tu te connectes avec Google)</td><td>Créer ton compte et te reconnaître d'un appareil à l'autre.</td></tr>
+<tr><td>Profil sportif : âge, sexe, poids, taille, FTP, fréquence cardiaque max, disponibilités</td><td>Calculer tes zones d'entraînement et générer ton plan.</td></tr>
+<tr><td>Séances : puissance, fréquence cardiaque, cadence, durée, distance, ressentis et commentaires</td><td>Suivre ta progression et adapter les séances.</td></tr>
+<tr><td>Fichiers .fit que tu importes</td><td>Lus dans ton navigateur pour en extraire les chiffres ; le fichier lui-même n'est pas envoyé au serveur.</td></tr>
+</table>
+<p>Aucune donnée de localisation GPS n'est conservée. Aucun cookie publicitaire, aucun outil de mesure d'audience.</p>
+
+<h2>Où sont stockées les données</h2>
+<ul>
+<li><b>Sur ton appareil</b> (stockage local du navigateur), pour que l'app fonctionne hors ligne.</li>
+<li><b>Dans le cloud si tu crées un compte</b> : base de données Supabase hébergée dans l'Union européenne (Paris, AWS eu-west-3). Chaque utilisateur n'a accès qu'à ses propres données.</li>
+<li>Le site est servi par GitHub Pages (GitHub, Inc.).</li>
+</ul>
+
+<h2>Connexion avec Google</h2>
+<p>Si tu choisis « Continuer avec Google », FTP Builder reçoit uniquement ton adresse e-mail, ton nom et ta photo de profil (autorisations <code>openid</code>, <code>email</code>, <code>profile</code>). L'app n'accède ni à Gmail, ni à Drive, ni à aucune autre donnée Google. L'utilisation des informations reçues des API Google respecte la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, y compris les exigences d'utilisation limitée (Limited Use).</p>
+
+<h2>Services de données sportives</h2>
+<p>Si tu relies un service tiers (par exemple Intervals.icu ou Strava), FTP Builder récupère uniquement tes activités vélo (puissance, fréquence cardiaque, cadence, durée) pour les ajouter à ton suivi. Tu peux couper ce lien à tout moment depuis l'app ou depuis le service concerné.</p>
+
+<h2>Partage</h2>
+<p>Tes données ne sont ni vendues, ni louées, ni partagées avec des annonceurs. Elles ne servent pas à entraîner de modèles d'intelligence artificielle. Seuls les prestataires techniques cités plus haut (Supabase, GitHub, Google pour la connexion) les traitent, pour faire fonctionner l'app.</p>
+
+<h2>Durée de conservation et suppression</h2>
+<p>Les données sont conservées tant que ton compte existe. Pour tout supprimer :</p>
+<ul>
+<li>sur ton appareil : Profil › <b>Tout effacer</b> ;</li>
+<li>dans le cloud : écris à l'adresse ci-dessous ; ton compte et toutes tes données sont supprimés sous 30 jours.</li>
+</ul>
+
+<h2>Tes droits</h2>
+<p>Conformément au RGPD, tu peux accéder à tes données, les corriger, les exporter (Profil › Exporter mes données) ou demander leur suppression. Tu peux aussi saisir la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">cnil.fr</a>).</p>
+
+<h2>Contact</h2>
+<p>Arnaud Lacaze · <a href="mailto:arnaudlacaze02@gmail.com">arnaudlacaze02@gmail.com</a></p>
+</main>
+</body>
+</html>

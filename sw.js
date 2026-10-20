@@ -1,6 +1,6 @@
 // Service worker : réseau d'abord pour la page, cache en secours (hors ligne)
-const CACHE = 'ftpb-v0.2.0';
-const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'ftpb-v0.2.1';
+const CORE = ['./', './index.html', './manifest.webmanifest', './icon.svg', './confidentialite.html'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE))); self.skipWaiting(); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener('fetch', e => {

@@ -131,7 +131,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.2.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -808,7 +808,7 @@ function qHTML(p, onboarding){
 }
 function onboardingHTML(){
   return `<div class="onb"><div class="hero"><h1>FTP<b>·</b>Builder</h1><p class="muted">Réponds à quelques questions : je construis ton plan de séances jusqu'à ton test final, avec les watts exacts à envoyer sur ton Edge.</p></div>${qHTML(_draft ||= defaultProfile(), true)}
-    <div class="card"><h3>Déjà des données ?</h3><div class="row"><button class="btn sm" data-auth="open">Se connecter</button><button class="btn sm" id="importJsonOnb">Restaurer une sauvegarde JSON</button></div></div></div>`;
+    <div class="card"><h3>Déjà des données ?</h3><div class="row"><button class="btn sm" data-auth="open">Se connecter</button><button class="btn sm" id="importJsonOnb">Restaurer une sauvegarde JSON</button></div></div><p class="tiny muted" style="text-align:center"><a href="confidentialite.html">Politique de confidentialité</a></p></div>`;
 }
 let _draft = null;
 function readForm(base){
@@ -877,7 +877,7 @@ function profileHTML(){
   return Cloud.accountHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>
-    <button class="btn danger sm" id="reset">Tout effacer</button></div>
+    <div class="row between" style="margin-top:8px"><button class="btn danger sm" id="reset">Tout effacer</button><a class="small" href="confidentialite.html">Politique de confidentialité</a></div></div>
     <div class="card"><h2>Envoyer une séance sur l'Edge 530</h2><ol class="small muted" style="padding-left:18px;margin:0">
       <li>Dans une séance, touche « Envoyer sur l'Edge (.fit) ».</li>
       <li>Branche l'Edge à l'ordinateur en USB et copie le fichier dans <b>Garmin/NewFiles</b>.</li>
