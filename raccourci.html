@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raccourci Santé · FTP Builder</title>
+<link rel="icon" href="icon.svg">
+<style>
+:root{--bg:#f5f4f1;--card:#fff;--text:#16181d;--muted:#666c78;--line:#e1dfda;--accent:#e2561b;--chip:#ecebe7;--ok:#1f9d63}
+@media (prefers-color-scheme: dark){:root{--bg:#0f1115;--card:#1c2029;--text:#eef0f4;--muted:#9aa1b0;--line:#2a2f3b;--accent:#ff6a2b;--chip:#171a21;--ok:#3ecf8e}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:760px;margin:0 auto;padding:24px 16px 80px}
+h1{font-size:30px;line-height:1.1;margin:8px 0 6px}
+h2{font-size:20px;margin:0 0 10px;display:flex;gap:10px;align-items:center}
+h2 .n{flex:none;width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:15px}
+h3{font-size:16px;margin:18px 0 6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin:14px 0}
+.muted{color:var(--muted)} .small{font-size:14px}
+a{color:var(--accent)}
+ol,ul{padding-left:22px;margin:6px 0} li{margin:5px 0}
+code,.k{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;background:var(--chip);border:1px solid var(--line);border-radius:6px;padding:1px 6px;word-break:break-all}
+.a{font-weight:600}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:1px 7px;border-radius:6px;background:var(--accent);color:#fff;text-transform:uppercase;letter-spacing:.03em}
+.tag.opt{background:var(--chip);color:var(--muted);border:1px solid var(--line)}
+.note{border-left:4px solid var(--accent);background:var(--chip);padding:10px 12px;border-radius:8px;margin:10px 0;font-size:14.5px}
+.note.ok{border-color:var(--ok)}
+.back{display:inline-block;margin-bottom:6px}
+.copy{border:1px solid var(--line);background:var(--chip);border-radius:8px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer;color:var(--text);margin-left:6px}
+</style>
+</head>
+<body>
+<main>
+<a class="back" href="./">← Retour à FTP Builder</a>
+<h1>Raccourci Apple Santé</h1>
+<p class="muted">Une seule fois, environ 20 minutes. Ensuite, sommeil, VFC, FC repos, poids et toutes tes séances arrivent seuls dans FTP Builder.</p>
+
+<div class="card">
+<h2><span class="n">1</span>Faire écrire toutes tes apps dans Santé</h2>
+<p class="small">Le raccourci lit uniquement l'app Santé. Chaque app doit donc y écrire :</p>
+<ul class="small">
+<li><b>Apple Watch / Forme</b> : rien à faire, c'est natif.</li>
+<li><b>Garmin Connect</b> (tes sorties Edge) : Plus › Paramètres › Applications connectées › Apple Santé › tout autoriser en écriture.</li>
+<li><b>Strava</b> : Vous › ⚙ Paramètres › Applications, services et appareils › Santé › connecter, activer « Envoyer les activités ».</li>
+<li><b>Withings</b> (Health Mate / Withings) : Profil › Applications partenaires › Apple Santé › activer.</li>
+<li><b>Bevel</b> : il lit Santé pour calculer ses scores, mais à ma connaissance ne les y réécrit pas. Ses données sources (sommeil, VFC…) sont donc déjà couvertes.</li>
+</ul>
+<div class="note small">Vérifie dans <b>Santé › ton profil (en haut à droite) › Apps</b> que chaque app a bien les autorisations d'écriture cochées.</div>
+</div>
+
+<div class="card">
+<h2><span class="n">2</span>Récupérer ta clé</h2>
+<ol class="small">
+<li>Dans FTP Builder : <b>Profil › Apple Santé › Générer ma clé</b>.</li>
+<li>Copie <b>« Bearer ftpb_… »</b> et garde-la sous la main (dans Notes, par exemple). Elle n'est affichée qu'une fois ; si tu la perds, régénère-la.</li>
+<li>L'adresse d'envoi est toujours la même :<br><code id="u">https://jhemwfhmohqncywjixgh.supabase.co/functions/v1/health-ingest</code><button class="copy" data-c="u">Copier</button></li>
+</ol>
+</div>
+
+<div class="card">
+<h2><span class="n">3</span>Créer le raccourci</h2>
+<p class="small">App <b>Raccourcis</b> › onglet Raccourcis › <b>+</b> › nomme-le <b>FTP Builder Santé</b>. Il a 3 parties, à construire dans l'ordre.</p>
+
+<h3>Partie A · Les mesures du jour</h3>
+<p class="small">Pour <b>chaque ligne</b> du tableau, ajoute ces 2 actions :</p>
+<ol class="small">
+<li><span class="a">Rechercher des échantillons de santé</span> → touche « Type » et choisis la mesure. Ajoute le filtre <b>Date de début</b> › la période indiquée. Pour les lignes « plus récent », règle aussi <b>Trier par : Date de début</b>, <b>Ordre : Plus récent d'abord</b>, <b>Limite : 1</b>.</li>
+<li><span class="a">Calculer les statistiques</span> → choisis la statistique indiquée. Puis touche le résultat « Statistiques » de l'action › <b>Renommer</b> avec la clé du tableau (ex. <code>hrv</code>) : ce sera plus facile à retrouver à l'étape suivante.</li>
+</ol>
+<div class="tbl"><table>
+<tr><th>Mesure dans Santé</th><th>Période</th><th>Statistique</th><th>Clé</th><th></th></tr>
+<tr><td>Variabilité de la fréquence cardiaque</td><td>dans les 1 derniers jours</td><td>Moyenne</td><td><code>hrv</code></td><td><span class="tag">essentiel</span></td></tr>
+<tr><td>Fréquence cardiaque au repos</td><td>dans les 1 derniers jours</td><td>Moyenne</td><td><code>rhr</code></td><td><span class="tag">essentiel</span></td></tr>
+<tr><td>Poids</td><td>dans les 7 derniers jours, plus récent</td><td>Moyenne</td><td><code>weight</code></td><td><span class="tag">essentiel</span></td></tr>
+<tr><td>Graisse corporelle (pourcentage)</td><td>dans les 7 derniers jours, plus récent</td><td>Moyenne</td><td><code>body_fat</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Masse maigre</td><td>dans les 7 derniers jours, plus récent</td><td>Moyenne</td><td><code>lean_mass</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Capacité cardiorespiratoire (VO2 max)</td><td>dans les 30 derniers jours, plus récent</td><td>Moyenne</td><td><code>vo2max</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Fréquence respiratoire</td><td>dans les 1 derniers jours</td><td>Moyenne</td><td><code>resp_rate</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Oxygène sanguin</td><td>dans les 1 derniers jours</td><td>Moyenne</td><td><code>spo2</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Fréquence cardiaque moyenne en marchant</td><td>dans les 1 derniers jours</td><td>Moyenne</td><td><code>walking_hr</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Pas</td><td>aujourd'hui</td><td>Somme</td><td><code>steps</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Énergie active</td><td>aujourd'hui</td><td>Somme</td><td><code>active_kcal</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Minutes d'exercice</td><td>aujourd'hui</td><td>Somme</td><td><code>exercise_min</code></td><td><span class="tag opt">option</span></td></tr>
+<tr><td>Tension artérielle systolique / diastolique (tensiomètre Withings)</td><td>dans les 7 derniers jours, plus récent</td><td>Moyenne</td><td><code>systolic</code> / <code>diastolic</code></td><td><span class="tag opt">option</span></td></tr>
+</table></div>
+<p class="small muted">Commence par les 3 essentiels pour tester, puis ajoute les autres. Le nom exact d'une mesure peut varier un peu selon la version d'iOS : tape le début dans la recherche de « Type ».</p>
+
+<p class="small">Ajoute ensuite l'action d'envoi :</p>
+<ol class="small">
+<li><span class="a">Date actuelle</span>, puis <span class="a">Formater la date</span> → Format de date : <b>Personnalisé</b>, chaîne <code>yyyy-MM-dd</code>.</li>
+<li><span class="a">Obtenir le contenu de l'URL</span> :
+  <ul>
+  <li>URL : l'adresse de l'étape 2.</li>
+  <li>Touche <b>Afficher plus</b> › Méthode : <b>POST</b>.</li>
+  <li>En-têtes › Ajouter : clé <code>Authorization</code>, valeur <b>ta clé « Bearer ftpb_… »</b>.</li>
+  <li>Corps de la requête : <b>JSON</b>. Ajoute des champs de type <b>Texte</b> :
+    <code>kind</code> = <code>daily</code> ; <code>date</code> = la « Date formatée » ; puis un champ par mesure, avec la clé du tableau et, en valeur, la variable renommée correspondante (ex. <code>hrv</code> = variable « hrv »).</li>
+  </ul></li>
+</ol>
+
+<h3>Partie B · Le sommeil</h3>
+<ol class="small">
+<li><span class="a">Rechercher des échantillons de santé</span> → Type <b>Analyse du sommeil</b>, Date de début <b>dans les 1 derniers jours</b>, sans limite.</li>
+<li><span class="a">Répéter avec chacun</span> (sur ces échantillons).</li>
+<li>À l'intérieur : <b>appui long</b> sur l'action d'envoi de la partie A › <b>Dupliquer</b>, puis glisse la copie dans la boucle (l'URL et la clé sont déjà remplies). Remplace les champs du corps par :
+  <ul>
+  <li><code>kind</code> = <code>sleep</code></li>
+  <li><code>start</code> = <b>Élément répété</b> › touche-le › <b>Date de début</b> › Format de date <b>ISO 8601</b>, inclure l'heure.</li>
+  <li><code>end</code> = Élément répété › <b>Date de fin</b> (ISO 8601, avec l'heure).</li>
+  <li><code>stage</code> = Élément répété › <b>Valeur</b> (Au lit, Essentiel, Profond, Paradoxal, Éveillé…).</li>
+  <li><code>source</code> = Élément répété › <b>Source</b>.</li>
+  </ul></li>
+</ol>
+<p class="small muted">Si plusieurs apps enregistrent ta nuit (montre, Withings, Bevel…), FTP Builder garde la plus complète, en priorité l'Apple Watch.</p>
+
+<h3>Partie C · Les entraînements (montre, Strava, Garmin Connect…)</h3>
+<ol class="small">
+<li><span class="a">Rechercher des échantillons de santé</span> → Type <b>Entraînements</b>, Date de début <b>dans les 2 derniers jours</b>.</li>
+<li><span class="a">Répéter avec chacun</span>, et à l'intérieur une copie de l'action d'envoi avec ces champs :
+  <ul>
+  <li><code>kind</code> = <code>workout</code></li>
+  <li><code>start</code> / <code>end</code> = Élément répété › Date de début / Date de fin (ISO 8601, avec l'heure).</li>
+  <li><code>type</code> = Élément répété › <b>Type</b> (ou « Type d'entraînement »).</li>
+  <li><code>duration</code> = Élément répété › <b>Durée</b>.</li>
+  <li><code>distance</code> = Élément répété › <b>Distance</b>, si la propriété est proposée.</li>
+  <li><code>energy</code> = Élément répété › <b>Énergie</b> (active ou totale), si elle est proposée.</li>
+  <li><code>source</code> = Élément répété › <b>Source</b>.</li>
+  </ul></li>
+</ol>
+<p class="small muted">Une même séance vue par Strava, Garmin Connect et la montre n'est comptée qu'une fois. Tes sorties vélo déjà importées en .fit ne sont pas doublées non plus.</p>
+</div>
+
+<div class="card">
+<h2><span class="n">4</span>Premier essai</h2>
+<ol class="small">
+<li>Pour le test, ajoute à la toute fin une action <span class="a">Afficher le résultat</span> sur le résultat de la partie A.</li>
+<li>Touche ▶︎ pour lancer. iOS demande l'accès à Santé : <b>active toutes les catégories</b>. Il demande aussi l'autorisation de contacter « supabase.co » : <b>Toujours autoriser</b>.</li>
+<li>Tu dois voir une réponse du type <code>{"ok":true,"daily":3,…}</code>.</li>
+<li>Dans FTP Builder, va dans Profil › Apple Santé › <b>Actualiser</b> : « Dernier envoi » se met à jour et la carte <b>Forme du jour</b> apparaît sur Aujourd'hui.</li>
+<li>Une fois que ça marche, supprime l'action « Afficher le résultat ».</li>
+</ol>
+<div class="note small">Erreur <code>Clé invalide</code> : recopie la clé avec « Bearer » et un espace devant. Erreur réseau : vérifie la méthode POST et l'adresse.</div>
+</div>
+
+<div class="card">
+<h2><span class="n">5</span>L'automatiser</h2>
+<p class="small">Raccourcis › onglet <b>Automatisation</b> › <b>+</b> :</p>
+<ol class="small">
+<li><b>Heure de la journée</b> › 21:30 › Quotidien › <b>Exécuter immédiatement</b> (désactive « Notifier lors de l'exécution ») › choisis <b>FTP Builder Santé</b>. Il récupère les totaux de la journée et tes séances.</li>
+<li><b>App</b> › choisis une app que tu ouvres chaque matin (Forme, Bevel, Strava ou Mail) › <b>Est ouverte</b> › Exécuter immédiatement › même raccourci. Il récupère ta nuit, ta VFC et ton poids du matin.</li>
+</ol>
+<div class="note small"><b>Pourquoi l'app du matin plutôt qu'une heure fixe ?</b> iOS protège les données Santé tant que l'iPhone est verrouillé. Un raccourci lancé à 7 h pendant que le téléphone dort dans ta poche ne peut pas les lire. À l'ouverture d'une app, l'iPhone est forcément déverrouillé. Tu peux relancer le raccourci autant de fois que tu veux : les données sont mises à jour, jamais dupliquées.</div>
+</div>
+
+<p class="small muted">Tes données Santé sont stockées dans ton compte FTP Builder (Supabase, Paris), visibles par toi seul. <a href="confidentialite.html">Politique de confidentialité</a>.</p>
+</main>
+<script>
+document.addEventListener('click', async e => { const b = e.target.closest('[data-c]'); if (!b) return; const t = document.getElementById(b.dataset.c).textContent; try { await navigator.clipboard.writeText(t); b.textContent = 'Copié'; } catch(err){ const r = document.createRange(); r.selectNodeContents(document.getElementById(b.dataset.c)); getSelection().removeAllRanges(); getSelection().addRange(r); } });
+</script>
+</body>
+</html>

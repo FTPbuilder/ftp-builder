@@ -133,7 +133,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.2.2';
+const APP_VERSION = '0.3.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -588,9 +588,11 @@ function countDone(){ return S.plan.filter(s => s.status==='done').length + S.ac
 
 /* ============ charge CTL / ATL ============ */
 function loadSeries(){
-  if (!S.activities.length) return [];
+  const hw = Health.extraWorkouts();
+  if (!S.activities.length && !hw.length) return [];
   const byDay = {}; for (const a of S.activities) byDay[a.date] = (byDay[a.date]||0) + (a.tss||0);
-  const first = S.activities.map(a=>a.date).sort()[0]; const start = addDays(first < S.profile.startDate ? first : S.profile.startDate, -1);
+  for (const w of hw) byDay[w.date] = (byDay[w.date]||0) + w.tss;
+  const first = [...S.activities.map(a=>a.date), ...hw.map(w=>w.date)].sort()[0]; const start = addDays(first < S.profile.startDate ? first : S.profile.startDate, -1);
   const end = todayISO(); const out = []; let ctl = S.profile.ctl0 || 0, atl = ctl;
   for (let d = start; d <= end; d = addDays(d,1)) { const t = byDay[d]||0; const tsb = ctl - atl; ctl += (t-ctl)/42; atl += (t-atl)/7; out.push({ d, ctl, atl, tsb, tss:t }); }
   return out;
@@ -655,6 +657,7 @@ function todayHTML(){
       <div class="kpi"><div class="v num">${p.goalFtp}<small> W</small></div><div class="l">Objectif ${fmtShort(p.goalDate)}</div></div>
     </div><div class="bar" style="margin-top:12px"><i style="width:${pct}%"></i></div>
     <div class="tiny muted" style="margin-top:6px">${Math.max(diffDays(t,p.endDate),0)} jours restants · ${S.plan.filter(s=>s.status==='planned'&&mandatory(s)).length} séances clés prévues restantes</div></div>`;
+  h += Health.todayCard();
   for (const n of notes) h += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
   window._coach = notes;
   const toFeel = S.activities.filter(a => a.source==='strava' && !a.feel && diffDays(a.date, t) <= 7);
@@ -754,6 +757,7 @@ function progHTML(){
       ${lineChart({ series:[ { type:'area', pts:L.map(l=>[parseD(l.d).getTime(), l.ctl]), color:'var(--z2)' }, { pts:L.map(l=>[parseD(l.d).getTime(), l.ctl]), color:'var(--z2)' }, { pts:L.map(l=>[parseD(l.d).getTime(), l.atl]), color:'var(--z5)', width:1.5 }, { pts:L.map(l=>[parseD(l.d).getTime(), l.tsb]), color:'var(--z3)', width:1.5, dash:'4 3' } ], xMin:lx0, xMax:lx1, yMin:Math.floor(Math.min(0,...vals)/10)*10, yMax:Math.ceil(Math.max(20,...vals)/10)*10, xLabels:xl2, h:180 })}
       <div class="legend"><span><i style="background:var(--z2)"></i>Fitness</span><span><i style="background:var(--z5)"></i>Fatigue</span><span><i style="background:var(--z3)"></i>Forme</span></div></div>`;
   }
+  h += Health.progressCards();
   // records
   h += `<div class="card"><h2>Records de puissance</h2><div class="grid4">
     ${[['s5','5 s'],['m1','1 min'],['m5','5 min'],['m20','20 min']].map(([k,l])=>`<div class="kpi"><div class="v num">${best(k)??'—'}<small>${best(k)?' W':''}</small></div><div class="l">${l}${best(k)?` · ${(best(k)/p.weightKg).toFixed(1)} W/kg`:''}</div></div>`).join('')}
@@ -906,7 +910,7 @@ function regenerateFuture(){
   S.plan = [...keep, ...fresh].sort((a,b)=>a.date.localeCompare(b.date));
 }
 function profileHTML(){
-  return Cloud.accountHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
+  return Cloud.accountHTML() + Health.settingsHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>
     <div class="row between" style="margin-top:8px"><button class="btn danger sm" id="reset">Tout effacer</button><a class="small" href="confidentialite.html">Politique de confidentialité</a></div></div>
@@ -1134,6 +1138,7 @@ const Cloud = (() => {
     await pull();
     await refreshStrava();
     await importInbox();
+    await Health.load(sb);
     render();
   }
   async function pull(){
@@ -1253,7 +1258,158 @@ const Cloud = (() => {
     else if (a.dataset.feelact) feelDlg(a.dataset.feelact);
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); });
-  return { init, schedulePush, accountHTML, importInbox, get user(){ return user(); } };
+  return { init, schedulePush, accountHTML, importInbox, get user(){ return user(); }, get sb(){ return sb; } };
+})();
+
+/* ============ Apple Santé (via le Raccourci iOS) ============ */
+const Health = (() => {
+  const LS = 'ftpb_health_v1';
+  let H = { daily: [], sleep: [], workouts: [], token: null, loadedAt: 0 };
+  try { const r = localStorage.getItem(LS); if (r) H = Object.assign(H, JSON.parse(r)); } catch(e){}
+  const persist = () => { try { localStorage.setItem(LS, JSON.stringify({ daily:H.daily, sleep:H.sleep, workouts:H.workouts, token:H.token })); } catch(e){} };
+  const INGEST_URL = SB_URL + '/functions/v1/health-ingest';
+
+  async function load(sb){
+    if (!sb) return;
+    const since = addDays(todayISO(), -75);
+    const [d, s, w, t] = await Promise.all([
+      sb.from('health_daily').select('day, metric, value').gte('day', since).order('day'),
+      sb.from('health_sleep').select('night, source, asleep_min, deep_min, rem_min, core_min, awake_min, in_bed_min, bed_start, bed_end').gte('night', since).order('night'),
+      sb.from('health_workouts').select('start_at, end_at, type, duration_min, distance_km, energy_kcal, avg_hr, source').gte('start_at', since).order('start_at'),
+      sb.rpc('ingest_status'),
+    ]);
+    if (!d.error) H.daily = d.data; if (!s.error) H.sleep = s.data; if (!w.error) H.workouts = w.data;
+    H.token = t.data && t.data.length ? { last: t.data[0].last_used_at } : null;
+    persist();
+  }
+  // séries utilitaires
+  const series = m => H.daily.filter(x => x.metric === m).map(x => [x.day, x.value]);
+  const valOn = (m, day) => H.daily.find(x => x.metric === m && x.day === day)?.value ?? null;
+  const latest = m => { const s = series(m); return s.length ? s[s.length-1] : null; };
+  function baseline(m, upto, days=30){
+    const vals = H.daily.filter(x => x.metric === m && x.day < upto && x.day >= addDays(upto, -days)).map(x => x.value);
+    if (vals.length < 4) return null; return vals.reduce((a,b)=>a+b,0)/vals.length;
+  }
+  const sleepOn = day => H.sleep.find(s => s.night === day) || null;
+
+  // sport -> catégorie + TSS estimé
+  function sportOf(type){
+    const t = (type||'').toLowerCase();
+    if (/vélo|velo|cycl|bike|ride|vtt/.test(t)) return 'bike';
+    if (/course|run|trail|jogging/.test(t)) return 'run';
+    if (/nata|swim|piscine|eau libre/.test(t)) return 'swim';
+    if (/renfo|force|muscu|strength|fonctionnel|hiit|core|training/.test(t)) return 'strength';
+    if (/marche|walk|randonn|hiking/.test(t)) return 'walk';
+    if (/yoga|pilates|étirement|mobilit|stretch/.test(t)) return 'mobility';
+    return 'other';
+  }
+  const IF_GUESS = { run:0.78, swim:0.72, strength:0.6, walk:0.45, mobility:0.4, bike:0.7, other:0.65 };
+  const ICON = { run:'🏃', swim:'🏊', strength:'🏋️', walk:'🚶', mobility:'🧘', bike:'🚴', other:'⏱️' };
+  const LABEL = { run:'Course', swim:'Natation', strength:'Renfo', walk:'Marche', mobility:'Mobilité', bike:'Vélo', other:'Autre' };
+  function wTss(w){
+    const min = w.duration_min || (w.end_at ? (Date.parse(w.end_at)-Date.parse(w.start_at))/60000 : 0);
+    const sp = sportOf(w.type);
+    const hrMax = S.profile?.hrMax;
+    if (w.avg_hr && hrMax && sp !== 'swim') return Math.round(min/60 * Math.pow(w.avg_hr/(0.9*hrMax), 2) * 100);
+    return Math.round(min/60 * Math.pow(IF_GUESS[sp], 2) * 100);
+  }
+  // séances Santé à ajouter à la charge (sauf vélos déjà importés dans l'app)
+  function extraWorkouts(){
+    return H.workouts.map(w => {
+      const start = Math.floor(Date.parse(w.start_at)/1000), date = iso(new Date(w.start_at));
+      const sp = sportOf(w.type);
+      if (sp === 'bike' && S.activities.some(a => (a.startTs && Math.abs(a.startTs - start) < 1800) || (!a.startTs && a.date === date))) return null;
+      return { date, sport: sp, tss: wTss(w), w };
+    }).filter(Boolean);
+  }
+
+  // indicateur de forme du jour
+  function readiness(day = todayISO()){
+    const out = { items: [], bad: 0, warn: 0 };
+    const hrv = valOn('hrv', day) ?? valOn('hrv', addDays(day,-1)), hrvB = baseline('hrv', day);
+    if (hrv != null) { const r = hrvB ? hrv/hrvB : null; const st = r == null ? '' : r >= 0.95 ? 'ok' : r >= 0.85 ? 'warn' : 'bad';
+      out.items.push({ l:'VFC', v:`${Math.round(hrv)} ms`, sub: hrvB ? `moy. 30 j ${Math.round(hrvB)}` : 'référence en construction', st }); }
+    const rhr = valOn('rhr', day) ?? valOn('rhr', addDays(day,-1)), rhrB = baseline('rhr', day);
+    if (rhr != null) { const d = rhrB ? rhr - rhrB : null; const st = d == null ? '' : d <= 2 ? 'ok' : d <= 5 ? 'warn' : 'bad';
+      out.items.push({ l:'FC repos', v:`${Math.round(rhr)} bpm`, sub: rhrB ? `${d>=0?'+':''}${d.toFixed(0)} vs moy.` : 'référence en construction', st }); }
+    const sl = sleepOn(day);
+    if (sl && sl.asleep_min) { const hh = sl.asleep_min/60; const st = hh >= 7 ? 'ok' : hh >= 6 ? 'warn' : 'bad';
+      out.items.push({ l:'Sommeil', v:`${Math.floor(hh)}h${pad(Math.round(sl.asleep_min%60))}`, sub: sl.deep_min||sl.rem_min ? `profond ${fmtDur((sl.deep_min||0)*60)} · paradoxal ${fmtDur((sl.rem_min||0)*60)}` : esc(sl.source||''), st }); }
+    const wt = latest('weight');
+    if (wt) out.items.push({ l:'Poids', v:`${wt[1].toFixed(1)} kg`, sub: wt[0] === day ? "aujourd'hui" : fmtShort(wt[0]), st:'' });
+    for (const i of out.items) { if (i.st === 'bad') out.bad++; if (i.st === 'warn') out.warn++; }
+    out.level = !out.items.some(i=>i.st) ? 'none' : out.bad >= 2 ? 'bad' : (out.bad === 1 || out.warn >= 2) ? 'warn' : 'ok';
+    return out;
+  }
+  function todayCard(){
+    if (!H.daily.length && !H.sleep.length) return '';
+    const r = readiness();
+    if (!r.items.length) return '';
+    const msg = { ok:"Feu vert : tu es récupéré, fais la séance comme prévue.", warn:"Récupération moyenne : garde la séance, mais baisse les cibles de 3 à 5 % si les jambes ne répondent pas à l'échauffement.", bad:"Récupération faible : remplace la séance clé par de l'endurance ou décale-la de 24 h.", none:"Encore quelques jours de données et je pourrai comparer à tes valeurs habituelles." }[r.level];
+    const col = { ok:'var(--ok)', warn:'var(--warn)', bad:'var(--bad)', '':'var(--muted)' };
+    const p = S.profile; const wt = latest('weight');
+    const wNote = wt && p && Math.abs(wt[1] - p.weightKg) >= 0.5 ? `<div class="row" style="margin-top:10px"><span class="small muted">Ton poids Santé (${wt[1].toFixed(1)} kg) diffère de ton profil (${p.weightKg} kg).</span><button class="btn sm" data-hweight="${wt[1].toFixed(1)}">Mettre à jour</button></div>` : '';
+    return `<div class="card"><div class="row between"><h2>Forme du jour</h2><span class="chip" style="color:${col[r.level==='none'?'':r.level]}">● ${ {ok:'Récupéré',warn:'Moyen',bad:'Fatigué',none:'Apple Santé'}[r.level] }</span></div>
+      <div class="grid4">${r.items.map(i=>`<div class="kpi"><div class="v num" style="font-size:24px;color:${i.st?col[i.st]:'var(--text)'}">${i.v}</div><div class="l">${i.l}</div><div class="tiny muted" style="margin-top:2px">${i.sub}</div></div>`).join('')}</div>
+      <p class="small" style="margin:10px 0 0">${msg}</p>${wNote}</div>`;
+  }
+  function progressCards(){
+    if (!H.daily.length && !H.sleep.length && !H.workouts.length) return '';
+    let h = '';
+    const t = todayISO(), from = addDays(t, -42);
+    const hrv = series('hrv').filter(x => x[0] >= from), rhr = series('rhr').filter(x => x[0] >= from);
+    if (hrv.length >= 3 || rhr.length >= 3) {
+      const X = d => parseD(d).getTime(); const all = [...hrv.map(x=>x[1]), ...rhr.map(x=>x[1])];
+      const xl = []; for (let i=0;i<=3;i++){ const d = addDays(from, Math.round(42*i/3)); xl.push([X(d), fmtShort(d)]); }
+      h += `<div class="card"><h2>Récupération (6 sem.)</h2>${lineChart({ series:[ { pts: hrv.map(x=>[X(x[0]),x[1]]), color:'var(--z3)', width:2 }, { type:'dots', pts: hrv.slice(-1).map(x=>[X(x[0]),x[1],Math.round(x[1])+' ms']), color:'var(--z3)' }, { pts: rhr.map(x=>[X(x[0]),x[1]]), color:'var(--bad)', width:1.5 } ], xMin:X(from), xMax:X(t), yMin: Math.floor(Math.min(...all, 40)/10)*10, yMax: Math.ceil(Math.max(...all)/10)*10+10, xLabels:xl, h:170 })}
+        <div class="legend"><span><i style="background:var(--z3)"></i>VFC (ms)</span><span><i style="background:var(--bad)"></i>FC repos (bpm)</span></div>`;
+      const nights = H.sleep.filter(s => s.night >= addDays(t,-14));
+      if (nights.length) h += `<div style="display:flex;align-items:flex-end;gap:4px;height:70px;margin-top:14px">${nights.map(s=>`<div title="${fmtShort(s.night)} · ${fmtDur(s.asleep_min*60)}" style="flex:1;max-width:24px;height:${clamp(s.asleep_min/600*100,5,100)}%;border-radius:4px 4px 0 0;background:${s.asleep_min>=420?'var(--z2)':s.asleep_min>=360?'var(--warn)':'var(--bad)'}"></div>`).join('')}</div><div class="tiny muted" style="margin-top:4px">Sommeil des 14 dernières nuits · moyenne ${fmtDur(nights.reduce((a,s)=>a+s.asleep_min,0)/nights.length*60)}</div>`;
+      h += `</div>`;
+    }
+    const ex = extraWorkouts().slice(-12).reverse();
+    if (ex.length) {
+      const week = ex.filter(e => e.date >= addDays(t,-6));
+      const bySport = {}; for (const e of week) bySport[e.sport] = (bySport[e.sport]||0) + (e.w.duration_min||0);
+      h += `<div class="card"><h2>Autres sports</h2>${Object.keys(bySport).length?`<div class="row" style="margin-bottom:8px">${Object.entries(bySport).map(([s,m])=>`<span class="chip">${ICON[s]} ${LABEL[s]} ${fmtDur(m*60)} / 7 j</span>`).join('')}</div>`:''}
+        ${ex.map(e=>`<div class="hist"><span style="font-size:20px">${ICON[e.sport]}</span><div style="flex:1;min-width:0"><b>${esc(e.w.type||LABEL[e.sport])}</b><div class="tiny muted">${fmtDate(e.date)} · ${fmtDur((e.w.duration_min||0)*60)}${e.w.distance_km?` · ${(+e.w.distance_km).toFixed(1)} km`:''}${e.w.avg_hr?` · ${Math.round(e.w.avg_hr)} bpm`:''} · ${esc(e.w.source||'')}</div></div><span class="chip num">TSS ~${e.tss}</span></div>`).join('')}
+        <p class="tiny muted" style="margin:8px 0 0">Ces séances comptent dans ta forme/fatigue (TSS estimé à la FC ou selon le sport).</p></div>`;
+    }
+    return h;
+  }
+  function settingsHTML(){
+    const sb = Cloud.sb;
+    if (!sb || !Cloud.user) return '';
+    const last = H.token?.last ? new Date(H.token.last) : null;
+    return `<div class="card"><div class="row between"><h2>Apple Santé</h2><a class="small" href="raccourci.html">Guide du raccourci</a></div>
+      <p class="small muted" style="margin-top:0">Un Raccourci iOS envoie chaque jour sommeil, VFC, FC repos, poids et entraînements (montre, Withings, Strava, Garmin Connect…) vers l'app.</p>
+      <p class="small">${H.token ? (last ? `Dernier envoi : <b>${last.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</b>` : 'Clé créée, aucun envoi reçu pour l’instant.') : 'Aucune clé pour l’instant.'}</p>
+      <div id="hKeyBox"></div>
+      <div class="row"><button class="btn" id="hKeyBtn">${H.token ? 'Régénérer ma clé' : 'Générer ma clé'}</button><button class="btn ghost" id="hReload">Actualiser</button></div></div>`;
+  }
+  async function genKey(){
+    const sb = Cloud.sb;
+    if (H.token && !confirmTwice()) return;
+    const { data, error } = await sb.rpc('create_ingest_token');
+    if (error) return toast('Erreur : ' + error.message);
+    H.token = { last: null }; persist();
+    $('#hKeyBox').innerHTML = `<div class="note" style="margin-top:8px"><b>Ta clé (affichée une seule fois) :</b>
+      <div class="num small" style="word-break:break-all;margin:6px 0;user-select:all">Bearer ${data}</div>
+      <div class="row"><button class="btn sm" data-copy="Bearer ${data}">Copier « Bearer … »</button></div>
+      <div class="small" style="margin-top:10px"><b>Adresse :</b> <span class="num" style="word-break:break-all;user-select:all">${INGEST_URL}</span></div>
+      <div class="row" style="margin-top:6px"><button class="btn sm" data-copy="${INGEST_URL}">Copier l'adresse</button></div>
+      <p class="tiny muted" style="margin:8px 0 0">Colle-les dans le raccourci (voir le guide). Ne partage pas cette clé : elle permet d'écrire dans tes données.</p></div>`;
+  }
+  let _arm = 0; function confirmTwice(){ const n = Date.now(); if (n - _arm < 4000) return true; _arm = n; toast('Touchez encore pour remplacer la clé (l’ancienne ne marchera plus)'); return false; }
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('#hKeyBtn,#hReload,[data-copy],[data-hweight]'); if (!b) return;
+    if (b.id === 'hKeyBtn') genKey();
+    else if (b.id === 'hReload') { await load(Cloud.sb); render(); toast('Données Santé actualisées'); }
+    else if (b.dataset.copy) { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Copié'); } catch(err){ toast('Sélectionne le texte et copie-le'); } }
+    else if (b.dataset.hweight) { S.profile.weightKg = +b.dataset.hweight; save(); render(); toast('Poids mis à jour'); }
+  });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Cloud.user && Date.now() - H.loadedAt > 60000) { H.loadedAt = Date.now(); load(Cloud.sb).then(render); } });
+  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness };
 })();
 
 // ressenti a posteriori pour une activité importée (Strava)

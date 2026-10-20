@@ -1,0 +1,3 @@
+-- Appliquées sur jhemwfhmohqncywjixgh : health_ingest + health_sleep_segments (voir historique Supabase)
+-- ingest_tokens (hash de la clé du raccourci), create_ingest_token(), ingest_status(),
+-- health_daily, health_sleep, health_workouts (RLS select/delete propriétaire), health_sleep_seg (service_role)
