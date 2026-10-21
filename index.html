@@ -49,6 +49,15 @@ html,body{max-width:100%;overflow-x:hidden}
 .kpi{background:var(--bg2);border-radius:12px;padding:10px 12px}
 .kpi .v{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:30px;font-weight:700;line-height:1}
 .kpi .v small{font-size:15px;color:var(--muted);font-weight:500}
+.kpi[data-i],h2[data-i]{cursor:pointer;position:relative}
+.kpi[data-i]::after{content:"i";position:absolute;top:8px;right:9px;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--muted);color:var(--muted);font:600 10px/13px Inter,system-ui,sans-serif;text-align:center;opacity:.7}
+.kpi{position:relative}
+.kpi[data-i]:active{transform:scale(.98)}
+h2[data-i]::after{content:"i";display:inline-block;margin-left:8px;width:17px;height:17px;border-radius:50%;border:1.5px solid var(--muted);color:var(--muted);font:600 11px/14px Inter,system-ui,sans-serif;text-align:center;vertical-align:3px;text-transform:none;opacity:.7}
+.infoscale{display:flex;flex-direction:column;gap:4px;margin:10px 0}
+.infoscale div{display:flex;gap:10px;align-items:baseline;font-size:13.5px;padding:6px 8px;border-radius:8px}
+.infoscale div.on{background:color-mix(in srgb,var(--accent) 16%,var(--bg2));font-weight:600}
+.infoscale b{min-width:86px;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:12.5px}
 .kpi .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line);background:var(--bg2);border-radius:10px;padding:10px 14px;cursor:pointer;font-weight:500;min-height:42px}
 .btn:hover{border-color:var(--muted)}
@@ -133,12 +142,13 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
   <button data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
 </div></nav>
 <dialog id="dlg"><div class="card" id="dlgBody"></div></dialog>
+<dialog id="infoDlg"><div class="card" id="infoBody"></div></dialog>
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.4.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -938,6 +948,81 @@ function importJSON(){
   inp.click();
 }
 
+
+/* ============ explications des chiffres ============ */
+const lastLoad = () => { const L = loadSeries(); return L[L.length-1] || null; };
+const scale = (rows, v) => `<div class="infoscale">${rows.map(([lo,hi,lab,txt]) => `<div class="${v!=null && v>=lo && v<hi ? 'on':''}"><b>${lab}</b><span>${txt}</span></div>`).join('')}</div>`;
+const INFO = {
+  ctl: () => { const l = lastLoad(); const v = l ? Math.round(l.ctl) : null;
+    const L = loadSeries(); const w = L.length > 7 ? Math.round(l.ctl - L[L.length-8].ctl) : null;
+    return { t:'Fitness (CTL)', body:`<p>Ton <b>niveau d'entraînement de fond</b> : la moyenne de ta charge quotidienne sur les <b>42 derniers jours</b> (6 semaines). Plus il monte, plus ton corps est habitué à encaisser du travail. C'est lui qui porte la progression de ta FTP.</p>
+      <p>Chaque séance donne un score de charge (TSS : 1 h pile à ta FTP = 100). Le CTL lisse ces scores sur 6 semaines.</p>
+      ${scale([[0,30,'< 30','Reprise, base légère'],[30,50,'30 – 50','Pratiquant régulier'],[50,70,'50 – 70','Bien entraîné'],[70,999,'> 70','Très chargé (triathlète en préparation)']], v)}
+      <p><b>Toi : ${v ?? '—'}</b>${w!=null?` · ${w>=0?'+':''}${w} sur 7 jours`:''}. Une hausse de <b>+3 à +6 par semaine</b> est productive et tenable ; au-delà de +8, le risque de fatigue ou de blessure grimpe.</p>` }; },
+  atl: () => { const l = lastLoad(); const v = l ? Math.round(l.atl) : null;
+    return { t:'Fatigue (ATL)', body:`<p>Ta <b>charge récente</b> : la même moyenne que le CTL mais sur <b>7 jours</b> seulement. Elle réagit vite : une grosse séance la fait bondir, deux jours de repos la font redescendre.</p>
+      <p>On la compare toujours au CTL : si la fatigue dépasse nettement la fitness, tu es en train de charger (normal en bloc dur) ; si elle passe en dessous, tu récupères.</p>
+      <p><b>Toi : ${v ?? '—'}</b>${l?` (fitness ${Math.round(l.ctl)})`:''}. ${l ? (l.atl > l.ctl + 10 ? 'Tu charges en ce moment : surveille le sommeil et les jambes.' : l.atl < l.ctl - 10 ? 'Charge récente faible : tu es en phase de récupération.' : 'Charge récente équilibrée avec ton niveau de fond.') : ''}</p>` }; },
+  tsb: () => { const l = lastLoad(); const v = l ? Math.round(l.tsb) : null;
+    return { t:'Forme (TSB)', body:`<p><b>Forme = Fitness − Fatigue</b> (CTL − ATL, valeurs de la veille). C'est ta « fraîcheur » du jour : positif, tu es reposé ; négatif, tu portes de la fatigue d'entraînement.</p>
+      ${scale([[-999,-30,'< −30','Fatigue élevée : risque de surmenage, lève le pied'],[-30,-10,'−30 à −10','Zone de travail : fatigue productive, c’est là que tu progresses'],[-10,5,'−10 à +5','Neutre : séances normales'],[5,25,'+5 à +25','Frais : idéal pour un test FTP ou une course'],[25,999,'> +25','Très frais : si ça dure, tu perds en forme']], v)}
+      <p><b>Toi : ${v ?? '—'}</b>. ${v==null?'':v>=5?'Bon moment pour un test ou une séance qualitative.':v>=-10?'Rien à signaler, suis le plan.':v>=-30?'Normal en plein bloc ; les semaines allégées sont là pour remonter.':'Allège : passe la prochaine séance clé en endurance.'}</p>` }; },
+  loadchart: () => ({ t:'Le graphique forme & fatigue', body:`<p><span style="color:var(--z2)">■</span> <b>Fitness</b> (CTL, 6 semaines) : la courbe lente, ton niveau de fond. Tu veux qu'elle monte doucement jusqu'à mars.</p>
+      <p><span style="color:var(--z5)">■</span> <b>Fatigue</b> (ATL, 7 jours) : la courbe nerveuse, elle suit tes séances de la semaine.</p>
+      <p><span style="color:var(--z3)">■</span> <b>Forme</b> (TSB) : l'écart entre les deux. Elle plonge pendant les blocs et remonte pendant les semaines allégées : c'est le rythme voulu par le plan.</p>
+      <p class="muted small">Ta fitness de départ (${S.profile?.ctl0 ?? 40}) vient du questionnaire ; elle s'affine au fil des séances importées.</p>` }),
+  ftp: () => { const f = ftp(), w = S.profile.weightKg;
+    return { t:'FTP', body:`<p>La <b>Functional Threshold Power</b> : la puissance que tu peux tenir environ <b>1 heure</b> à fond. C'est la référence de toutes tes zones : chaque séance est exprimée en % de ta FTP, puis convertie en watts.</p>
+      <p>Elle ne change qu'après un <b>test</b> (20 min × 0,95, ou meilleure minute de la rampe × 0,75).</p>
+      <p><b>Toi : ${f} W</b> · ${(f/w).toFixed(2)} W/kg. Objectif ${S.profile.goalFtp} W (+${S.profile.goalFtp-f} W).</p>` }; },
+  wkg: () => { const v = ftp()/S.profile.weightKg;
+    return { t:'W/kg', body:`<p>Ta FTP divisée par ton poids. C'est ce qui compte <b>en montée</b> : à puissance égale, 1 kg de moins = un peu plus vite dans les cols.</p>
+      ${scale([[0,2.5,'< 2,5','Débutant / loisir'],[2.5,3.2,'2,5 – 3,2','Cyclosportif régulier'],[3.2,4,'3,2 – 4,0','Bon amateur'],[4,4.8,'4,0 – 4,8','Très bon amateur / compétiteur'],[4.8,99,'> 4,8','Élite']], v)}
+      <p><b>Toi : ${v.toFixed(2)} W/kg</b>. Avec ${S.profile.goalFtp} W au même poids : ${(S.profile.goalFtp/S.profile.weightKg).toFixed(2)} W/kg.</p>` }; },
+  proj: () => ({ t:'Projection', body:`<p>Où devrait se situer ta FTP à la date du test final si tu continues au <b>rythme mesuré entre tes tests</b> (plafonné à +3 W/semaine pour rester réaliste).</p><p>Avant ton 2e test, l'app utilise une hypothèse prudente de +1,5 W/semaine. Elle devient fiable à partir de 2 tests.</p>` }),
+  sessions: () => ({ t:'Séances', body:`<p>Le nombre de séances réalisées : celles du plan marquées comme faites, plus les sorties libres de plus de 30 min. Ton objectif : <b>${S.profile.minSessions}</b> d'ici le ${fmtShort(S.profile.endDate)}.</p>` }),
+  goal: () => ({ t:'Objectif', body:`<p>La FTP visée au test final du ${fmtShort(S.profile.goalDate)}. Modifiable dans Profil.</p>` }),
+  rec: k => ({ t:`Record ${k}`, body:`<p>Ta meilleure puissance moyenne sur <b>${k}</b>, toutes séances importées confondues.</p>
+      <ul><li><b>5 s</b> : sprint, puissance explosive.</li><li><b>1 min</b> : capacité anaérobie (sert au test rampe).</li><li><b>5 min</b> : ta puissance VO2max, ton plafond aérobie.</li><li><b>20 min</b> : la base du test FTP (× 0,95).</li></ul>
+      <p class="muted small">Les records ne viennent que des séances avec puissance (home trainer).</p>` }),
+  np: () => ({ t:'Puissance normalisée (NP)', body:`<p>La puissance « ressentie » par ton corps. Elle pondère plus fort les efforts intenses : une séance à intervalles a une NP bien supérieure à sa puissance moyenne, parce que les à-coups coûtent plus cher qu'un effort régulier.</p>` }),
+  if: () => ({ t:'Intensité (IF)', body:`<p>NP ÷ FTP. 1,00 = séance entière au seuil.</p>${scale([[0,.75,'< 0,75','Endurance, récup'],[.75,.85,'0,75 – 0,85','Tempo'],[.85,.95,'0,85 – 0,95','Sweet spot / seuil fractionné'],[.95,1.05,'0,95 – 1,05','Seuil, test'],[1.05,9,'> 1,05','Effort court très intense']], null)}` }),
+  tss: () => ({ t:'Charge (TSS)', body:`<p>Le coût d'une séance : durée × intensité². <b>1 h à ta FTP = 100</b>. Sans capteur de puissance, il est estimé à la fréquence cardiaque.</p>${scale([[0,50,'< 50','Facile, récupéré le lendemain'],[50,100,'50 – 100','Séance normale'],[100,150,'100 – 150','Grosse séance, fatigue le lendemain'],[150,9999,'> 150','Très dure, 2 jours pour récupérer']], null)}` }),
+  avgp: () => ({ t:'Puissance moyenne', body:`<p>La moyenne simple des watts sur toute la séance, récupérations comprises. Pour juger l'effort réel, regarde plutôt la NP.</p>` }),
+  hr: () => ({ t:'Fréquence cardiaque', body:`<p>Moyenne et maximum de la séance, mesurés par ta ceinture. À puissance égale, une FC qui baisse au fil des semaines est un bon signe de progression ; une FC anormalement haute signale souvent fatigue, chaleur ou déshydratation.</p>` }),
+  hrv: () => ({ t:'VFC (variabilité cardiaque)', body:`<p>La variation du temps entre deux battements, mesurée par ta montre surtout la nuit. <b>Plus elle est haute par rapport à TA normale, mieux tu es récupéré.</b> Les valeurs ne se comparent pas entre personnes : seule ta tendance compte.</p><p>Une VFC sous ta moyenne de 30 jours plusieurs jours de suite = fatigue, stress, maladie ou alcool.</p>` }),
+  rhr: () => ({ t:'FC au repos', body:`<p>Ton pouls au repos (mesuré par la montre). Elle baisse quand ta forme s'améliore. <b>+5 bpm ou plus</b> par rapport à ta moyenne : signe de fatigue ou d'infection qui arrive, à prendre au sérieux avant une séance dure.</p>` }),
+  sleep: () => ({ t:'Sommeil', body:`<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
+  weight: () => ({ t:'Poids', body:`<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
+  ftpchart: () => ({ t:'FTP vs objectif', body:`<p>La ligne pointillée grise est la <b>trajectoire</b> qui mène de ta FTP de départ à ton objectif. Les points orange sont tes <b>tests</b>. Au-dessus de la ligne : tu es en avance.</p><p>Les petits points bleus = 95 % de ton meilleur 20 min de chaque séance : un indicateur, pas une FTP officielle.</p>` }),
+  recov: () => ({ t:'Récupération', body:`<p>La VFC (vert) qui monte et la FC repos (rouge) qui baisse sur plusieurs semaines = tu encaisses bien l'entraînement. L'inverse pendant plusieurs jours = il faut alléger.</p><p>Les barres = durée de tes nuits (bleu ≥ 7 h, orange 6-7 h, rouge &lt; 6 h).</p>` }),
+};
+function infoKey(label){
+  const l = label.trim();
+  if (/CTL|^Fitness/.test(l)) return 'ctl'; if (/ATL|^Fatigue/.test(l)) return 'atl'; if (/TSB|^Forme/.test(l)) return 'tsb';
+  if (/^FTP/i.test(l)) return 'ftp'; if (/W\/kg/i.test(l) && !/^(5 s|1 min|5 min|20 min)/i.test(l)) return 'wkg'; if (/^Projection/i.test(l)) return 'proj';
+  if (/^Séances/i.test(l)) return 'sessions'; if (/^Objectif/i.test(l)) return 'goal';
+  const r = l.match(/^(5 s|1 min|5 min|20 min)/i); if (r) return 'rec:' + r[1];
+  if (/^NP$/i.test(l)) return 'np'; if (/^IF$/i.test(l)) return 'if'; if (/^TSS$/i.test(l)) return 'tss'; if (/^P\. moy/i.test(l)) return 'avgp';
+  if (/^FC (moy|max)/i.test(l)) return 'hr'; if (/^VFC/i.test(l)) return 'hrv'; if (/^FC repos/i.test(l)) return 'rhr'; if (/^Sommeil/i.test(l)) return 'sleep'; if (/^Poids/i.test(l)) return 'weight';
+  return null;
+}
+const H2INFO = { 'Forme & fatigue':'loadchart', 'FTP vs objectif':'ftpchart', 'Récupération (6 sem.)':'recov' };
+function decorateInfo(root = document){
+  root.querySelectorAll('.kpi').forEach(k => { const l = k.querySelector('.l'); const key = l && infoKey(l.textContent); if (key) k.dataset.i = key; });
+  root.querySelectorAll('h2').forEach(h2 => { const key = H2INFO[h2.textContent.trim()]; if (key) h2.dataset.i = key; });
+}
+function showInfo(key){
+  const [k, arg] = key.split(':'); const f = INFO[k === 'rec' ? 'rec' : k]; if (!f) return;
+  const { t, body } = f(arg);
+  const d = $('#infoDlg'); $('#infoBody').innerHTML = `<button class="x" data-closeinfo aria-label="Fermer">×</button><h2 style="margin-bottom:8px">${esc(t)}</h2><div class="small" style="line-height:1.55">${body}</div><div class="row" style="margin-top:12px"><button class="btn" data-closeinfo>Compris</button></div>`;
+  if (!d.open) d.showModal();
+}
+document.addEventListener('click', e => {
+  if (e.target.closest('[data-closeinfo]') || e.target.id === 'infoDlg') { $('#infoDlg').close(); return; }
+  const el = e.target.closest('[data-i]'); if (el && !e.target.closest('button,input,select,a')) showInfo(el.dataset.i);
+});
+new MutationObserver(() => decorateInfo()).observe(document.body, { childList:true, subtree:true });
 
 /* ============ défis (squats, chaise…) ============ */
 const DEFAULT_CHALLENGES = () => [
