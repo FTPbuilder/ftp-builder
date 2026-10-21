@@ -148,7 +148,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.5.1';
+const APP_VERSION = '0.5.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -227,7 +227,7 @@ const wDur = wid => flat(WORKOUTS[wid].steps).reduce((a,s)=>a+s.d,0);
 const wTSS = wid => Math.round(flat(WORKOUTS[wid].steps).reduce((a,s)=>a + s.d*Math.pow(s.p/100,2),0)/36);
 const watts = (p, f=ftp()) => round5(p/100 * f * adj());
 function mainStep(wid){ // le bloc principal le plus intense et le plus long (pour mesurer le respect des cibles)
-  let best = null; for (const s of flat(WORKOUTS[wid].steps)) if (s.int === 'active' && s.p >= 85 && (!best || s.d*s.p > best.d*best.p)) best = s; return best;
+  let best = null; for (const s of flat(WORKOUTS[wid].steps)) if ((s.int || 'active') === 'active' && s.p >= 85 && (!best || s.d*s.p > best.d*best.p)) best = s; return best;
 }
 
 /* ============ planificateur ============ */
