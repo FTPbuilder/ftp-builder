@@ -148,7 +148,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.5.0';
+const APP_VERSION = '0.5.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -963,7 +963,7 @@ const HealthImport = (() => {
     HKQuantityTypeIdentifierBloodPressureSystolic: ['systolic','avg'], HKQuantityTypeIdentifierBloodPressureDiastolic: ['diastolic','avg'],
   };
   const SLEEP = 'HKCategoryTypeIdentifierSleepAnalysis';
-  const WT = { Running:'Course à pied', Cycling:'Vélo', Swimming:'Natation', Walking:'Marche', Hiking:'Randonnée', TraditionalStrengthTraining:'Renforcement musculaire', FunctionalStrengthTraining:'Renforcement fonctionnel', HighIntensityIntervalTraining:'HIIT', CoreTraining:'Gainage', Yoga:'Yoga', Pilates:'Pilates', Elliptical:'Elliptique', Rowing:'Aviron', CrossTraining:'Cross training', Flexibility:'Mobilité', MixedCardio:'Cardio', Other:'Autre', Surfing:'Surf', SurfingSports:'Surf', Climbing:'Escalade', Cooldown:'Retour au calme' };
+  const WT = { Running:'Course à pied', Cycling:'Vélo', Swimming:'Natation', Walking:'Marche', Hiking:'Randonnée', TraditionalStrengthTraining:'Renforcement musculaire', FunctionalStrengthTraining:'Renforcement fonctionnel', HighIntensityIntervalTraining:'HIIT', CoreTraining:'Gainage', Yoga:'Yoga', Pilates:'Pilates', Elliptical:'Elliptique', Rowing:'Aviron', CrossTraining:'Cross training', Flexibility:'Mobilité', MixedCardio:'Cardio', Other:'Autre', Surfing:'Surf', SurfingSports:'Surf', Climbing:'Escalade', Cooldown:'Retour au calme', Soccer:'Football', Tennis:'Tennis', Basketball:'Basket', Skiing:'Ski', DownhillSkiing:'Ski alpin', CrossCountrySkiing:'Ski de fond', Boxing:'Boxe', MartialArts:'Arts martiaux', Paddling:'Paddle', StairClimbing:'Escaliers', Dance:'Danse', Badminton:'Badminton', Squash:'Squash', Padel:'Padel', PickleBall:'Pickleball' };
   const isoOf = s => s ? s.replace(' ', 'T').replace(/ ([+-]\d{2})(\d{2})$/, '$1:$2') : null; // "2026-10-20 07:12:00 +0200"
   const attrs = s => { const o = {}; s.replace(/(\w+)="([^"]*)"/g, (_, k, v) => { o[k] = v; return ''; }); return o; };
 
@@ -1085,13 +1085,17 @@ const HealthImport = (() => {
         if (prev && Math.abs(Date.parse(w.start_at) - Date.parse(prev.start_at)) <= 300000) {
           const keepNew = prio(w.source) > prio(prev.source); const base = keepNew ? { ...w } : prev, other = keepNew ? prev : w;
           for (const k of ['end_at','duration_min','distance_km','energy_kcal','avg_hr']) if (base[k] == null) base[k] = other[k];
-          if (keepNew) rowsW[rowsW.length-1] = { ...base, user_id: user.id };
+          if (/^(Autre|Other|)$/.test(base.type || '') && other.type && !/^(Autre|Other)$/.test(other.type)) base.type = other.type; // garder le type le plus précis (ex. Hevy > Strava « Autre »)
+          if (keepNew) rowsW[rowsW.length-1] = { ...base, user_id: user.id }; else rowsW[rowsW.length-1] = base;
           continue;
         }
         rowsW.push({ ...w, user_id: user.id, updated_at: new Date().toISOString() });
       }
       // envoi
-      const up = async (table, rows, conflict) => { for (let i = 0; i < rows.length; i += 400) { status(`Enregistrement… ${table.replace('health_','')} ${Math.min(i+400, rows.length)}/${rows.length}`); const { error } = await sb.from(table).upsert(rows.slice(i, i+400), { onConflict: conflict }); if (error) throw new Error(error.message); } };
+      // chaque ligne doit avoir exactement les mêmes colonnes (sinon PostgREST met les absentes à NULL)
+      const COLS = { health_daily:['user_id','day','metric','value'], health_sleep:['user_id','night','source','asleep_min','core_min','deep_min','rem_min','awake_min','in_bed_min','bed_start','bed_end'], health_workouts:['user_id','start_at','end_at','type','duration_min','distance_km','energy_kcal','avg_hr','source'] };
+      const norm = (table, rows) => { const now = new Date().toISOString(); return rows.map(r => { const o = { updated_at: now }; for (const c of COLS[table]) o[c] = r[c] ?? null; o.user_id = user.id; return o; }); };
+      const up = async (table, rows0, conflict) => { const rows = norm(table, rows0); for (let i = 0; i < rows.length; i += 400) { status(`Enregistrement… ${table.replace('health_','')} ${Math.min(i+400, rows.length)}/${rows.length}`); const { error } = await sb.from(table).upsert(rows.slice(i, i+400), { onConflict: conflict }); if (error) throw new Error(error.message); } };
       // les séances déjà présentes (raccourci) à ±5 min sont remplacées par la version de l'export
       if (rowsW.length) { const since = rowsW[0].start_at; await sb.from('health_workouts').delete().eq('user_id', user.id).gte('start_at', since); }
       await up('health_daily', rowsD, 'user_id,day,metric');
