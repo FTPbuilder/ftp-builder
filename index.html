@@ -148,7 +148,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.4.1';
+const APP_VERSION = '0.5.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -609,7 +609,9 @@ function loadSeries(){
   const byDay = {}; for (const a of S.activities) byDay[a.date] = (byDay[a.date]||0) + (a.tss||0);
   for (const w of hw) byDay[w.date] = (byDay[w.date]||0) + w.tss;
   const first = [...S.activities.map(a=>a.date), ...hw.map(w=>w.date)].sort()[0]; const start = addDays(first < S.profile.startDate ? first : S.profile.startDate, -1);
-  const end = todayISO(); const out = []; let ctl = S.profile.ctl0 || 0, atl = ctl;
+  const end = todayISO(); const out = [];
+  const longHistory = S.healthImportedAt && diffDays(start, end) >= 90;
+  let ctl = longHistory ? 0 : (S.profile.ctl0 || 0), atl = ctl;
   for (let d = start; d <= end; d = addDays(d,1)) { const t = byDay[d]||0; const tsb = ctl - atl; ctl += (t-ctl)/42; atl += (t-atl)/7; out.push({ d, ctl, atl, tsb, tss:t }); }
   return out;
 }
@@ -949,6 +951,165 @@ function importJSON(){
 }
 
 
+/* ============ import de l'export Apple Santé (export.zip / export.xml) ============ */
+const HealthImport = (() => {
+  const DAYS = 120;
+  const Q = { // type HealthKit -> [métrique, agrégat]
+    HKQuantityTypeIdentifierHeartRateVariabilitySDNN: ['hrv','avg'], HKQuantityTypeIdentifierRestingHeartRate: ['rhr','avg'],
+    HKQuantityTypeIdentifierBodyMass: ['weight','last'], HKQuantityTypeIdentifierVO2Max: ['vo2max','last'],
+    HKQuantityTypeIdentifierRespiratoryRate: ['resp_rate','avg'], HKQuantityTypeIdentifierOxygenSaturation: ['spo2','avg'],
+    HKQuantityTypeIdentifierBodyFatPercentage: ['body_fat','last'], HKQuantityTypeIdentifierLeanBodyMass: ['lean_mass','last'],
+    HKQuantityTypeIdentifierAppleExerciseTime: ['exercise_min','sum'], HKQuantityTypeIdentifierWalkingHeartRateAverage: ['walking_hr','avg'],
+    HKQuantityTypeIdentifierBloodPressureSystolic: ['systolic','avg'], HKQuantityTypeIdentifierBloodPressureDiastolic: ['diastolic','avg'],
+  };
+  const SLEEP = 'HKCategoryTypeIdentifierSleepAnalysis';
+  const WT = { Running:'Course à pied', Cycling:'Vélo', Swimming:'Natation', Walking:'Marche', Hiking:'Randonnée', TraditionalStrengthTraining:'Renforcement musculaire', FunctionalStrengthTraining:'Renforcement fonctionnel', HighIntensityIntervalTraining:'HIIT', CoreTraining:'Gainage', Yoga:'Yoga', Pilates:'Pilates', Elliptical:'Elliptique', Rowing:'Aviron', CrossTraining:'Cross training', Flexibility:'Mobilité', MixedCardio:'Cardio', Other:'Autre', Surfing:'Surf', SurfingSports:'Surf', Climbing:'Escalade', Cooldown:'Retour au calme' };
+  const isoOf = s => s ? s.replace(' ', 'T').replace(/ ([+-]\d{2})(\d{2})$/, '$1:$2') : null; // "2026-10-20 07:12:00 +0200"
+  const attrs = s => { const o = {}; s.replace(/(\w+)="([^"]*)"/g, (_, k, v) => { o[k] = v; return ''; }); return o; };
+
+  // --- lecture du zip sans tout charger en mémoire (gère le ZIP64 des gros exports) ---
+  async function zipEntry(file){
+    const tailLen = Math.min(file.size, 70000), tail = new DataView(await file.slice(file.size - tailLen).arrayBuffer());
+    let e = -1; for (let i = tailLen - 22; i >= 0; i--) if (tail.getUint32(i, true) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error('Archive .zip illisible');
+    let cdOff = tail.getUint32(e + 16, true), cdSize = tail.getUint32(e + 12, true), n = tail.getUint16(e + 10, true);
+    if (cdOff === 0xFFFFFFFF || n === 0xFFFF) { // ZIP64
+      const loc = e - 20; if (loc < 0 || tail.getUint32(loc, true) !== 0x07064b50) throw new Error('ZIP64 non reconnu');
+      const e64 = Number(tail.getBigUint64(loc + 8, true));
+      const r = new DataView(await file.slice(e64, e64 + 56).arrayBuffer());
+      n = Number(r.getBigUint64(32, true)); cdSize = Number(r.getBigUint64(40, true)); cdOff = Number(r.getBigUint64(48, true));
+    }
+    const cd = new DataView(await file.slice(cdOff, cdOff + cdSize).arrayBuffer());
+    let p = 0;
+    for (let k = 0; k < n && p < cd.byteLength; k++) {
+      const method = cd.getUint16(p + 10, true); let csize = cd.getUint32(p + 20, true), usize = cd.getUint32(p + 24, true);
+      const nl = cd.getUint16(p + 28, true), xl = cd.getUint16(p + 30, true), cl = cd.getUint16(p + 32, true); let off = cd.getUint32(p + 42, true);
+      const name = new TextDecoder().decode(new Uint8Array(cd.buffer, p + 46, nl));
+      let x = p + 46 + nl; const xe = x + xl;
+      while (x + 4 <= xe) { const id = cd.getUint16(x, true), sz = cd.getUint16(x + 2, true); if (id === 1) { let q = x + 4; if (usize === 0xFFFFFFFF) { usize = Number(cd.getBigUint64(q, true)); q += 8; } if (csize === 0xFFFFFFFF) { csize = Number(cd.getBigUint64(q, true)); q += 8; } if (off === 0xFFFFFFFF) { off = Number(cd.getBigUint64(q, true)); } } x += 4 + sz; }
+      p = xe + cl;
+      if (!/(^|\/)export\.xml$/i.test(name)) continue;
+      const lh = new DataView(await file.slice(off, off + 30).arrayBuffer());
+      const start = off + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
+      return { start, csize, method };
+    }
+    throw new Error('export.xml introuvable dans l’archive');
+  }
+
+  async function run(file, box){
+    const sb = Cloud.sb, user = Cloud.user;
+    if (!sb || !user) { box.innerHTML = '<div class="note bad">Connecte-toi d’abord à ton compte.</div>'; return; }
+    if (!('DecompressionStream' in window) || !('TextDecoderStream' in window)) { box.innerHTML = '<div class="note bad">Navigateur trop ancien : mets à jour iOS (16.4 minimum).</div>'; return; }
+    const btn = $('#hImportBtn'); if (btn) btn.disabled = true;
+    const status = t => box.innerHTML = `<div class="note">${t}</div>`;
+    try {
+      status('Ouverture du fichier…');
+      const head = new Uint8Array(await file.slice(0, 4).arrayBuffer());
+      let stream, total;
+      if (head[0] === 0x50 && head[1] === 0x4b) {
+        const ent = await zipEntry(file); total = ent.csize;
+        let s = file.slice(ent.start, ent.start + ent.csize).stream();
+        stream = { s, deflate: ent.method === 8 };
+      } else { total = file.size; stream = { s: file.stream(), deflate: false }; }
+      let read = 0, lastUi = 0;
+      const counter = new TransformStream({ transform(chunk, ctrl){ read += chunk.byteLength; const now = Date.now(); if (now - lastUi > 400) { lastUi = now; status(`Lecture de ton historique… <b>${Math.min(99, Math.round(read/total*100))} %</b><br><span class="tiny muted">${(read/1e6).toFixed(0)} / ${(total/1e6).toFixed(0)} Mo · ne quitte pas l'app</span>`); } ctrl.enqueue(chunk); } });
+      let s = stream.s.pipeThrough(counter);
+      if (stream.deflate) s = s.pipeThrough(new DecompressionStream('deflate-raw'));
+      const reader = s.pipeThrough(new TextDecoderStream()).getReader();
+
+      const cutoff = addDays(todayISO(), -DAYS);
+      const daily = {}; // day|metric -> {sum,n,last,lastT}
+      const segs = []; const workouts = []; let cur = null;
+      const RE = /<(Record|Workout|WorkoutStatistics|\/Workout)\b([^>]*)>/g;
+      const handle = (tag, a) => {
+        if (tag === 'Record') {
+          const t = a.match(/type="([^"]+)"/)?.[1]; if (!t) return;
+          if (t !== SLEEP && !Q[t]) return;
+          const at = attrs(a); const sd = at.startDate || ''; if (sd.slice(0, 10) < cutoff) return;
+          if (t === SLEEP) { segs.push({ s: isoOf(at.startDate), e: isoOf(at.endDate), v: at.value || '', src: at.sourceName || '' }); return; }
+          const [m, agg] = Q[t]; let v = parseFloat(at.value); if (isNaN(v)) return;
+          if (m === 'weight' && /lb/i.test(at.unit || '')) v *= 0.4536;
+          if ((m === 'spo2' || m === 'body_fat') && v <= 1) v *= 100;
+          if (m === 'exercise_min' && !/watch/i.test(at.sourceName || '') && !/watch/i.test(at.device || '')) { /* minutes d'exercice : la montre fait foi */ }
+          const day = sd.slice(0, 10), key = day + '|' + m, o = daily[key] ||= { day, m, agg, sum: 0, n: 0, last: null, lastT: '' };
+          o.sum += v; o.n++; if (sd >= o.lastT) { o.last = v; o.lastT = sd; }
+        } else if (tag === 'Workout') {
+          const at = attrs(a); if ((at.startDate || '').slice(0, 10) < cutoff) { cur = null; return; }
+          const type = (at.workoutActivityType || '').replace('HKWorkoutActivityType', '');
+          let dur = parseFloat(at.duration); if (/s$|^s/i.test(at.durationUnit || '') && at.durationUnit !== 'min') dur = dur / 60; if (/hr|h$/i.test(at.durationUnit || '')) dur = dur * 60;
+          cur = { start_at: isoOf(at.startDate), end_at: isoOf(at.endDate), type: WT[type] || type, duration_min: isNaN(dur) ? null : dur,
+            distance_km: at.totalDistance ? +at.totalDistance * (/mi/i.test(at.totalDistanceUnit||'') ? 1.609 : /^m$/i.test(at.totalDistanceUnit||'') ? 0.001 : 1) : null,
+            energy_kcal: at.totalEnergyBurned ? +at.totalEnergyBurned : null, avg_hr: null, source: at.sourceName || '' };
+          if (/\/\s*$/.test(a)) { workouts.push(cur); cur = null; }
+        } else if (tag === 'WorkoutStatistics' && cur) {
+          const at = attrs(a), t = at.type || '';
+          if (/HeartRate$/.test(t) && at.average) cur.avg_hr = +at.average;
+          else if (/ActiveEnergyBurned/.test(t) && at.sum) cur.energy_kcal = +at.sum;
+          else if (/Distance/.test(t) && at.sum) cur.distance_km = +at.sum * (/mi/i.test(at.unit||'') ? 1.609 : /^m$/i.test(at.unit||'') ? 0.001 : 1);
+        } else if (tag === '/Workout' && cur) { workouts.push(cur); cur = null; }
+      };
+      let buf = '';
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (value) buf += value;
+        const cut = done ? buf.length : buf.lastIndexOf('>') + 1;
+        if (cut > 0) { const part = buf.slice(0, cut); buf = buf.slice(cut); RE.lastIndex = 0; let m; while ((m = RE.exec(part))) handle(m[1], m[2]); }
+        if (done) break;
+      }
+
+      status('Calcul de tes nuits et de tes séances…');
+      // mesures quotidiennes
+      const rowsD = Object.values(daily).map(o => ({ user_id: user.id, day: o.day, metric: o.m, value: +(o.agg === 'sum' ? o.sum : o.agg === 'last' ? o.last : o.sum / o.n).toFixed(2), updated_at: new Date().toISOString() }));
+      // nuits : rattachées au jour du réveil, une source retenue (montre en priorité)
+      const stage = v => /InBed/.test(v) ? 'inbed' : /Deep/.test(v) ? 'deep' : /REM/.test(v) ? 'rem' : /Core/.test(v) ? 'core' : /Awake/.test(v) ? 'awake' : 'asleep';
+      const byNight = {};
+      for (const g of segs) { if (!g.s || !g.e) continue; const night = g.e.slice(0, 10); ((byNight[night] ||= {})[g.src] ||= []).push({ s: Date.parse(g.s), e: Date.parse(g.e), st: stage(g.v) }); }
+      const union = iv => { iv.sort((a,b)=>a[0]-b[0]); let t=0, cs=-1, ce=-1; for (const [s,e] of iv){ if (s>ce){ if (ce>cs) t+=ce-cs; cs=s; ce=e; } else ce=Math.max(ce,e); } if (ce>cs) t+=ce-cs; return Math.round(t/60000); };
+      const rowsS = [];
+      for (const [night, bySrc] of Object.entries(byNight)) {
+        const cands = Object.entries(bySrc).map(([src, list]) => {
+          const m = st => union(list.filter(x => x.st === st).map(x => [x.s, x.e]));
+          const core = m('core'), deep = m('deep'), rem = m('rem'), plain = m('asleep'), asleep = core + deep + rem || plain;
+          return { source: src, asleep_min: asleep, core_min: core || null, deep_min: deep || null, rem_min: rem || null, awake_min: m('awake') || null, in_bed_min: m('inbed') || null,
+            bed_start: new Date(Math.min(...list.map(x=>x.s))).toISOString(), bed_end: new Date(Math.max(...list.map(x=>x.e))).toISOString(),
+            sc: asleep + (/watch/i.test(src) ? 10000 : 0) + (deep + rem ? 5000 : 0) };
+        }).filter(c => c.asleep_min >= 120).sort((a,b) => b.sc - a.sc);
+        if (cands.length) { const { sc, ...best } = cands[0]; rowsS.push({ user_id: user.id, night, ...best, updated_at: new Date().toISOString() }); }
+      }
+      // séances : doublons (montre / Strava / Garmin Connect) à ±5 min fusionnés
+      const prio = s => /garmin|connect/i.test(s) ? 3 : /watch|apple|forme|fitness/i.test(s) ? 2 : /strava/i.test(s) ? 1 : 0;
+      workouts.sort((a,b) => a.start_at.localeCompare(b.start_at));
+      const rowsW = [];
+      for (const w of workouts) {
+        const prev = rowsW[rowsW.length-1];
+        if (prev && Math.abs(Date.parse(w.start_at) - Date.parse(prev.start_at)) <= 300000) {
+          const keepNew = prio(w.source) > prio(prev.source); const base = keepNew ? { ...w } : prev, other = keepNew ? prev : w;
+          for (const k of ['end_at','duration_min','distance_km','energy_kcal','avg_hr']) if (base[k] == null) base[k] = other[k];
+          if (keepNew) rowsW[rowsW.length-1] = { ...base, user_id: user.id };
+          continue;
+        }
+        rowsW.push({ ...w, user_id: user.id, updated_at: new Date().toISOString() });
+      }
+      // envoi
+      const up = async (table, rows, conflict) => { for (let i = 0; i < rows.length; i += 400) { status(`Enregistrement… ${table.replace('health_','')} ${Math.min(i+400, rows.length)}/${rows.length}`); const { error } = await sb.from(table).upsert(rows.slice(i, i+400), { onConflict: conflict }); if (error) throw new Error(error.message); } };
+      // les séances déjà présentes (raccourci) à ±5 min sont remplacées par la version de l'export
+      if (rowsW.length) { const since = rowsW[0].start_at; await sb.from('health_workouts').delete().eq('user_id', user.id).gte('start_at', since); }
+      await up('health_daily', rowsD, 'user_id,day,metric');
+      await up('health_sleep', rowsS, 'user_id,night');
+      await up('health_workouts', rowsW, 'user_id,start_at');
+      S.healthImportedAt = new Date().toISOString(); save();
+      await Health.load(sb);
+      const nH = rowsD.filter(r => r.metric === 'hrv').length;
+      HealthImport.last = `<div class="note ok"><b>Historique importé ✔</b><br>${nH} jours de VFC · ${rowsD.filter(r=>r.metric==='rhr').length} de FC repos · ${rowsS.length} nuits · ${rowsW.length} séances${rowsD.some(r=>r.metric==='weight')?' · poids':''}${rowsD.some(r=>r.metric==='vo2max')?' · VO2max':''} (${DAYS} derniers jours).<br>Ton indice de forme est calibré : regarde l'onglet Aujourd'hui.</div>`;
+      render();
+    } catch (e) {
+      console.error(e);
+      box.innerHTML = `<div class="note bad">Import interrompu : ${esc(e.message || e)}. Réessaie ; si ça recommence, envoie-moi une capture.</div>`;
+    } finally { const b = $('#hImportBtn'); if (b) b.disabled = false; }
+  }
+  return { run, last: '' };
+})();
+
 /* ============ explications des chiffres ============ */
 const lastLoad = () => { const L = loadSeries(); return L[L.length-1] || null; };
 const scale = (rows, v) => `<div class="infoscale">${rows.map(([lo,hi,lab,txt]) => `<div class="${v!=null && v>=lo && v<hi ? 'on':''}"><b>${lab}</b><span>${txt}</span></div>`).join('')}</div>`;
@@ -994,6 +1155,12 @@ const INFO = {
   rhr: () => ({ t:'FC au repos', body:`<p>Ton pouls au repos (mesuré par la montre). Elle baisse quand ta forme s'améliore. <b>+5 bpm ou plus</b> par rapport à ta moyenne : signe de fatigue ou d'infection qui arrive, à prendre au sérieux avant une séance dure.</p>` }),
   sleep: () => ({ t:'Sommeil', body:`<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
   weight: () => ({ t:'Poids', body:`<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
+  score: () => { const sc = Health.score(); if (!sc) return { t:'Indice de forme', body:'<p>Pas encore assez de données Santé.</p>' };
+    return { t:`Indice de forme · ${sc.v}/100`, body:`<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
+      <div class="infoscale">${sc.parts.map(p => `<div><b>${p.k} · ${Math.round(p.s)}</b><span>${esc(p.d)} <span class="muted">(poids ${Math.round(p.w*100)} %)</span></span></div>`).join('')}</div>
+      <ul><li><b>VFC</b> : comparée à ta moyenne et ta variabilité habituelles (échelle logarithmique, méthode utilisée en recherche sur l'entraînement).</li><li><b>FC repos</b> : chaque bpm au-dessus de ta moyenne fait baisser l'indice.</li><li><b>Sommeil</b> : la nuit dernière (60 %) et les 3 dernières (40 %) ; 8 h = plein score, 5 h = zéro.</li><li><b>Charge</b> : ta forme (TSB) ; très fatigué = pénalité.</li></ul>
+      ${scale([[75,101,'75 – 100','Prêt : bon jour pour pousser'],[55,75,'55 – 75','Correct : séance prévue'],[40,55,'40 – 55','Prudence : cibles −3 à −5 %'],[0,40,'< 40','Récupère : endurance ou repos']], sc.v)}
+      <p class="muted small">C'est un indicateur, pas un diagnostic : si tu te sens mal, écoute ton corps avant le chiffre.</p>` }; },
   ftpchart: () => ({ t:'FTP vs objectif', body:`<p>La ligne pointillée grise est la <b>trajectoire</b> qui mène de ta FTP de départ à ton objectif. Les points orange sont tes <b>tests</b>. Au-dessus de la ligne : tu es en avance.</p><p>Les petits points bleus = 95 % de ton meilleur 20 min de chaque séance : un indicateur, pas une FTP officielle.</p>` }),
   recov: () => ({ t:'Récupération', body:`<p>La VFC (vert) qui monte et la FC repos (rouge) qui baisse sur plusieurs semaines = tu encaisses bien l'entraînement. L'inverse pendant plusieurs jours = il faut alléger.</p><p>Les barres = durée de tes nuits (bleu ≥ 7 h, orange 6-7 h, rouge &lt; 6 h).</p>` }),
 };
@@ -1536,7 +1703,7 @@ const Health = (() => {
 
   async function load(sb){
     if (!sb) return;
-    const since = addDays(todayISO(), -75);
+    const since = addDays(todayISO(), -130);
     const [d, s, w, t] = await Promise.all([
       sb.from('health_daily').select('day, metric, value').gte('day', since).order('day'),
       sb.from('health_sleep').select('night, source, asleep_min, deep_min, rem_min, core_min, awake_min, in_bed_min, bed_start, bed_end').gte('night', since).order('night'),
@@ -1551,6 +1718,33 @@ const Health = (() => {
   const series = m => H.daily.filter(x => x.metric === m).map(x => [x.day, x.value]);
   const valOn = (m, day) => H.daily.find(x => x.metric === m && x.day === day)?.value ?? null;
   const latest = m => { const s = series(m); return s.length ? s[s.length-1] : null; };
+  function stats(m, upto, days=60){
+    const vals = H.daily.filter(x => x.metric === m && x.day < upto && x.day >= addDays(upto, -days)).map(x => x.value);
+    if (vals.length < 7) return null;
+    const mean = vals.reduce((a,b)=>a+b,0)/vals.length, sd = Math.sqrt(vals.reduce((a,b)=>a+(b-mean)**2,0)/vals.length) || 1;
+    return { mean, sd, n: vals.length };
+  }
+  // Indice de forme 0-100 : VFC (ln, vs 60 j), FC repos, sommeil (nuit + 3 nuits), équilibre de charge (TSB)
+  function score(day = todayISO()){
+    const parts = [];
+    const hrv = valOn('hrv', day) ?? valOn('hrv', addDays(day,-1));
+    const hs = (() => { const vals = H.daily.filter(x => x.metric==='hrv' && x.day < day && x.day >= addDays(day,-60)).map(x => Math.log(x.value)); if (vals.length < 7) return null; const m = vals.reduce((a,b)=>a+b,0)/vals.length; return { m, sd: Math.sqrt(vals.reduce((a,b)=>a+(b-m)**2,0)/vals.length) || 0.1 }; })();
+    if (hrv != null && hs) { const z = (Math.log(hrv) - hs.m) / hs.sd; parts.push({ k:'VFC', w:.35, s: clamp(60 + z*22, 0, 100), d:`${Math.round(hrv)} ms vs ${Math.round(Math.exp(hs.m))} habituel` }); }
+    const rhr = valOn('rhr', day) ?? valOn('rhr', addDays(day,-1)), rs = stats('rhr', day);
+    if (rhr != null && rs) { const d = rhr - rs.mean; parts.push({ k:'FC repos', w:.2, s: clamp(75 - d*9, 0, 100), d:`${Math.round(rhr)} bpm (${d>=0?'+':''}${d.toFixed(0)})` }); }
+    const sl = sleepOn(day);
+    if (sl && sl.asleep_min) {
+      const last3 = [0,1,2].map(i => sleepOn(addDays(day,-i))?.asleep_min).filter(Boolean);
+      const avg3 = last3.reduce((a,b)=>a+b,0)/last3.length;
+      const f = m => clamp((m/60 - 5) / 3 * 100, 0, 100); // 5 h = 0, 8 h = 100
+      parts.push({ k:'Sommeil', w:.25, s: f(sl.asleep_min)*0.6 + f(avg3)*0.4, d:`${fmtDur(sl.asleep_min*60)} cette nuit, ${fmtDur(avg3*60)} sur 3 nuits` });
+    }
+    const L = loadSeries(); const l = L.find(x => x.d === day) || L[L.length-1];
+    if (l && (S.activities.length || H.workouts.length)) parts.push({ k:'Charge', w:.2, s: clamp(65 + l.tsb*1.6, 0, 100), d:`forme (TSB) ${Math.round(l.tsb)}` });
+    if (!parts.some(p => p.k === 'VFC' || p.k === 'Sommeil')) return null;
+    const W = parts.reduce((a,p)=>a+p.w,0); const v = Math.round(parts.reduce((a,p)=>a+p.s*p.w,0)/W);
+    return { v, parts, level: v >= 75 ? 'ok' : v >= 55 ? 'mid' : v >= 40 ? 'warn' : 'bad' };
+  }
   function baseline(m, upto, days=30){
     const vals = H.daily.filter(x => x.metric === m && x.day < upto && x.day >= addDays(upto, -days)).map(x => x.value);
     if (vals.length < 4) return null; return vals.reduce((a,b)=>a+b,0)/vals.length;
@@ -1614,9 +1808,16 @@ const Health = (() => {
     const col = { ok:'var(--ok)', warn:'var(--warn)', bad:'var(--bad)', '':'var(--muted)' };
     const p = S.profile; const wt = latest('weight');
     const wNote = wt && p && Math.abs(wt[1] - p.weightKg) >= 0.5 ? `<div class="row" style="margin-top:10px"><span class="small muted">Ton poids Santé (${wt[1].toFixed(1)} kg) diffère de ton profil (${p.weightKg} kg).</span><button class="btn sm" data-hweight="${wt[1].toFixed(1)}">Mettre à jour</button></div>` : '';
+    const sc = score();
+    const scCol = sc ? { ok:'var(--ok)', mid:'var(--z2)', warn:'var(--warn)', bad:'var(--bad)' }[sc.level] : 'var(--muted)';
+    const scTxt = sc ? { ok:"Fais la séance comme prévue, c'est un bon jour pour pousser.", mid:"Séance prévue, sans chercher à dépasser les cibles.", warn:"Garde la séance mais baisse les cibles de 3 à 5 %, ou raccourcis le bloc principal.", bad:"Remplace la séance clé par de l'endurance ou décale-la de 24 h." }[sc.level] : msg;
+    const gauge = sc ? `<div class="row" style="gap:16px;margin-bottom:12px;cursor:pointer" data-i="score">
+        <svg viewBox="0 0 120 70" width="132" height="77" aria-label="Indice de forme ${sc.v} sur 100"><path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="var(--bg2)" stroke-width="12" stroke-linecap="round"/><path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="${scCol}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${Math.PI*50*sc.v/100} 999"/><text x="60" y="58" text-anchor="middle" style="font:700 30px 'Barlow Condensed','Arial Narrow',sans-serif;fill:var(--text)">${sc.v}</text></svg>
+        <div style="flex:1;min-width:150px"><div class="disp" style="font-size:22px;font-weight:700;color:${scCol};text-transform:uppercase">${ {ok:'Prêt',mid:'Correct',warn:'Prudence',bad:'Récupère'}[sc.level] } <span class="tiny muted" style="text-transform:none;font-family:Inter,sans-serif;font-weight:500">· détail ⓘ</span></div><div class="small">${scTxt}</div></div></div>` : '';
     return `<div class="card"><div class="row between"><h2>Forme du jour</h2><span class="chip" style="color:${col[r.level==='none'?'':r.level]}">● ${ {ok:'Récupéré',warn:'Moyen',bad:'Fatigué',none:'Apple Santé'}[r.level] }</span></div>
-      <div class="grid4">${r.items.map(i=>`<div class="kpi"><div class="v num" style="font-size:24px;color:${i.st?col[i.st]:'var(--text)'}">${i.v}</div><div class="l">${i.l}</div><div class="tiny muted" style="margin-top:2px">${i.sub}</div></div>`).join('')}</div>
-      <p class="small" style="margin:10px 0 0">${msg}</p>${wNote}</div>`;
+      ${gauge}<div class="grid4">${r.items.map(i=>`<div class="kpi"><div class="v num" style="font-size:24px;color:${i.st?col[i.st]:'var(--text)'}">${i.v}</div><div class="l">${i.l}</div><div class="tiny muted" style="margin-top:2px">${i.sub}</div></div>`).join('')}</div>
+      ${sc ? '' : `<p class="small" style="margin:10px 0 0">${msg}</p>`}${wNote}
+      ${!S.healthImportedAt ? `<p class="tiny muted" style="margin:10px 0 0">Pour un indice fiable dès aujourd'hui, importe ton historique Santé (Profil › Apple Santé).</p>` : ''}</div>`;
   }
   function progressCards(){
     if (!H.daily.length && !H.sleep.length && !H.workouts.length) return '';
@@ -1653,7 +1854,12 @@ const Health = (() => {
       <p class="small muted" style="margin-top:0">Un Raccourci iOS envoie chaque jour sommeil, VFC, FC repos, poids et entraînements (montre, Withings, Strava, Garmin Connect…) vers l'app.</p>
       <p class="small">${H.token ? (last ? `Dernier envoi : <b>${last.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}</b>` : 'Clé créée, aucun envoi reçu pour l’instant.') : 'Aucune clé pour l’instant.'}</p>
       <div id="hKeyBox"></div>
-      <div class="row"><button class="btn primary" id="hKeyBtn">${H.token ? 'Générer une nouvelle clé' : 'Générer ma clé'}</button><button class="btn ghost" id="hReload">Actualiser</button></div></div>`;
+      <div class="row"><button class="btn primary" id="hKeyBtn">${H.token ? 'Générer une nouvelle clé' : 'Générer ma clé'}</button><button class="btn ghost" id="hReload">Actualiser</button></div>
+      <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      <h3>Importer ton historique</h3>
+      <p class="small muted" style="margin-top:0">Une fois : 4 mois de VFC, FC repos, sommeil, poids, VO2max et toutes tes séances, pour calibrer ton indice de forme et ta fitness.</p>
+      <ol class="small" style="padding-left:20px;margin:6px 0 10px"><li>App <b>Santé</b> › ta photo en haut à droite › <b>Exporter toutes les données de santé</b> › Exporter (1 à 5 min).</li><li>Choisis <b>Enregistrer dans Fichiers</b>.</li><li>Ici : <b>Choisir export.zip</b> (ou export.xml si tu l'as décompressé).</li></ol>
+      <button class="btn" id="hImportBtn">Choisir export.zip</button><div id="hImportBox" class="small" style="margin-top:10px">${HealthImport.last || (S.healthImportedAt ? `<span class="muted">Dernier import : ${new Date(S.healthImportedAt).toLocaleDateString('fr-FR')}</span>` : '')}</div></div>`;
   }
   async function genKey(btn){
     const sb = Cloud.sb, box = $('#hKeyBox');
@@ -1673,7 +1879,8 @@ const Health = (() => {
     box.scrollIntoView({ behavior:'smooth', block:'center' });
   }
   document.addEventListener('click', async e => {
-    const b = e.target.closest('#hKeyBtn,#hReload,[data-copy],[data-hweight]'); if (!b) return;
+    const b = e.target.closest('#hKeyBtn,#hReload,#hImportBtn,[data-copy],[data-hweight]'); if (!b) return;
+    if (b.id === 'hImportBtn') { pickFile(f => HealthImport.run(f, $('#hImportBox'))); return; }
     if (b.id === 'hKeyBtn') genKey(b);
     else if (b.id === 'hReload') { await load(Cloud.sb); render(); toast('Données Santé actualisées'); }
     else if (b.dataset.copy) { try { await navigator.clipboard.writeText(b.dataset.copy); toast('Copié'); } catch(err){ toast('Sélectionne le texte et copie-le'); } }
@@ -1691,7 +1898,7 @@ const Health = (() => {
     }
     return out;
   }
-  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness, exerciseLoad };
+  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, get H(){ return H; }, persist };
 })();
 
 // ressenti a posteriori pour une activité importée (Strava)
