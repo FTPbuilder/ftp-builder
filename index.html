@@ -148,7 +148,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.5.2';
+const APP_VERSION = '0.6.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1574,8 +1574,87 @@ const Cloud = (() => {
     await pull();
     await refreshStrava();
     await importInbox();
+    await refreshIcu();
+    if (icu.connected) await autoIcu();
     await Health.load(sb);
     render();
+  }
+  /* ----- Intervals.icu ----- */
+  let icu = { connected:false }, icuBusy = false;
+  async function refreshIcu(){
+    if (!user()) return;
+    const { data } = await sb.rpc('intervals_status');
+    icu = data && data.length ? { connected:true, ...data[0] } : { connected:false };
+  }
+  async function icuCall(body){
+    const { data, error } = await sb.functions.invoke('intervals', { body });
+    if (error || data?.error) {
+      let msg = data?.error || error?.message || 'erreur';
+      try { const ctx = await error?.context?.json?.(); if (ctx?.error) msg = ctx.error; } catch(e){}
+      throw new Error(msg);
+    }
+    return data;
+  }
+  // synchro silencieuse : au plus toutes les 15 min, et envoi du plan s'il a changé
+  async function autoIcu(force=false){
+    if (icuBusy || !icu.connected) return;
+    const last = S.icuLastAuto || 0;
+    if (!force && Date.now() - last < 15*60000) return;
+    icuBusy = true; S.icuLastAuto = Date.now();
+    try {
+      const r = await icuCall({ action:'sync', days: force ? 60 : 14 });
+      const n = await importExt();
+      await Health.load(sb);
+      const pushed = await pushPlan(false);
+      if (force) toast(`Intervals : ${n} séance${n>1?'s':''} vélo importée${n>1?'s':''}, ${r.others} autre${r.others>1?'s':''} activité${r.others>1?'s':''}${pushed ? `, ${pushed} séance${pushed>1?'s':''} envoyée${pushed>1?'s':''} au calendrier` : ''}`);
+      else if (n) toast(`${n} séance${n>1?'s':''} importée${n>1?'s':''} depuis Intervals.icu`);
+      await refreshIcu();
+    } catch(e) { if (force) toast('Intervals : ' + e.message); console.warn('icu', e); }
+    finally { icuBusy = false; render(); }
+  }
+  // texte de séance au format Intervals.icu (lisible dans leur calendrier)
+  function icuText(wid){
+    const d = s => { const m = Math.floor(s/60), r = Math.round(s%60); return m ? `${m}m${r?r+'s':''}` : `${r}s`; };
+    const line = s => `- ${s.max ? 'À FOND ' : ''}${s.label && !s.max ? s.label + ' ' : ''}${d(s.d)} ${s.p}%${s.cad ? ' ' + s.cad + 'rpm' : ''}`;
+    const out = [];
+    for (const s of WORKOUTS[wid].steps) {
+      if (!s.repeat) { out.push(line(s)); continue; }
+      const inner = s.steps.some(x => x.repeat);
+      if (inner) for (let k=0;k<s.repeat;k++) for (const x of s.steps) { if (x.repeat) { out.push('', `${x.repeat}x`, ...x.steps.map(line), ''); } else out.push(line(x)); }
+      else out.push('', `${s.repeat}x`, ...s.steps.map(line), '');
+    }
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+  const b64 = bytes => { let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
+  // envoie les 4 prochaines semaines ; retire du calendrier Intervals ce qui a été sauté/supprimé
+  async function pushPlan(force=true){
+    if (!icu.connected || !S.profile) return 0;
+    const t = todayISO(), until = addDays(t, 28);
+    const items = S.plan.filter(s => s.status === 'planned' && s.date >= t && s.date <= until);
+    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId])]);
+    if (!force && sig === S.icuPushSig) return 0;
+    const events = items.map(s => { const W = WORKOUTS[s.workoutId]; return { date: s.date, name: `${W.name}${s.kind==='optional'?' (optionnelle)':''}`, external_id: 'ftpb-' + s.id, moving_time: wDur(s.workoutId),
+      description: `${W.goal}\n\nFTP ${ftp()} W · créé par FTP Builder\n\n${icuText(s.workoutId)}`, fit_base64: b64(encodeWorkout(s.workoutId, ftp())) }; });
+    const prev = S.icuPushed || {};
+    const remove = Object.keys(prev).filter(id => !items.some(s => s.id === id) && prev[id] >= t).map(id => 'ftpb-' + id);
+    const r = await icuCall({ action:'push', events, remove });
+    S.icuPushed = Object.fromEntries(items.map(s => [s.id, s.date]));
+    S.icuPushSig = sig; save();
+    return r.created || events.length;
+  }
+  async function connectIcu(){
+    const k = ($('#icuKey')?.value || '').trim();
+    if (!k) return toast('Colle ta clé API Intervals.icu');
+    const btn = $('#icuConnect'); if (btn) { btn.disabled = true; btn.textContent = 'Connexion…'; }
+    try {
+      const r = await icuCall({ action:'connect', apiKey: k });
+      await refreshIcu();
+      const a = r.athlete || {};
+      toast(`Intervals.icu connecté${a.name ? ' : ' + a.name : ''}`);
+      if (a.ftp && a.ftp !== ftp()) S.icuFtpHint = a.ftp;
+      await autoIcu(true);
+    } catch(e) { toast('Intervals : ' + e.message); }
+    finally { render(); }
   }
   async function pull(){
     const { data, error } = await sb.from('user_state').select('data, updated_at').maybeSingle();
@@ -1630,6 +1709,44 @@ const Cloud = (() => {
     await sb.functions.invoke('strava', { body: { action:'disconnect' } }); strava = { connected:false }; render(); toast('Strava déconnecté');
   }
   // convertit les activités reçues (webhook ou synchro) en séances de l'app
+  // activité externe (résumé + flux seconde par seconde) -> séance FTP Builder ; renvoie null si doublon
+  function extToActivity(a0, st, source){
+    st = st || {};
+    const start = Math.floor(Date.parse(a0.start_date)/1000);
+    if (S.activities.some(x => x.startTs && Math.abs(x.startTs - start) < 120)) return null; // déjà importée (.fit ou autre source)
+    const time = st.time || [];
+    const records = time.map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null }));
+    const fit = { records, laps:[], user:{}, zones:{}, workout:{ name: a0.name }, noPower: !a0.device_watts,
+      sessions:[{ start, timer: a0.moving_time, distKm: (a0.distance||0)/1000, subSport: a0.trainer ? 6 : 0, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
+    let a;
+    if (records.length) a = activityFromFit(fit, a0.name || 'Sortie');
+    else a = { id: uid(), date: iso(new Date(start*1000)), name: a0.name || 'Sortie', durationS: a0.moving_time || 0, distanceKm: a0.distance ? +(a0.distance/1000).toFixed(1) : null,
+      avgPower: a0.average_watts ? Math.round(a0.average_watts) : null, np: a0.weighted_average_watts ? Math.round(a0.weighted_average_watts) : null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null,
+      maxHr: a0.max_heartrate || null, hasPower: !!a0.average_watts, best: null, feel: null };
+    a.source = source; a.startTs = start;
+    if (!a.durationS) a.durationS = a0.moving_time || 0;
+    const pl = S.plan.find(s => s.date === a.date && s.status === 'planned');
+    if (pl) { a.planId = pl.id; pl.status = 'done'; pl.activityId = a.id; if (records.length) a.compliance = compliance(Object.assign(a, { _pw: powerSeries(records, 'pw') }), pl); }
+    else a.countAsSession = a.durationS >= 1800;
+    delete a._pw;
+    computeLoad(a);
+    return a;
+  }
+  async function importExt(){
+    if (!user() || !S.profile) return 0;
+    const { data, error } = await sb.from('ext_inbox').select('source, ext_id, activity, streams').eq('imported', false).order('received_at');
+    if (error || !data?.length) return 0;
+    let n = 0;
+    for (const row of data.sort((x,y) => String(x.activity.start_date).localeCompare(String(y.activity.start_date)))) {
+      if (!S.activities.some(x => x.extId === row.ext_id)) {
+        const a = extToActivity(row.activity, row.streams, row.source);
+        if (a) { a.extId = row.ext_id; S.activities.push(a); n++; }
+      }
+      await sb.from('ext_inbox').update({ imported:true }).eq('source', row.source).eq('ext_id', row.ext_id);
+    }
+    if (n) save();
+    return n;
+  }
   async function importInbox(){
     if (!user() || !S.profile) return 0;
     const { data, error } = await sb.from('strava_inbox').select('id, strava_id, activity, streams').eq('imported', false).order('received_at');
@@ -1662,10 +1779,17 @@ const Cloud = (() => {
   /* ----- interface compte ----- */
   function accountHTML(){
     if (!sb) return `<div class="card"><h2>Compte</h2><p class="muted small">Hors ligne : la synchronisation reviendra avec la connexion.</p></div>`;
-    if (!user()) return `<div class="card"><h2>Compte</h2><p class="muted small" style="margin-top:0">Connecte-toi pour sauvegarder tes séances dans le cloud, les retrouver sur tous tes appareils et activer Strava.</p><button class="btn primary" data-auth="open">Se connecter / créer un compte</button></div>`;
+    if (!user()) return `<div class="card"><h2>Compte</h2><p class="muted small" style="margin-top:0">Connecte-toi pour sauvegarder tes séances dans le cloud, les retrouver sur tous tes appareils et activer Intervals.icu.</p><button class="btn primary" data-auth="open">Se connecter / créer un compte</button></div>`;
     return `<div class="card"><div class="row between"><h2>Compte</h2><button class="btn sm ghost" data-auth="logout">Se déconnecter</button></div>
       <p class="small muted" style="margin:0 0 12px">Connecté : <b style="color:var(--text)">${esc(user().email || '')}</b> · synchro automatique</p>
-      <h3>Strava</h3>
+      <h3>Intervals.icu</h3>
+      ${icu.connected
+        ? `<p class="small muted" style="margin:0 0 8px">Connecté${icu.athlete_name ? ` : <b style="color:var(--text)">${esc(icu.athlete_name)}</b>` : ''} (${esc(icu.athlete_id)})${icu.last_sync_at ? ` · dernière synchro ${new Date(icu.last_sync_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}` : ''}.<br>Tes sorties Garmin arrivent toutes seules à l'ouverture de l'app, et tes 4 prochaines semaines de séances sont envoyées dans ton calendrier Intervals.</p>
+           ${S.icuFtpHint && S.icuFtpHint !== ftp() ? `<div class="note" style="margin:0 0 8px">FTP réglée dans Intervals : <b>${S.icuFtpHint} W</b>, ici : <b>${ftp()} W</b>. Mets la même valeur des deux côtés (Intervals › Réglages › Vélo), sinon les zones et la charge différeront.</div>` : ''}
+           <div class="row"><button class="btn" data-icu="sync">Synchroniser maintenant</button><button class="btn" data-icu="push">Renvoyer le plan</button><button class="btn sm ghost" data-icu="off">Déconnecter</button></div>`
+        : `<p class="small muted" style="margin:0 0 8px">Récupère automatiquement tes sorties Garmin (puissance, FC) et envoie tes séances planifiées vers Intervals, puis Garmin Connect et ton Edge. Clé API : <a href="https://intervals.icu/settings" target="_blank" rel="noopener">intervals.icu/settings</a> › Developer Settings, tout en bas.</p>
+           <div class="row"><input type="password" id="icuKey" placeholder="Clé API Intervals.icu" autocomplete="off" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px"><button class="btn primary" id="icuConnect" data-icu="on">Connecter</button></div>`}
+      <h3 style="margin-top:16px">Strava</h3>
       ${strava.connected
         ? `<p class="small muted" style="margin:0 0 8px">Connecté (athlète ${esc(strava.athlete)}). Chaque nouvelle sortie vélo arrive toute seule ; ouvre l'app pour l'intégrer.</p><div class="row"><button class="btn" data-strava="sync">Synchroniser maintenant</button><button class="btn sm ghost" data-strava="off">Déconnecter Strava</button></div>`
         : `<p class="small muted" style="margin:0 0 8px">Récupère automatiquement tes sorties (puissance, FC, cadence) dès qu'elles arrivent sur Strava.</p><button class="btn" data-strava="on" style="background:#fc4c02;border-color:#fc4c02;color:#fff">Connecter Strava</button>`}
@@ -1685,7 +1809,11 @@ const Cloud = (() => {
     $('#aUp').onclick = async () => { const { data, error } = await sb.auth.signUp({ email: $('#aEmail').value.trim(), password: $('#aPass').value, options:{ emailRedirectTo: appUrl() } }); if (error) msg(error.message); else if (!data.session) msg('Compte créé : clique sur le lien reçu par email pour l’activer.'); else { closeDlg(); toast('Compte créé'); } };
   }
   document.addEventListener('click', e => {
-    const a = e.target.closest('[data-auth],[data-strava],[data-feelact]'); if (!a) return;
+    const a = e.target.closest('[data-auth],[data-strava],[data-feelact],[data-icu]'); if (!a) return;
+    if (a.dataset.icu === 'on') { connectIcu(); return; }
+    if (a.dataset.icu === 'sync') { autoIcu(true); toast('Synchronisation Intervals…'); return; }
+    if (a.dataset.icu === 'push') { pushPlan(true).then(n => toast(`${n} séance${n>1?'s':''} envoyée${n>1?'s':''} à Intervals.icu`)).catch(err => toast('Intervals : ' + err.message)); return; }
+    if (a.dataset.icu === 'off') { icuCall({ action:'disconnect' }).then(() => { icu = { connected:false }; render(); toast('Intervals.icu déconnecté'); }); return; }
     if (a.dataset.auth === 'open') authDlg();
     else if (a.dataset.auth === 'logout') sb.auth.signOut();
     else if (a.dataset.strava === 'on') connectStrava();
@@ -1693,8 +1821,8 @@ const Cloud = (() => {
     else if (a.dataset.strava === 'off') disconnectStrava();
     else if (a.dataset.feelact) feelDlg(a.dataset.feelact);
   });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); });
-  return { init, schedulePush, accountHTML, importInbox, get user(){ return user(); }, get sb(){ return sb; } };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) { importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); autoIcu(); } });
+  return { init, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, get icu(){ return icu; }, get user(){ return user(); }, get sb(){ return sb; } };
 })();
 
 /* ============ Apple Santé (via le Raccourci iOS) ============ */
