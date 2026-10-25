@@ -81,6 +81,23 @@ nav.tabs button.on{color:var(--accent)}
 .steps td{padding:6px 4px;border-bottom:1px solid var(--line)}
 .steps td.r{text-align:right}
 .zone{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.mcal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.mcal .dh{font-size:11px;color:var(--muted);text-align:center;text-transform:uppercase;letter-spacing:.04em;padding-bottom:2px}
+.mcal .c{position:relative;aspect-ratio:1/1;min-width:0;border-radius:9px;background:var(--bg2);border:1px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding-top:5px;cursor:pointer;font-size:13px;font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent}
+.mcal .c.out{opacity:.35}
+.mcal .c.today{border-color:var(--accent);font-weight:700}
+.mcal .c.planned::after{content:"";position:absolute;left:50%;bottom:6px;width:7px;height:7px;margin-left:-3.5px;border-radius:50%;border:1.5px solid var(--muted);box-sizing:border-box}
+.mcal .c.hasdots::after{display:none}
+.mcal .c.miss{background:color-mix(in srgb,var(--bad) 22%,var(--bg2));border-color:color-mix(in srgb,var(--bad) 55%,transparent);color:var(--bad)}
+.mcal .c .sm{font-size:15px;line-height:1;margin-top:1px}
+.mcal .dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:3px}
+.mcal .dots i{width:7px;height:7px;border-radius:50%;display:block}
+.mcal .dots i.in{background:var(--accent)} .mcal .dots i.ext{background:var(--z2)}
+.mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.mnav b{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em}
+.mnav button{border:1px solid var(--line);background:var(--bg2);border-radius:9px;width:38px;height:34px;cursor:pointer;font-size:18px;color:var(--text)}
+.mleg{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px;align-items:center}
+.mleg i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:-1px}
 .week{margin-bottom:14px}
 .week .wh{display:flex;justify-content:space-between;align-items:baseline;margin:0 2px 6px}
 .week .wh h3{font-size:16px;text-transform:uppercase}
@@ -148,7 +165,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.6.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -710,12 +727,53 @@ function actRow(a){
 }
 
 /* ----- Calendrier ----- */
+let calMonth = null; // 'YYYY-MM'
+const isIndoor = a => a.indoor === true || (a.indoor == null && !!a.hasPower);
+function monthHTML(){
+  const t = todayISO();
+  if (!calMonth) calMonth = t.slice(0, 7);
+  const [y, m] = calMonth.split('-').map(Number);
+  const first = `${calMonth}-01`, start = monday(first);
+  const last = iso(new Date(y, m, 0)); const end = addDays(monday(last), 6);
+  const MONTHS_L = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
+  let cells = DOW.map(d => `<div class="dh">${d.slice(0,1)}</div>`).join('');
+  let done = 0, missed = 0, indoor = 0, outdoor = 0;
+  for (let d = start; d <= end; d = addDays(d, 1)) {
+    const inMonth = d.slice(0, 7) === calMonth;
+    const acts = S.activities.filter(a => a.date === d);
+    const plan = S.plan.filter(s => s.date === d);
+    const miss = d < t && plan.some(s => s.status === 'planned' && mandatory(s)) && !acts.length;
+    const planned = d >= t && plan.some(s => s.status === 'planned');
+    if (inMonth) { if (miss) missed++; for (const a of acts) { done++; isIndoor(a) ? indoor++ : outdoor++; } }
+    const dots = acts.slice(0, 3).map(a => `<i class="${isIndoor(a) ? 'in' : 'ext'}"></i>`).join('');
+    const target = plan[0]?.id ? `data-calday="${d}"` : acts.length ? `data-calday="${d}"` : '';
+    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':'Extérieur'} · ${a.name}`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
+    cells += `<div class="c ${inMonth?'':'out'} ${d===t?'today':''} ${miss?'miss':''} ${planned && !miss ? 'planned' : ''} ${dots ? 'hasdots' : ''}" ${target} title="${esc(title)}" aria-label="${fmtDate(d)}${miss?', séance manquée':''}">
+      <span>${+d.slice(8)}</span>${miss ? '<span class="sm" aria-hidden="true">😞</span>' : ''}${dots ? `<div class="dots">${dots}</div>` : ''}</div>`;
+  }
+  return `<div class="card">
+    <div class="mnav"><button data-mnav="-1" aria-label="Mois précédent">‹</button><b>${MONTHS_L[m-1]} ${y}</b><button data-mnav="1" aria-label="Mois suivant">›</button></div>
+    <div class="mcal">${cells}</div>
+    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="border:1.5px solid var(--muted);box-sizing:border-box"></i>Prévue</span><span>😞 Manquée</span></div>
+    <div class="tiny muted" style="margin-top:8px">Ce mois-ci : <b style="color:var(--text)">${done}</b> séance${done>1?'s':''} (${indoor} home trainer, ${outdoor} extérieur)${missed ? ` · <b style="color:var(--bad)">${missed} manquée${missed>1?'s':''}</b>` : ''}</div>
+  </div>`;
+}
+document.addEventListener('click', e => {
+  const nav = e.target.closest('[data-mnav]');
+  if (nav) { const [y, m] = calMonth.split('-').map(Number); const d = new Date(y, m - 1 + (+nav.dataset.mnav), 1); calMonth = `${d.getFullYear()}-${pad(d.getMonth()+1)}`; render(); return; }
+  const c = e.target.closest('[data-calday]'); if (!c) return;
+  const d = c.dataset.calday;
+  const acts = S.activities.filter(a => a.date === d), plan = S.plan.filter(s => s.date === d);
+  const pl = plan.find(s => s.status === 'planned') || plan[0];
+  if (pl && (!acts.length || pl.status === 'planned')) sessionDlg(pl.id);
+  else if (acts.length) activityDlg(acts[0].id);
+});
 function calHTML(){
   const t = todayISO();
   const weeks = {}; for (const s of S.plan) (weeks[monday(s.date)] ||= []).push(s);
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
-  let h = `<div class="card"><div class="row between"><h2>Calendrier</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
+  let h = monthHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
