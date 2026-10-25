@@ -165,7 +165,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.6.2';
+const APP_VERSION = '0.7.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -234,29 +234,59 @@ const WORKOUTS = {
   end_60: { name:'Endurance 1 h', type:'end', goal:"Zone 2 facile (65-72 %). Peut se faire dehors à la FC.", steps:[S_(5,55,'Échauffement','warmup'), S_(50,68,'Endurance Z2',null,{cad:90}), S_(5,55,'Retour au calme','cooldown')] },
   end_90: { name:'Endurance 1 h 30', type:'end', goal:"Sortie longue Z2 (65-72 %), idéalement dehors le week-end, à la FC.", steps:[S_(10,55,'Échauffement','warmup'), S_(75,68,'Endurance Z2',null,{cad:88}), S_(5,55,'Retour au calme','cooldown')] },
   end_120: { name:'Endurance 2 h', type:'end', goal:"Sortie longue Z2, dehors si possible.", steps:[S_(10,55,'Échauffement','warmup'), S_(105,67,'Endurance Z2'), S_(5,55,'Retour au calme','cooldown')] },
+  // --- séances ajoutées v0.7 : plus de variété ---
+  ss_4x10: { name:'Sweet spot 4 × 10 min', type:'ss', goal:"Volume sweet spot fractionné : 40 min à 90 % avec des récups courtes.", steps:[...WU, R_(4,[S_(10,90,'Sweet spot',null,{cad:90}), S_(4,55,'Récup','rest')]), ...CD(6)] },
+  ss_ou: { name:'Sweet spot avec relances', type:'ss', goal:"Sweet spot ponctué de relances de 30 s : apprendre à absorber les à-coups (attaques, rampes de col) sans exploser.", steps:[...WU, R_(3,[R_(4,[S_(2.5,88,'Sweet spot',null,{cad:88}), S_(0.5,112,'Relance',null,{cad:100})]), S_(5,55,'Récup','rest')]), ...CD(6)] },
+  force_5x5: { name:'Force 5 × 5 min (55 rpm)', type:'force', goal:"Force spécifique montagne : grosse braquet, 55-60 rpm, assis, buste calme. Développe le couple sans monter le cardio.", steps:[...WU, R_(5,[S_(5,85,'Force · 55-60 rpm assis',null,{cad:57}), S_(3,55,'Récup souple','rest',{cad:95})]), ...CD(7)] },
+  force_4x8: { name:'Force 4 × 8 min (60 rpm)', type:'force', goal:"Endurance de force : 4 × 8 min à 88 % en cadence basse, comme dans un long col.", steps:[...WU, R_(4,[S_(8,88,'Force · 60 rpm assis',null,{cad:60}), S_(4,55,'Récup souple','rest',{cad:95})]), ...CD(6)] },
+  tempo_end: { name:'Endurance + tempo 1 h 15', type:'tempo', goal:"Sortie d'endurance avec 3 blocs tempo : du volume utile sans grosse fatigue.", steps:[S_(10,58,'Échauffement','warmup'), R_(3,[S_(10,82,'Tempo',null,{cad:88}), S_(8,65,'Endurance')]), S_(11,55,'Retour au calme','cooldown')] },
+  thr_5x6: { name:'Seuil 5 × 6 min', type:'thr', goal:"Seuil en blocs courts (102 %) : bonne porte d'entrée vers le travail au seuil.", steps:[...WU_ACT, R_(5,[S_(6,102,'Seuil',null,{cad:92}), S_(3,55,'Récup','rest')]), ...CD(7)] },
+  thr_prog: { name:'Seuil progressif 3 × 10 min', type:'thr', goal:"Chaque bloc monte 95 → 100 → 105 % : finir fort quand la fatigue arrive, comme en haut d'un col.", steps:[...WU_ACT, R_(3,[S_(10/3,95,'Seuil −'), S_(10/3,100,'Seuil'), S_(10/3,105,'Seuil +'), S_(5,55,'Récup','rest')]), ...CD(6)] },
+  thr_2x15: { name:'Seuil 2 × 15 min', type:'thr', goal:"Deux longs blocs à 100 % : la séance qui fait monter la FTP.", steps:[...WU_ACT, R_(2,[S_(15,100,'Seuil',null,{cad:92}), S_(7,55,'Récup','rest')]), ...CD(7)] },
+  vo2_4x5: { name:'VO2max 4 × 5 min', type:'vo2', goal:"VO2max « long » à 108 % : entrée en douceur dans le travail VO2.", steps:[...WU_ACT, R_(4,[S_(5,108,'VO2max',null,{cad:95}), S_(5,50,'Récup','rest')]), ...CD(7)] },
+  vo2_8x2: { name:'VO2max 8 × 2 min', type:'vo2', goal:"Efforts de 2 min à 120 % : intense mais court, idéal pour progresser sur 3-5 min.", steps:[...WU_ACT, R_(8,[S_(2,120,'VO2max',null,{cad:100}), S_(2,50,'Récup','rest')]), ...CD(8)] },
+  vo2_pyr: { name:'Pyramide VO2 1-2-3-4-3-2-1', type:'vo2', goal:"Pyramide à 115 % avec récup égale à l'effort : varié, dur, très efficace.", steps:[...WU_ACT, ...[1,2,3,4,3,2,1].flatMap(m => [S_(m,115,`VO2 ${m} min`,null,{cad:98}), S_(m,50,'Récup','rest')]), ...CD(6)] },
+  vo2_4020: { name:'40/20 · 3 × 8 min', type:'vo2', goal:"40 s à 120 % / 20 s de récup : on accumule du temps près de VO2max avec très peu de récupération.", steps:[...WU, R_(3,[R_(8,[S_(40/60,120,'ON',null,{cad:100}), S_(20/60,50,'OFF','rest')]), S_(5,55,'Récup','rest')]), ...CD(6)] },
+  end_neuro: { name:'Endurance + sprints 1 h', type:'end', goal:"Endurance Z2 avec 8 sprints de 15 s : réveille la puissance explosive sans fatigue.", steps:[S_(10,58,'Échauffement','warmup'), R_(8,[S_(0.25,180,'Sprint 15 s',null,{cad:110}), S_(4.75,66,'Endurance')]), S_(5,62,'Endurance'), S_(5,55,'Retour au calme','cooldown')] },
   rec_45: { name:'Récup active 45 min', type:'rec', goal:"Faire tourner les jambes, très facile (< 60 %).", steps:[S_(45,55,'Récup active','rest',{cad:90})] },
   openers: { name:'Rappels (veille de test)', type:'rec', goal:"Réveiller les jambes sans fatigue avant un test ou une semaine dure.", steps:[S_(10,55,'Échauffement','warmup'), R_(3,[S_(1,110,'Rappel',null,{cad:100}), S_(2,55,'Récup','rest')]), S_(10,65,'Endurance'), S_(5,50,'Retour au calme','cooldown')] },
 };
-const HARD = new Set(['test','ss','thr','vo2']);
+const HARD = new Set(['test','ss','thr','vo2','force']);
 const isHard = wid => HARD.has(WORKOUTS[wid]?.type);
 function flat(steps){ const out = []; for (const s of steps) { if (s.repeat) for (let i=0;i<s.repeat;i++) out.push(...flat(s.steps)); else out.push(s); } return out; }
 const wDur = wid => flat(WORKOUTS[wid].steps).reduce((a,s)=>a+s.d,0);
 const wTSS = wid => Math.round(flat(WORKOUTS[wid].steps).reduce((a,s)=>a + s.d*Math.pow(s.p/100,2),0)/36);
-const watts = (p, f=ftp()) => round5(p/100 * f * adj());
+const watts = (p, f=ftp(), k=1) => round5(p/100 * f * adj() * k);
+const sAdj = s => (s && s.adj) || 1;
 function mainStep(wid){ // le bloc principal le plus intense et le plus long (pour mesurer le respect des cibles)
   let best = null; for (const s of flat(WORKOUTS[wid].steps)) if ((s.int || 'active') === 'active' && s.p >= 85 && (!best || s.d*s.p > best.d*best.p)) best = s; return best;
 }
 
 /* ============ planificateur ============ */
 const BLOCKS = [
-  { name:'Base · Sweet spot', k:[['ss_3x10','ss_3x12','ss_2x20'],['tempo_2x20','ss_3x10','ss_3x15'],['tempo_2x20','tempo_2x20','ss_3x12']] },
-  { name:'Sweet spot → Seuil', k:[['ss_2x20','thr_4x8','thr_3x12'],['ss_3x15','ou_3x9','vo2_5x4'],['tempo_2x20','ss_3x12','ss_2x20']] },
-  { name:'Seuil + VO2max', k:[['thr_3x12','thr_2x20','thr_2x20'],['vo2_5x4','vo2_6x3','ou_3x9'],['ss_2x20','tempo_2x20','ss_3x15']] },
-  { name:'VO2max · Spécifique', k:[['vo2_6x3','vo2_3030','vo2_5x4'],['thr_2x20','ou_3x9','thr_2x20'],['ss_2x20','tempo_2x20','ss_2x20']] },
+  // k[i][semaine du bloc] : séance clé n°1, n°2, n°3 (si 3 séances clés / semaine)
+  { name:'Base · Sweet spot', k:[['ss_3x10','ss_3x12','ss_4x10'],['force_5x5','tempo_2x20','ss_ou'],['tempo_end','force_5x5','tempo_2x20']] },
+  { name:'Sweet spot → Seuil', k:[['ss_2x20','thr_5x6','thr_4x8'],['force_4x8','ss_3x15','vo2_4x5'],['tempo_2x20','ss_ou','tempo_end']] },
+  { name:'Seuil + VO2max', k:[['thr_3x12','thr_prog','thr_2x15'],['vo2_5x4','vo2_8x2','vo2_pyr'],['force_4x8','ss_2x20','ou_3x9']] },
+  { name:'VO2max · Spécifique', k:[['vo2_6x3','vo2_4020','vo2_3030'],['thr_2x15','ou_3x9','thr_2x20'],['ss_ou','force_4x8','tempo_end']] },
 ];
 const ALT = { // repli si la séance dépasse la durée dispo du jour
-  ss:['ss_3x10','ss_3x12','ss_2x20','ss_3x15'], thr:['thr_4x8','ou_3x9','thr_3x12','thr_2x20'], vo2:['vo2_6x3','vo2_5x4','vo2_3030'],
-  tempo:['tempo_2x20'], end:['end_60','end_90','end_120'], rec:['openers','rec_45'], test:['ramp','test20'] };
+  ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'], thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','thr_2x15','thr_2x20'], vo2:['vo2_8x2','vo2_6x3','vo2_4x5','vo2_5x4','vo2_pyr','vo2_4020','vo2_3030'],
+  force:['force_5x5','force_4x8'], tempo:['tempo_2x20','tempo_end'], end:['end_60','end_neuro','end_90','end_120'], rec:['openers','rec_45'], test:['ramp','test20'] };
+// échelles de difficulté (de la plus facile à la plus dure) pour « plus facile / plus dur »
+const LADDER = {
+  rec:['rec_45','openers'], end:['rec_45','end_60','end_neuro','end_90','end_120'], tempo:['tempo_end','tempo_2x20'],
+  force:['force_5x5','force_4x8'], ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'],
+  thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','thr_2x15','thr_2x20'], vo2:['vo2_4x5','vo2_8x2','vo2_5x4','vo2_pyr','vo2_6x3','vo2_4020','vo2_3030'] };
+const DOWN = { vo2:'thr', thr:'ss', ss:'tempo', force:'tempo', tempo:'end', end:'rec', rec:null };
+const UP = { rec:'end', end:'tempo', tempo:'ss', ss:'thr', force:'thr', thr:'vo2', vo2:null };
+function neighbor(wid, dir){
+  const t = WORKOUTS[wid].type; if (t === 'test') return null;
+  const L = LADDER[t] || [wid]; const i = L.indexOf(wid);
+  const ofType = f => (LADDER[f] || []).filter(w => WORKOUTS[w].type === f && w !== wid);
+  if (dir < 0) { if (i > 0) return L[i-1]; const d = DOWN[t]; if (!d) return null; const c = ofType(d); return c[Math.max(0, c.length - (d === 'end' ? 3 : 1))] || null; }
+  if (i >= 0 && i < L.length-1 && L[i+1] !== wid) return L[i+1]; const u = UP[t]; if (!u) return null; return ofType(u)[0] || null;
+}
 function fitTo(wid, maxMin){
   const t = WORKOUTS[wid].type, lim = maxMin*60;
   if (wDur(wid) <= lim) return wid;
@@ -340,7 +370,7 @@ function generatePlan(p, keepFrom){
       case 'load': {
         const blk = BLOCKS[k.bi];
         K.forEach((d, j) => add(k.ws, d, blk.k[j % blk.k.length][k.pos], 'key', k));
-        O.forEach(d => add(k.ws, d, (p.days[d].max >= 90 ? 'end_90' : 'end_60'), 'optional', k)); break; }
+        O.forEach((d, j) => { const opts = p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','end_60']; add(k.ws, d, opts[(k.i + j) % 3], 'optional', k); }); break; }
       case 'recovery': case 'taper': case 'final': {
         const testNow = k.test || k.kind === 'final';
         if (testNow) {
@@ -517,7 +547,7 @@ function ftpAt(date){ let f = S.ftpHistory[0]?.ftp || ftp(); for (const h of S.f
 function compliance(a, planItem){
   if (!a.hasPower || !planItem || !a.best) return null;
   const ms = mainStep(planItem.workoutId); if (!ms) return null;
-  const target = ms.p/100 * ftpAt(a.date) * adj();
+  const target = ms.p/100 * ftpAt(a.date) * adj() * sAdj(planItem);
   // meilleure moyenne sur la durée du bloc principal
   const arr = a._pw; if (!arr) return null;
   const got = bestAvg(arr, ms.d); if (!got) return null;
@@ -582,7 +612,7 @@ function download(name, bytes, type='application/octet-stream'){
 function exportWorkout(planOrWid){
   const wid = typeof planOrWid === 'string' ? planOrWid : planOrWid.workoutId;
   const date = typeof planOrWid === 'string' ? todayISO() : planOrWid.date;
-  const bytes = encodeWorkout(wid, ftp());
+  const bytes = encodeWorkout(wid, ftp() * (typeof planOrWid === 'string' ? 1 : sAdj(planOrWid)));
   download(`${date}_${ascii(WORKOUTS[wid].name).replace(/[^A-Za-z0-9]+/g,'-')}.fit`, bytes);
   toast('Fichier .fit téléchargé : copie-le dans Garmin/NewFiles de ton Edge');
 }
@@ -651,11 +681,11 @@ function profileBars(wid){
   const st = flat(WORKOUTS[wid].steps); const tot = st.reduce((a,s)=>a+s.d,0); const mx = Math.max(130, ...st.map(s=>s.p));
   return `<div class="prof">${st.map(s=>`<div title="${esc(s.label)} · ${fmtDur(s.d)} · ${s.p}%" style="flex:${s.d/tot};height:${Math.max(6, s.p/mx*100)}%;background:${ZCOL(zoneOf(s.p))};${s.max?'background-image:repeating-linear-gradient(45deg,transparent 0 4px,rgba(255,255,255,.35) 4px 7px)':''}"></div>`).join('')}</div>`;
 }
-function stepsTable(wid){
+function stepsTable(wid, k=1){
   const rows = [];
   const walk = (steps, prefix='') => { for (const s of steps) {
     if (s.repeat) { rows.push(`<tr><td colspan="3"><b>${s.repeat} ×</b></td></tr>`); walk(s.steps, '&nbsp;&nbsp;&nbsp;'); }
-    else rows.push(`<tr><td>${prefix}<span class="zone" style="background:${ZCOL(zoneOf(s.p))}"></span>${esc(s.max ? s.label : s.label)}${s.cad?` <span class="muted tiny">· ${s.cad} rpm</span>`:''}</td><td class="r num">${fmtDur(s.d)}</td><td class="r num">${s.max ? '<b>max</b>' : `${watts(s.p)} W <span class="muted tiny">${s.p}%</span>`}</td></tr>`);
+    else rows.push(`<tr><td>${prefix}<span class="zone" style="background:${ZCOL(zoneOf(s.p))}"></span>${esc(s.max ? s.label : s.label)}${s.cad?` <span class="muted tiny">· ${s.cad} rpm</span>`:''}</td><td class="r num">${fmtDur(s.d)}</td><td class="r num">${s.max ? '<b>max</b>' : `${watts(s.p, ftp(), k)} W <span class="muted tiny">${Math.round(s.p*k)}%</span>`}</td></tr>`);
   }};
   walk(WORKOUTS[wid].steps);
   return `<table class="steps">${rows.join('')}</table>`;
@@ -705,13 +735,15 @@ function todayHTML(){
     h += `<div class="card"><div class="row between"><span class="tag" style="background:${ZCOL(zoneOf(mainStep(s.workoutId)?.p||60))};color:#111">${esc(W.type==='test'?'Test':s.kind==='optional'?'Optionnelle':s.kind==='recovery'?'Récup':'Séance clé')}</span><span class="muted small">${isToday ? "Aujourd'hui" : fmtDate(s.date)} · ${esc(s.block)}</span></div>
       <h2 style="margin-top:8px">${esc(W.name)}</h2><p class="muted small" style="margin:0 0 10px">${esc(W.goal)}</p>
       ${profileBars(s.workoutId)}
-      <div class="row small muted" style="margin:8px 0 4px"><span class="num">${fmtDur(wDur(s.workoutId))}</span>·<span class="num">TSS ≈ ${wTSS(s.workoutId)}</span>${mainStep(s.workoutId)?`·<span class="num">bloc à ${watts(mainStep(s.workoutId).p)} W</span>`:''}</div>
+      <div class="row small muted" style="margin:8px 0 4px"><span class="num">${fmtDur(wDur(s.workoutId))}</span>·<span class="num">TSS ≈ ${wTSS(s.workoutId)}</span>${mainStep(s.workoutId)?`·<span class="num">bloc à ${watts(mainStep(s.workoutId).p, ftp(), sAdj(s))} W</span>`:''}${sAdj(s)!==1?`·<span style="color:var(--accent)">${sAdj(s)>1?'+':''}${Math.round((sAdj(s)-1)*100)} %</span>`:''}</div>
       ${s.status==='done' ? `<div class="note ok" style="margin:10px 0 0">Séance faite ✔</div>` : `<div class="row" style="margin-top:10px">
         <button class="btn primary" data-log="${s.id}">J'ai fait la séance</button>
         <button class="btn" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>
         <button class="btn ghost" data-open="${s.id}">Détails</button>
         <button class="btn ghost" data-absence="1">✈︎ Absent ?</button></div>
-        ${W.type==='test' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}`}
+        ${W.type==='test' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}
+        ${isToday ? formeHint(s) : ''}
+        ${adjustHTML(s, true)}`}
     </div>`;
   }
   if (!show.length) h += `<div class="card"><h2>Plan terminé</h2><p class="muted">Plus aucune séance prévue. Régénère un plan depuis le Profil.</p></div>`;
@@ -1424,6 +1456,67 @@ function undoAbsence(id){
   S.plan.sort((x,y)=>x.date.localeCompare(y.date)); save(); render(); toast('Absence annulée, séances remises à leur place');
 }
 
+/* ============ ajuster une séance selon la forme du jour ============ */
+function adjustHTML(s, compact=false){
+  if (s.status !== 'planned' || WORKOUTS[s.workoutId].type === 'test') return '';
+  const easier = neighbor(s.workoutId, -1), harder = neighbor(s.workoutId, 1), k = sAdj(s);
+  const chip = v => `<button type="button" class="${Math.abs(k - v) < 0.001 ? 'on' : ''}" data-sadj="${v}" data-sid="${s.id}">${v === 1 ? 'Prévu' : (v > 1 ? '+' : '−') + Math.round(Math.abs(v-1)*100) + ' %'}</button>`;
+  return `<details class="adj" ${compact ? '' : 'open'} style="margin-top:12px"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">Ajuster selon ma forme</summary>
+    <div class="row" style="margin-top:10px;gap:6px">
+      ${easier ? `<button class="btn sm" data-sx="easier" data-sid="${s.id}" title="${esc(WORKOUTS[easier].name)}">⬇ Plus facile <span class="tiny muted">· ${esc(WORKOUTS[easier].name)}</span></button>` : ''}
+      ${harder ? `<button class="btn sm" data-sx="harder" data-sid="${s.id}" title="${esc(WORKOUTS[harder].name)}">⬆ Plus dur <span class="tiny muted">· ${esc(WORKOUTS[harder].name)}</span></button>` : ''}
+    </div>
+    <div class="small muted" style="margin:10px 0 4px">Intensité de cette séance</div>
+    <div class="seg">${[0.95, 0.97, 1, 1.03, 1.05].map(chip).join('')}</div>
+    <div class="row" style="margin-top:10px;gap:6px">
+      <button class="btn sm" data-sx="post" data-sid="${s.id}">Reporter</button>
+      ${s.workoutId !== 'rec_45' ? `<button class="btn sm" data-sx="rec" data-sid="${s.id}">Remplacer par une récup</button>` : ''}
+      ${s.origWorkoutId && s.origWorkoutId !== s.workoutId ? `<button class="btn sm ghost" data-sx="orig" data-sid="${s.id}">Revenir à « ${esc(WORKOUTS[s.origWorkoutId].name)} »</button>` : ''}
+    </div></details><div style="height:12px"></div>`;
+}
+// suggestion du jour à partir de l'indice de forme et des ressentis récents
+function formeHint(s){
+  if (s.status !== 'planned' || !isHard(s.workoutId)) return '';
+  const sc = (typeof Health !== 'undefined') ? Health.score() : null;
+  const lastFeel = S.activities.filter(a => a.feel?.rpe).sort((a,b) => b.date.localeCompare(a.date))[0];
+  let msg = '', btns = '';
+  if (sc && sc.v < 40) { msg = `Indice de forme ${sc.v}/100 : ton corps n'a pas récupéré.`; btns = `<button class="btn sm" data-sx="post" data-sid="${s.id}">Reporter</button><button class="btn sm" data-sx="rec" data-sid="${s.id}">Récup à la place</button>`; }
+  else if (sc && sc.v < 55) { msg = `Indice de forme ${sc.v}/100 : garde la séance mais lève un peu le pied.`; btns = `<button class="btn sm" data-sadj="0.95" data-sid="${s.id}">Cibles −5 %</button>${neighbor(s.workoutId,-1) ? `<button class="btn sm" data-sx="easier" data-sid="${s.id}">Version plus facile</button>` : ''}`; }
+  else if (sc && sc.v >= 80 && (!lastFeel || lastFeel.feel.rpe <= 7)) { msg = `Indice de forme ${sc.v}/100 : tu es frais. Tu peux viser un cran au-dessus si les jambes répondent à l'échauffement.`; btns = `<button class="btn sm" data-sadj="1.03" data-sid="${s.id}">Cibles +3 %</button>${neighbor(s.workoutId,1) ? `<button class="btn sm" data-sx="harder" data-sid="${s.id}">Version plus dure</button>` : ''}`; }
+  if (!msg) return '';
+  return `<div class="note ${sc.v < 55 ? 'bad' : 'ok'}" style="margin:12px 0 0">${esc(msg)}<div class="row" style="margin-top:8px;gap:6px">${btns}</div></div>`;
+}
+function postpone(s){
+  for (let k = 1; k <= 3; k++) {
+    const d = addDays(s.date < todayISO() ? todayISO() : s.date, k);
+    if (d > S.profile.endDate) break;
+    if ((S.profile.absences || []).some(a => d >= a.from && d <= a.to)) continue;
+    if (S.plan.some(x => x.id !== s.id && x.date === d && x.status === 'planned' && mandatory(x))) continue;
+    if (hardConflict(s, d)) continue;
+    for (const x of S.plan) if (x.date === d && x.status === 'planned' && !mandatory(x)) x.status = 'skipped'; // la sortie optionnelle cède sa place
+    const from = s.date; s.date = d; s.week = Math.floor(diffDays(monday(S.profile.startDate), d)/7);
+    S.plan.sort((a,b) => a.date.localeCompare(b.date));
+    return { ok: true, from, to: d };
+  }
+  return { ok: false };
+}
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-sx],[data-sadj]'); if (!a) return;
+  const s = S.plan.find(x => x.id === a.dataset.sid); if (!s) return;
+  const inDlg = !!a.closest('#dlg');
+  if (a.dataset.sadj) { s.adj = +a.dataset.sadj; if (s.adj === 1) delete s.adj; toast(s.adj ? `Cibles ${s.adj > 1 ? '+' : '−'}${Math.round(Math.abs(s.adj-1)*100)} % pour cette séance` : 'Cibles prévues rétablies'); }
+  else {
+    const x = a.dataset.sx;
+    if (x === 'easier' || x === 'harder' || x === 'rec') {
+      const nw = x === 'rec' ? 'rec_45' : neighbor(s.workoutId, x === 'easier' ? -1 : 1); if (!nw) return;
+      s.origWorkoutId ||= s.workoutId; s.workoutId = nw; delete s.adj;
+      toast(`Séance remplacée : ${WORKOUTS[nw].name}`);
+    } else if (x === 'orig') { s.workoutId = s.origWorkoutId; delete s.origWorkoutId; toast('Séance prévue rétablie'); }
+    else if (x === 'post') { const r = postpone(s); if (!r.ok) { toast('Pas de créneau libre dans les 3 jours : choisis une date dans le détail de la séance'); if (!inDlg) sessionDlg(s.id); return; } toast(`Séance reportée au ${fmtDate(r.to)}`); }
+  }
+  save(); render(); if (inDlg) sessionDlg(s.id);
+});
+
 /* ============ dialogues ============ */
 const dlg = $('#dlg'), dlgBody = $('#dlgBody');
 function openDlg(html){ dlgBody.innerHTML = `<button class="x" data-close aria-label="Fermer">×</button>` + html; if (!dlg.open) dlg.showModal(); }
@@ -1438,7 +1531,8 @@ function sessionDlg(id){
     <h2 style="margin:6px 0">${esc(W.name)}</h2><p class="muted small">${esc(W.goal)}</p>
     ${profileBars(s.workoutId)}
     <div class="row small muted" style="margin:8px 0"><span class="num">${fmtDur(wDur(s.workoutId))}</span>·<span class="num">TSS ≈ ${wTSS(s.workoutId)}</span>·<span>FTP ${ftp()} W${adj()!==1?` (ajust. ${Math.round((adj()-1)*1000)/10} %)`:''}</span></div>
-    ${stepsTable(s.workoutId)}
+    ${adjustHTML(s)}
+    ${stepsTable(s.workoutId, sAdj(s))}
     ${act ? `<div class="note ok" style="margin-top:12px">Réalisée : ${fmtDur(act.durationS)}${act.np?` · NP ${act.np} W`:''}${act.avgHr?` · ${act.avgHr} bpm`:''}${act.feel?.rpe?` · RPE ${act.feel.rpe}`:''}${act.compliance?` · bloc ${act.compliance.stepMin}' : ${act.compliance.got} W / ${act.compliance.target} W`:''}</div>` : ''}
     <div class="row" style="margin-top:14px">
       ${s.status!=='done' ? `<button class="btn primary" data-log="${s.id}">J'ai fait la séance</button>` : `<button class="btn" data-act="${act?.id}">Voir l'activité</button>`}
@@ -1706,10 +1800,10 @@ const Cloud = (() => {
     if (!icu.connected || !S.profile) return 0;
     const t = todayISO(), until = addDays(t, 28);
     const items = S.plan.filter(s => s.status === 'planned' && s.date >= t && s.date <= until);
-    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId])]);
+    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId, s.adj || 1])]);
     if (!force && sig === S.icuPushSig) return 0;
     const events = items.map(s => { const W = WORKOUTS[s.workoutId]; return { date: s.date, name: `${W.name}${s.kind==='optional'?' (optionnelle)':''}`, external_id: 'ftpb-' + s.id, moving_time: wDur(s.workoutId),
-      description: `${W.goal}\n\nFTP ${ftp()} W · créé par FTP Builder\n\n${icuText(s.workoutId)}`, fit_base64: b64(encodeWorkout(s.workoutId, ftp())) }; });
+      description: `${W.goal}\n\nFTP ${ftp()} W · créé par FTP Builder\n\n${icuText(s.workoutId)}`, fit_base64: b64(encodeWorkout(s.workoutId, ftp() * sAdj(s))) }; });
     const prev = S.icuPushed || {};
     const remove = Object.keys(prev).filter(id => !items.some(s => s.id === id) && prev[id] >= t).map(id => 'ftpb-' + id);
     const r = await icuCall({ action:'push', events, remove });

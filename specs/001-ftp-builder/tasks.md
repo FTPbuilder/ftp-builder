@@ -26,3 +26,11 @@
 - [x] T019 [US5] Edge Function `strava-oauth` (échange de code, refresh)
 - [x] T020 [US5] Edge Function `strava-webhook` + récupération des streams
 - [ ] T021 [US4] Décision et implémentation push Garmin Connect (ou Intervals.icu)
+
+## Phase 4 — Variété et adaptation (v0.7)
+- [x] T022 Bibliothèque élargie à 32 séances (force basse cadence, seuil progressif, pyramide VO2, 40/20, sprints…)
+- [x] T023 Blocs variés : 3 séances différentes par bloc et par emplacement, sorties optionnelles alternées
+- [x] T024 Échelles de difficulté : « plus facile / plus dur » par famille, retour à la séance prévue
+- [x] T025 Intensité par séance (−5 % à +5 %) appliquée aux watts, à l'export .fit, à Intervals et au contrôle des cibles
+- [x] T026 Reporter (créneau libre ≤ 3 j, règle des 48 h) et remplacer par une récup
+- [x] T027 Suggestion du jour selon l'indice de forme (alléger / reporter / monter d'un cran)
