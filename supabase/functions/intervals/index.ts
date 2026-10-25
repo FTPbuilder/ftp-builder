@@ -73,9 +73,10 @@ Deno.serve(async (req) => {
           const s = new Date(start.endsWith("Z") || /[+-]\d\d:\d\d$/.test(start) ? start : start + "Z");
           const row = { user_id: user.id, start_at: s.toISOString(), end_at: a.elapsed_time ? new Date(s.getTime() + Number(a.elapsed_time) * 1000).toISOString() : null,
             type: TYPES[type] ?? type, duration_min: a.moving_time ? Number(a.moving_time) / 60 : null, distance_km: a.distance ? Number(a.distance) / 1000 : null,
-            energy_kcal: (a.calories as number) ?? null, avg_hr: (a.average_heartrate as number) ?? null, source: "Intervals.icu", updated_at: new Date().toISOString() };
+            energy_kcal: (a.calories as number) ?? null, avg_hr: (a.average_heartrate as number) ?? null, source: "Intervals.icu",
+            indoor: RIDES.test(type) ? (type === "VirtualRide" || a.trainer === true) : null, updated_at: new Date().toISOString() };
           const { data: near } = await db.from("health_workouts").select("*").eq("user_id", user.id).gte("start_at", new Date(s.getTime() - 300000).toISOString()).lte("start_at", new Date(s.getTime() + 300000).toISOString());
-          if (near && near.length) { const o = near[0]; const patch: Record<string, unknown> = {}; for (const k of ["duration_min", "distance_km", "energy_kcal", "avg_hr"]) if (o[k] == null && (row as Record<string, unknown>)[k] != null) patch[k] = (row as Record<string, unknown>)[k]; if (Object.keys(patch).length) await db.from("health_workouts").update(patch).eq("user_id", user.id).eq("start_at", o.start_at); }
+          if (near && near.length) { const o = near[0]; const patch: Record<string, unknown> = {}; for (const k of ["duration_min", "distance_km", "energy_kcal", "avg_hr", "indoor"]) if (o[k] == null && (row as Record<string, unknown>)[k] != null) patch[k] = (row as Record<string, unknown>)[k]; if (Object.keys(patch).length) await db.from("health_workouts").update(patch).eq("user_id", user.id).eq("start_at", o.start_at); }
           else await db.from("health_workouts").upsert(row);
           others++;
         }

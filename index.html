@@ -92,7 +92,7 @@ nav.tabs button.on{color:var(--accent)}
 .mcal .c .sm{font-size:15px;line-height:1;margin-top:1px}
 .mcal .dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:3px}
 .mcal .dots i{width:7px;height:7px;border-radius:50%;display:block}
-.mcal .dots i.in{background:var(--accent)} .mcal .dots i.ext{background:var(--z2)}
+.mcal .dots i.in{background:var(--accent)} .mcal .dots i.ext{background:var(--z2)} .mcal .dots i.oth{background:var(--muted);opacity:.7}
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .mnav b{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em}
 .mnav button{border:1px solid var(--line);background:var(--bg2);border-radius:9px;width:38px;height:34px;cursor:pointer;font-size:18px;color:var(--text)}
@@ -165,7 +165,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.6.1';
+const APP_VERSION = '0.6.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -737,25 +737,27 @@ function monthHTML(){
   const last = iso(new Date(y, m, 0)); const end = addDays(monday(last), 6);
   const MONTHS_L = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
   let cells = DOW.map(d => `<div class="dh">${d.slice(0,1)}</div>`).join('');
-  let done = 0, missed = 0, indoor = 0, outdoor = 0;
+  let done = 0, missed = 0, indoor = 0, outdoor = 0, others = 0;
+  const extraByDay = {}; for (const e of Health.extraWorkouts()) (extraByDay[e.date] ||= []).push(e);
   for (let d = start; d <= end; d = addDays(d, 1)) {
     const inMonth = d.slice(0, 7) === calMonth;
     const acts = S.activities.filter(a => a.date === d);
+    const extra = extraByDay[d] || [];
     const plan = S.plan.filter(s => s.date === d);
     const miss = d < t && plan.some(s => s.status === 'planned' && mandatory(s)) && !acts.length;
     const planned = d >= t && plan.some(s => s.status === 'planned');
-    if (inMonth) { if (miss) missed++; for (const a of acts) { done++; isIndoor(a) ? indoor++ : outdoor++; } }
-    const dots = acts.slice(0, 3).map(a => `<i class="${isIndoor(a) ? 'in' : 'ext'}"></i>`).join('');
-    const target = plan[0]?.id ? `data-calday="${d}"` : acts.length ? `data-calday="${d}"` : '';
-    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':'Extérieur'} · ${a.name}`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
+    if (inMonth) { if (miss) missed++; for (const a of acts) { done++; isIndoor(a) ? indoor++ : outdoor++; } for (const e of extra) { if (e.sport === 'bike') { done++; Health.bikeIndoor(e.w) ? indoor++ : outdoor++; } else others++; } }
+    const dots = [...acts.map(a => isIndoor(a) ? 'in' : 'ext'), ...extra.map(e => e.sport === 'bike' ? (Health.bikeIndoor(e.w) ? 'in' : 'ext') : 'oth')].slice(0, 4).map(c => `<i class="${c}"></i>`).join('');
+ const target = (plan[0]?.id || acts.length || extra.length) ? `data-calday="${d}"` : '';
+    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':'Extérieur'} · ${a.name}`), ...extra.map(e => `${e.w.type}${e.w.duration_min ? ' · ' + fmtDur(e.w.duration_min*60) : ''}`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
     cells += `<div class="c ${inMonth?'':'out'} ${d===t?'today':''} ${miss?'miss':''} ${planned && !miss ? 'planned' : ''} ${dots ? 'hasdots' : ''}" ${target} title="${esc(title)}" aria-label="${fmtDate(d)}${miss?', séance manquée':''}">
       <span>${+d.slice(8)}</span>${miss ? '<span class="sm" aria-hidden="true">😞</span>' : ''}${dots ? `<div class="dots">${dots}</div>` : ''}</div>`;
   }
   return `<div class="card">
     <div class="mnav"><button data-mnav="-1" aria-label="Mois précédent">‹</button><b>${MONTHS_L[m-1]} ${y}</b><button data-mnav="1" aria-label="Mois suivant">›</button></div>
     <div class="mcal">${cells}</div>
-    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="border:1.5px solid var(--muted);box-sizing:border-box"></i>Prévue</span><span>😞 Manquée</span></div>
-    <div class="tiny muted" style="margin-top:8px">Ce mois-ci : <b style="color:var(--text)">${done}</b> séance${done>1?'s':''} (${indoor} home trainer, ${outdoor} extérieur)${missed ? ` · <b style="color:var(--bad)">${missed} manquée${missed>1?'s':''}</b>` : ''}</div>
+    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="background:var(--muted);opacity:.7"></i>Autre sport</span><span><i style="border:1.5px solid var(--muted);box-sizing:border-box"></i>Prévue</span><span>😞 Manquée</span></div>
+    <div class="tiny muted" style="margin-top:8px">Ce mois-ci : <b style="color:var(--text)">${done}</b> sortie${done>1?'s':''} vélo (${indoor} home trainer, ${outdoor} extérieur)${others ? ` · ${others} autre${others>1?'s':''} sport${others>1?'s':''}` : ''}${missed ? ` · <b style="color:var(--bad)">${missed} manquée${missed>1?'s':''}</b>` : ''}</div>
   </div>`;
 }
 document.addEventListener('click', e => {
@@ -767,6 +769,7 @@ document.addEventListener('click', e => {
   const pl = plan.find(s => s.status === 'planned') || plan[0];
   if (pl && (!acts.length || pl.status === 'planned')) sessionDlg(pl.id);
   else if (acts.length) activityDlg(acts[0].id);
+  else { const ex = Health.extraWorkouts().filter(x => x.date === d); if (ex.length) openDlg(`<h2>${fmtDate(d)}</h2>${ex.map(x => `<div class="hist"><div style="flex:1"><b>${esc(x.w.type)}</b><div class="tiny muted">${x.w.duration_min ? fmtDur(x.w.duration_min*60) : ''}${x.w.distance_km ? ' · ' + (+x.w.distance_km).toFixed(1) + ' km' : ''}${x.w.avg_hr ? ' · ' + Math.round(x.w.avg_hr) + ' bpm' : ''} · ${esc(x.w.source || '')}</div></div><span class="chip num">TSS ~${x.tss}</span></div>`).join('')}<p class="tiny muted">Activités Apple Santé, comptées dans ta forme et ta fatigue.</p>`); }
 });
 function calHTML(){
   const t = todayISO();
@@ -1078,7 +1081,7 @@ const HealthImport = (() => {
       const cutoff = addDays(todayISO(), -DAYS);
       const daily = {}; // day|metric -> {sum,n,last,lastT}
       const segs = []; const workouts = []; let cur = null;
-      const RE = /<(Record|Workout|WorkoutStatistics|\/Workout)\b([^>]*)>/g;
+      const RE = /<(Record|Workout|WorkoutStatistics|MetadataEntry|\/Workout)\b([^>]*)>/g;
       const handle = (tag, a) => {
         if (tag === 'Record') {
           const t = a.match(/type="([^"]+)"/)?.[1]; if (!t) return;
@@ -1099,6 +1102,8 @@ const HealthImport = (() => {
             distance_km: at.totalDistance ? +at.totalDistance * (/mi/i.test(at.totalDistanceUnit||'') ? 1.609 : /^m$/i.test(at.totalDistanceUnit||'') ? 0.001 : 1) : null,
             energy_kcal: at.totalEnergyBurned ? +at.totalEnergyBurned : null, avg_hr: null, source: at.sourceName || '' };
           if (/\/\s*$/.test(a)) { workouts.push(cur); cur = null; }
+        } else if (tag === 'MetadataEntry') {
+          if (cur && /key="HKIndoorWorkout"/.test(a)) cur.indoor = /value="1"/.test(a);
         } else if (tag === 'WorkoutStatistics' && cur) {
           const at = attrs(a), t = at.type || '';
           if (/HeartRate$/.test(t) && at.average) cur.avg_hr = +at.average;
@@ -1142,7 +1147,7 @@ const HealthImport = (() => {
         const prev = rowsW[rowsW.length-1];
         if (prev && Math.abs(Date.parse(w.start_at) - Date.parse(prev.start_at)) <= 300000) {
           const keepNew = prio(w.source) > prio(prev.source); const base = keepNew ? { ...w } : prev, other = keepNew ? prev : w;
-          for (const k of ['end_at','duration_min','distance_km','energy_kcal','avg_hr']) if (base[k] == null) base[k] = other[k];
+          for (const k of ['end_at','duration_min','distance_km','energy_kcal','avg_hr','indoor']) if (base[k] == null) base[k] = other[k];
           if (/^(Autre|Other|)$/.test(base.type || '') && other.type && !/^(Autre|Other)$/.test(other.type)) base.type = other.type; // garder le type le plus précis (ex. Hevy > Strava « Autre »)
           if (keepNew) rowsW[rowsW.length-1] = { ...base, user_id: user.id }; else rowsW[rowsW.length-1] = base;
           continue;
@@ -1151,7 +1156,7 @@ const HealthImport = (() => {
       }
       // envoi
       // chaque ligne doit avoir exactement les mêmes colonnes (sinon PostgREST met les absentes à NULL)
-      const COLS = { health_daily:['user_id','day','metric','value'], health_sleep:['user_id','night','source','asleep_min','core_min','deep_min','rem_min','awake_min','in_bed_min','bed_start','bed_end'], health_workouts:['user_id','start_at','end_at','type','duration_min','distance_km','energy_kcal','avg_hr','source'] };
+      const COLS = { health_daily:['user_id','day','metric','value'], health_sleep:['user_id','night','source','asleep_min','core_min','deep_min','rem_min','awake_min','in_bed_min','bed_start','bed_end'], health_workouts:['user_id','start_at','end_at','type','duration_min','distance_km','energy_kcal','avg_hr','source','indoor'] };
       const norm = (table, rows) => { const now = new Date().toISOString(); return rows.map(r => { const o = { updated_at: now }; for (const c of COLS[table]) o[c] = r[c] ?? null; o.user_id = user.id; return o; }); };
       const up = async (table, rows0, conflict) => { const rows = norm(table, rows0); for (let i = 0; i < rows.length; i += 400) { status(`Enregistrement… ${table.replace('health_','')} ${Math.min(i+400, rows.length)}/${rows.length}`); const { error } = await sb.from(table).upsert(rows.slice(i, i+400), { onConflict: conflict }); if (error) throw new Error(error.message); } };
       // les séances déjà présentes (raccourci) à ±5 min sont remplacées par la version de l'export
@@ -1301,6 +1306,7 @@ document.addEventListener('click', e => {
   const a = e.target.closest('[data-chadd]');
   if (a) { const id = a.dataset.chadd; const v = a.dataset.v ? +a.dataset.v : parseFloat(String($('#chIn-'+id).value).replace(',','.')); chAdd(id, v); return; }
   const ed = e.target.closest('[data-chedit]'); if (ed) chEditDlg(ed.dataset.chedit);
+  const ti = e.target.closest('[data-toggleindoor]'); if (ti) { const a = S.activities.find(x => x.id === ti.dataset.toggleindoor); if (a) { a.indoor = !isIndoor(a); save(); activityDlg(a.id); render(); } }
 });
 
 /* ============ test : 20 min <-> rampe ERG ============ */
@@ -1566,6 +1572,8 @@ function showLogResult(){
     const pid = $('#lPlan').value || null;
     a.feel = { ...feel, sleep: +$('#lSleep').value || null, note: $('#lNote').value.trim() || null };
     a.compliance = a._comp || null; delete a._comp; delete a._pw;
+    const oldH = a.startTs ? replaceHealthDuplicate(a.startTs) : null;
+    if (oldH?.feel && !Object.keys(a.feel).some(k => a.feel[k])) a.feel = oldH.feel;
     a.planId = pid; a.countAsSession = !pid && a.durationS >= 1800;
     if (pid) { const pl = S.plan.find(s=>s.id===pid); if (pl.activityId && pl.activityId !== a.id) { const old = S.activities.find(x=>x.id===pl.activityId); if (old) old.planId = null; } pl.status = 'done'; pl.activityId = a.id; }
     const acc = $('#lAcceptFtp');
@@ -1579,8 +1587,9 @@ function activityDlg(id){
   const a = S.activities.find(x=>x.id===id); if (!a) return;
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
   const fe = a.feel || {};
-  openDlg(`<span class="muted small">${fmtDate(a.date)} · ${a.source==='fit'?'fichier .fit':a.source==='manual'?'saisie manuelle':'Strava'}</span>
+  openDlg(`<span class="muted small">${fmtDate(a.date)} · ${ {fit:'fichier .fit', manual:'saisie manuelle', strava:'Strava', intervals:'Intervals.icu', health:'Apple Santé'}[a.source] || a.source }</span>
     <h2 style="margin:6px 0">${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</h2>
+    ${a.source==='health' ? `<p class="tiny muted" style="margin:0 0 6px">Venue d'Apple Santé (${isIndoor(a)?'home trainer':'extérieur'}, sans puissance). Si tu importes le .fit de cette sortie, il la remplacera automatiquement.</p><div class="row" style="margin-bottom:8px"><button class="btn sm" data-toggleindoor="${a.id}">Marquer comme ${isIndoor(a)?'extérieur':'home trainer'}</button></div>` : ''}
     <div class="grid4" style="margin:8px 0">${[['Durée',fmtDur(a.durationS)],['NP',a.np?a.np+' W':'—'],['TSS',a.tss??'—'],['FC moy.',a.avgHr??'—'],['P. moy.',a.avgPower?a.avgPower+' W':'—'],['IF',a.if??'—'],['FC max',a.maxHr??'—'],['Cadence',a.avgCad??'—']].map(([l,v])=>`<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
     ${a.best?`<div class="small muted">Records : ${[['5 s',a.best.s5],['1 min',a.best.m1],['5 min',a.best.m5],['20 min',a.best.m20]].filter(x=>x[1]).map(([l,v])=>`<b class="num" style="color:var(--text)">${v} W</b> ${l}`).join(' · ')}</div>`:''}
     ${a.pwSample?`<div style="margin-top:8px">${lineChart({ series:[{type:'area',pts:a.pwSample.map((v,i)=>[i,v]),color:'var(--accent)',opacity:.2},{pts:a.pwSample.map((v,i)=>[i,v]),color:'var(--accent)',width:1.2}, ...(a.hrSample?[{pts:a.hrSample.map((v,i)=>[i,v]),color:'var(--bad)',width:1}]:[])], xMin:0, xMax:a.pwSample.length-1, yMin:0, yMax:Math.max(...a.pwSample,200)*1.05, h:150, yTicks:4 })}</div>`:''}
@@ -1588,9 +1597,17 @@ function activityDlg(id){
     <p class="small">${fe.rpe?`RPE <b>${fe.rpe}</b>`:'Pas de ressenti'}${fe.legs?` · jambes ${fe.legs}/5`:''}${fe.breath?` · souffle ${fe.breath}/5`:''}${fe.motivation?` · motivation ${fe.motivation}/5`:''}${fe.sleep?` · ${fe.sleep} h de sommeil`:''}</p>
     ${fe.note?`<p class="small muted">« ${esc(fe.note)} »</p>`:''}
     <div class="row" style="margin-top:12px"><button class="btn sm danger" id="delAct">Supprimer l'activité</button></div>`);
-  $('#delAct').onclick = () => { if (pl) { pl.status = 'planned'; pl.activityId = null; } S.activities = S.activities.filter(x=>x.id!==a.id); save(); closeDlg(); render(); toast('Activité supprimée'); };
+  $('#delAct').onclick = () => { if (pl) { pl.status = 'planned'; pl.activityId = null; } if (a.healthStart) (S.dismissedHealth ||= []).push(a.healthStart); S.activities = S.activities.filter(x=>x.id!==a.id); save(); closeDlg(); render(); toast('Activité supprimée'); };
 }
 
+// retire la version « Apple Santé » d'une sortie quand une version plus riche (puissance) arrive
+function replaceHealthDuplicate(startTs){
+  const old = S.activities.find(x => x.source === 'health' && x.startTs && Math.abs(x.startTs - startTs) < 1800);
+  if (!old) return null;
+  S.activities = S.activities.filter(x => x !== old);
+  if (old.planId) { const pl = S.plan.find(s => s.id === old.planId); if (pl && pl.activityId === old.id) { pl.status = 'planned'; pl.activityId = null; } }
+  return old;
+}
 /* ============ délégation des clics ============ */
 document.addEventListener('click', e => {
   const t = e.target.closest('[data-open],[data-log],[data-export],[data-act],[data-lib],[data-add],[data-absence],[data-undoabs],[data-proto],[data-coach],#expJson,#impJson,#reset');
@@ -1772,6 +1789,7 @@ const Cloud = (() => {
   function extToActivity(a0, st, source){
     st = st || {};
     const start = Math.floor(Date.parse(a0.start_date)/1000);
+    replaceHealthDuplicate(start);
     if (S.activities.some(x => x.startTs && Math.abs(x.startTs - start) < 120)) return null; // déjà importée (.fit ou autre source)
     const time = st.time || [];
     const records = time.map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null }));
@@ -1900,10 +1918,11 @@ const Health = (() => {
     const [d, s, w, t] = await Promise.all([
       sb.from('health_daily').select('day, metric, value').gte('day', since).order('day'),
       sb.from('health_sleep').select('night, source, asleep_min, deep_min, rem_min, core_min, awake_min, in_bed_min, bed_start, bed_end').gte('night', since).order('night'),
-      sb.from('health_workouts').select('start_at, end_at, type, duration_min, distance_km, energy_kcal, avg_hr, source').gte('start_at', since).order('start_at'),
+      sb.from('health_workouts').select('start_at, end_at, type, duration_min, distance_km, energy_kcal, avg_hr, source, indoor').gte('start_at', since).order('start_at'),
       sb.rpc('ingest_status'),
     ]);
     if (!d.error) H.daily = d.data; if (!s.error) H.sleep = s.data; if (!w.error) H.workouts = w.data;
+    promoteBikes();
     H.token = t.data && t.data.length ? { last: t.data[0].last_used_at } : null;
     persist();
   }
@@ -1966,6 +1985,27 @@ const Health = (() => {
     return Math.round(min/60 * Math.pow(IF_GUESS[sp], 2) * 100);
   }
   // séances Santé à ajouter à la charge (sauf vélos déjà importés dans l'app)
+  const bikeIndoor = w => w.indoor ?? /home trainer|intérieur|indoor|virtual|zwift|mywhoosh|rouvy/i.test(`${w.type} ${w.source}`);
+  function promoteBikes(){
+    if (!S.profile) return 0;
+    let n = 0;
+    for (const w of H.workouts) {
+      if (sportOf(w.type) !== 'bike') continue;
+      const date = iso(new Date(w.start_at)); if (date < S.profile.startDate) continue;
+      const start = Math.floor(Date.parse(w.start_at)/1000);
+      if (S.activities.some(a => a.healthStart === w.start_at || (a.startTs && Math.abs(a.startTs - start) < 1800) || (!a.startTs && a.date === date && a.source === 'manual'))) continue;
+      if ((S.dismissedHealth || []).includes(w.start_at)) continue;
+      const a = { id: uid(), source:'health', healthStart: w.start_at, date, startTs: start, name: `${w.type || 'Vélo'}${w.source ? ' · ' + w.source : ''}`,
+        durationS: Math.round((w.duration_min || 0) * 60), distanceKm: w.distance_km ? +(+w.distance_km).toFixed(1) : null, avgHr: w.avg_hr ? Math.round(w.avg_hr) : null,
+        maxHr: null, avgPower: null, np: null, hasPower: false, indoor: bikeIndoor(w), best: null, feel: null };
+      const pl = S.plan.find(s => s.date === date && s.status === 'planned');
+      if (pl) { a.planId = pl.id; pl.status = 'done'; pl.activityId = a.id; } else a.countAsSession = a.durationS >= 1800;
+      computeLoad(a); if (a.tss == null) a.tss = wTss(w);
+      S.activities.push(a); n++;
+    }
+    if (n) { save(); toast(`${n} sortie${n>1?'s':''} vélo ajoutée${n>1?'s':''} depuis Apple Santé`); }
+    return n;
+  }
   function extraWorkouts(){
     return H.workouts.map(w => {
       const start = Math.floor(Date.parse(w.start_at)/1000), date = iso(new Date(w.start_at));
@@ -2091,7 +2131,7 @@ const Health = (() => {
     }
     return out;
   }
-  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, get H(){ return H; }, persist };
+  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, promoteBikes, bikeIndoor, sportOf, get H(){ return H; }, persist };
 })();
 
 // ressenti a posteriori pour une activité importée (Strava)
