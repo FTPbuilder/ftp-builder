@@ -2,12 +2,12 @@
 //  GET  : validation de l'abonnement (hub.challenge) avec STRAVA_VERIFY_TOKEN
 //  POST : événement -> nouvelle activité rapatriée dans strava_inbox, désautorisation -> tokens supprimés
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { admin, accessTokenFor, ingestActivity } from "../_shared/strava.ts";
+import { admin, accessTokenFor, ingestActivity, verifyToken } from "../_shared/strava.ts";
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
   if (req.method === "GET") {
-    const ok = url.searchParams.get("hub.mode") === "subscribe" && url.searchParams.get("hub.verify_token") === Deno.env.get("STRAVA_VERIFY_TOKEN");
+    const ok = url.searchParams.get("hub.mode") === "subscribe" && url.searchParams.get("hub.verify_token") === await verifyToken();
     if (!ok) return new Response("forbidden", { status: 403 });
     return new Response(JSON.stringify({ "hub.challenge": url.searchParams.get("hub.challenge") }), { headers: { "Content-Type": "application/json" } });
   }

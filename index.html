@@ -1693,7 +1693,8 @@ const Cloud = (() => {
     if (!session) return toast('Connecte-toi puis relance la connexion Strava');
     const { data, error } = await sb.functions.invoke('strava', { body: { action:'exchange', code: q.get('code'), scope: q.get('scope') } });
     if (error || data?.error) return toast('Strava : ' + (data?.error || error.message));
-    toast(`Strava connecté${data.athlete?.firstname ? ' : ' + data.athlete.firstname : ''} 🚴`);
+    toast(`Strava connecté${data.athlete?.firstname ? ' : ' + data.athlete.firstname : ''} 🚴${data.webhook && !data.webhook.subscribed ? ' (synchro auto à finaliser)' : ''}`);
+    if (data.webhook && !data.webhook.subscribed) console.warn('webhook Strava', data.webhook);
     await syncStrava(30);
   }
   async function syncStrava(days=14){
@@ -1792,7 +1793,9 @@ const Cloud = (() => {
       <h3 style="margin-top:16px">Strava</h3>
       ${strava.connected
         ? `<p class="small muted" style="margin:0 0 8px">Connecté (athlète ${esc(strava.athlete)}). Chaque nouvelle sortie vélo arrive toute seule ; ouvre l'app pour l'intégrer.</p><div class="row"><button class="btn" data-strava="sync">Synchroniser maintenant</button><button class="btn sm ghost" data-strava="off">Déconnecter Strava</button></div>`
-        : `<p class="small muted" style="margin:0 0 8px">Récupère automatiquement tes sorties (puissance, FC, cadence) dès qu'elles arrivent sur Strava.</p><button class="btn" data-strava="on" style="background:#fc4c02;border-color:#fc4c02;color:#fff">Connecter Strava</button>`}
+        : STRAVA_CLIENT_ID
+          ? `<p class="small muted" style="margin:0 0 8px">Récupère automatiquement tes sorties (puissance, FC, cadence) dès qu'elles arrivent sur Strava.</p><button class="btn" data-strava="on" style="background:#fc4c02;border-color:#fc4c02;color:#fff">Connecter Strava</button>`
+          : `<p class="small muted" style="margin:0">Connexion Strava bientôt disponible.</p>`}
     </div>`;
   }
   function authDlg(){

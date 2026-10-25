@@ -62,6 +62,25 @@ export async function ingestActivity(db: SupabaseClient, token: string, user_id:
   return { ok: true };
 }
 
+// Jeton de vérification du webhook : secret STRAVA_VERIFY_TOKEN s'il existe, sinon dérivé du client secret
+export async function verifyToken() {
+  const env = Deno.env.get("STRAVA_VERIFY_TOKEN"); if (env) return env;
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ftpb-webhook:" + SECRET()));
+  return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+// S'abonne aux événements Strava (une seule fois par application Strava) ; renvoie l'état
+export async function ensureSubscription() {
+  const q = new URLSearchParams({ client_id: CID(), client_secret: SECRET() });
+  const r = await fetch(`https://www.strava.com/api/v3/push_subscriptions?${q}`);
+  const list = r.ok ? await r.json() : [];
+  if (Array.isArray(list) && list.length) return { subscribed: true, id: list[0].id, existing: true };
+  const callback = Deno.env.get("SUPABASE_URL")!.replace(/\/$/, "") + "/functions/v1/strava-webhook";
+  const body = new URLSearchParams({ client_id: CID(), client_secret: SECRET(), callback_url: callback, verify_token: await verifyToken() });
+  const c = await fetch("https://www.strava.com/api/v3/push_subscriptions", { method: "POST", body });
+  const j = await c.json().catch(() => ({}));
+  return c.ok ? { subscribed: true, id: j.id, existing: false } : { subscribed: false, error: JSON.stringify(j).slice(0, 200) };
+}
+
 export const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",

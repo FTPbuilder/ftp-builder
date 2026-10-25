@@ -4,7 +4,7 @@
 //  { action: "disconnect" }      -> révoque et supprime les tokens
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { admin, tokenRequest, accessTokenFor, ingestActivity, cors, json } from "../_shared/strava.ts";
+import { admin, tokenRequest, accessTokenFor, ingestActivity, ensureSubscription, cors, json } from "../_shared/strava.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -25,7 +25,8 @@ Deno.serve(async (req) => {
         expires_at: new Date(t.expires_at * 1000).toISOString(), scope: body.scope ?? null,
       }, { onConflict: "user_id" });
       if (error) throw error;
-      return json({ connected: true, athlete: { id: t.athlete.id, firstname: t.athlete.firstname } });
+      let webhook: unknown = null; try { webhook = await ensureSubscription(); } catch (e) { webhook = { subscribed: false, error: String(e) }; }
+      return json({ connected: true, athlete: { id: t.athlete.id, firstname: t.athlete.firstname }, webhook });
     }
 
     if (body.action === "sync") {
@@ -53,6 +54,7 @@ Deno.serve(async (req) => {
       await db.from("strava_tokens").delete().eq("user_id", user.id);
       return json({ connected: false });
     }
+    if (body.action === "webhook") return json(await ensureSubscription());
     return json({ error: "action inconnue" }, 400);
   } catch (e) {
     console.error(e);
