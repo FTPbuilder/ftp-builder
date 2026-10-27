@@ -1,6 +1,6 @@
 // Liaison Intervals.icu (JWT Supabase requis). La clé API reste côté serveur.
 //  { action:"connect", apiKey }            -> vérifie la clé, enregistre le compte
-//  { action:"sync", days? }                -> activités (vélo avec puissance -> ext_inbox ; autres sports -> health_workouts) + wellness
+//  { action:"sync", days? }                -> activités (vélo avec puissance -> ext_inbox ; autres sports -> health_workouts) + tracés GPS (activity_tracks) + wellness
 //  { action:"push", events:[…], remove:[…] } -> envoie/maj des séances planifiées dans le calendrier Intervals (-> Garmin Connect)
 //  { action:"disconnect" }
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -23,6 +23,25 @@ const kmh = (v: unknown) => (v != null && Number(v) > 0 ? +(Number(v) * 3.6).toF
 const elev = (a: Record<string, unknown>) => { const v = a.total_elevation_gain ?? a.icu_elevation_gain; return v != null && Number(v) >= 0 ? Math.round(Number(v)) : null; };
 const RIDES = /^(Ride|VirtualRide|GravelRide|MountainBikeRide|EBikeRide|TrackRide)$/;
 const TYPES: Record<string, string> = { Ride: "Vélo", VirtualRide: "Vélo (home trainer)", GravelRide: "Gravel", MountainBikeRide: "VTT", Run: "Course à pied", TrailRun: "Trail", VirtualRun: "Course (tapis)", Swim: "Natation", OpenWaterSwim: "Natation eau libre", Walk: "Marche", Hike: "Randonnée", WeightTraining: "Renforcement musculaire", Workout: "Séance", Yoga: "Yoga", Rowing: "Aviron", Tennis: "Tennis", Soccer: "Football", Crossfit: "Crossfit", Elliptical: "Elliptique" };
+
+// tracé GPS compact (≤ 800 points) pour la vue 3D : lat/lon, altitude (m), distance (km), temps (s), vitesse (km/h), FC
+function trackOf(raw: unknown) {
+  const S: Record<string, { data?: unknown[]; data2?: unknown[] }> = {};
+  if (Array.isArray(raw)) for (const s of raw as { type: string; data: unknown[]; data2?: unknown[] }[]) S[s.type] = s;
+  const ll = S.latlng; if (!ll?.data?.length) return null;
+  const pair = Array.isArray(ll.data[0]);
+  const lat = pair ? (ll.data as number[][]).map((p) => p?.[0]) : ll.data as number[];
+  const lon = pair ? (ll.data as number[][]).map((p) => p?.[1]) : (ll.data2 ?? []) as number[];
+  const g = (k: string) => (S[k]?.data ?? []) as (number | null)[];
+  const t = g("time"), alt = g("altitude"), d = g("distance"), v = g("velocity_smooth"), hr = g("heartrate");
+  const idx: number[] = []; for (let i = 0; i < lat.length; i++) if (lat[i] != null && lon[i] != null && (lat[i] !== 0 || lon[i] !== 0)) idx.push(i);
+  if (idx.length < 10) return null;
+  const k = Math.max(1, Math.ceil(idx.length / 800)), pick = idx.filter((_, j) => j % k === 0); if (pick[pick.length - 1] !== idx[idx.length - 1]) pick.push(idx[idx.length - 1]);
+  const r = (x: number | null | undefined, n: number) => (x == null || !isFinite(Number(x)) ? null : +Number(x).toFixed(n));
+  return { v: 1, lat: pick.map((i) => r(lat[i], 5)), lon: pick.map((i) => r(lon[i], 5)), alt: alt.length ? pick.map((i) => r(alt[i], 1)) : null,
+    d: d.length ? pick.map((i) => r((d[i] ?? 0) / 1000, 3)) : null, t: t.length ? pick.map((i) => t[i]) : null,
+    spd: v.length ? pick.map((i) => r((v[i] ?? 0) * 3.6, 1)) : null, hr: hr.length ? pick.map((i) => hr[i]) : null };
+}
 
 function streamsOf(raw: unknown) {
   const out: Record<string, unknown[] | null> = { time: null, watts: null, heartrate: null, cadence: null };
@@ -59,12 +78,24 @@ Deno.serve(async (req) => {
       const acts = await icu(key, `/athlete/0/activities?oldest=${oldest}&newest=${newest}`) as Record<string, unknown>[];
       const { data: known } = await db.from("ext_inbox").select("ext_id").eq("user_id", user.id).eq("source", "intervals");
       const seen = new Set((known ?? []).map((k) => k.ext_id));
-      let rides = 0, others = 0, skipped = 0;
+      let rides = 0, others = 0, skipped = 0, tracks = 0;
+      const { data: haveT } = await db.from("activity_tracks").select("start_ts").eq("user_id", user.id).gte("start_ts", Math.floor(Date.now() / 1000) - days * 86400 - 86400);
+      const haveTrack = new Set((haveT ?? []).map((x) => Number(x.start_ts)));
       for (const a of acts) {
         const id = String(a.id); const type = String(a.type ?? "");
         const start = String(a.start_date ?? a.start_date_local ?? "");
         if (!start || (a.source === "STRAVA" && !a.moving_time)) { skipped++; continue; } // activités Strava : non exposées par l'API
         const watts = (a.icu_average_watts ?? a.average_watts) as number | undefined;
+        // sortie extérieure : tracé GPS pour la vue 3D (une seule fois par sortie)
+        if (RIDES.test(type) && type !== "VirtualRide" && a.trainer !== true) {
+          const ts = Math.floor(new Date(start.endsWith("Z") || /[+-]\d\d:\d\d$/.test(start) ? start : start + "Z").getTime() / 1000);
+          if (!haveTrack.has(ts)) {
+            try {
+              const tr = trackOf(await icu(key, `/activity/${id}/streams.json?types=latlng,altitude,time,distance,velocity_smooth,heartrate`));
+              if (tr) { await db.from("activity_tracks").upsert({ user_id: user.id, start_ts: ts, source: "intervals", track: tr, updated_at: new Date().toISOString() }); haveTrack.add(ts); tracks++; }
+            } catch { /* pas de GPS */ }
+          }
+        }
         if (RIDES.test(type) && watts && a.device_watts !== false) {
           if (seen.has(id)) continue;
           let st = null; try { st = streamsOf(await icu(key, `/activity/${id}/streams.json?types=time,watts,heartrate,cadence`)); } catch { /* résumé seul */ }
@@ -97,7 +128,7 @@ Deno.serve(async (req) => {
         for (const d of w) if (d.sleepSecs && Number(d.sleepSecs) > 3600) await db.from("health_sleep").upsert({ user_id: user.id, night: String(d.id).slice(0, 10), source: "Intervals.icu", asleep_min: Math.round(Number(d.sleepSecs) / 60), updated_at: new Date().toISOString() }, { onConflict: "user_id,night", ignoreDuplicates: true });
       } catch { /* wellness facultatif */ }
       await db.from("intervals_accounts").update({ last_sync_at: new Date().toISOString() }).eq("user_id", user.id);
-      return json({ rides, others, skipped, wellness: wcount, total: acts.length });
+      return json({ rides, others, skipped, tracks, wellness: wcount, total: acts.length });
     }
 
     if (body.action === "push") {

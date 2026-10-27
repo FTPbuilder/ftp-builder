@@ -42,17 +42,21 @@ export async function ingestActivity(db: SupabaseClient, token: string, user_id:
   if (!ar.ok) throw new Error(`activity ${stravaId}: ${ar.status}`);
   const a = await ar.json();
   if (!RIDES.has(a.sport_type) && !RIDES.has(a.type)) return { skipped: true };
-  const sr = await fetch(`https://www.strava.com/api/v3/activities/${stravaId}/streams?keys=time,watts,heartrate,cadence&key_by_type=true`, { headers: h });
+  const sr = await fetch(`https://www.strava.com/api/v3/activities/${stravaId}/streams?keys=time,watts,heartrate,cadence,latlng,altitude,distance,velocity_smooth&key_by_type=true`, { headers: h });
   const streams = sr.ok ? await sr.json() : null;
   const activity = {
     id: a.id, name: a.name, sport_type: a.sport_type, start_date: a.start_date, start_date_local: a.start_date_local,
     moving_time: a.moving_time, elapsed_time: a.elapsed_time, distance: a.distance, trainer: a.trainer,
     average_watts: a.average_watts, weighted_average_watts: a.weighted_average_watts, max_watts: a.max_watts, device_watts: a.device_watts,
     average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, average_cadence: a.average_cadence,
+    total_elevation_gain: a.total_elevation_gain ?? null, average_speed: a.average_speed ?? null, max_speed: a.max_speed ?? null,
   };
   const compact = streams ? {
     time: streams.time?.data ?? null, watts: streams.watts?.data ?? null,
     heartrate: streams.heartrate?.data ?? null, cadence: streams.cadence?.data ?? null,
+    // sorties extérieures : GPS pour la vue 3D (l'app en fait un tracé compact)
+    latlng: a.trainer ? null : streams.latlng?.data ?? null, altitude: a.trainer ? null : streams.altitude?.data ?? null,
+    distance: a.trainer ? null : streams.distance?.data ?? null, velocity_smooth: a.trainer ? null : streams.velocity_smooth?.data ?? null,
   } : null;
   const { error } = await db.from("strava_inbox").upsert(
     { user_id, strava_id: a.id, activity, streams: compact, imported: false },
