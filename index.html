@@ -206,7 +206,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.11.1';
+const APP_VERSION = '0.11.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -609,6 +609,10 @@ const autoPlanFor = a => S.plan.find(s => s.date === a.date && s.status === 'pla
 // répare les rattachements automatiques faits avant ces règles (sorties Apple Santé / Intervals sans puissance)
 function repairAutoLinks(){
   let n = 0;
+  // enregistrements parasites de quelques secondes ; sorties d'avant le programme qui ne comptent pas comme séances
+  const junk = S.activities.filter(a => a.source === 'intervals' && !a.planId && (a.durationS || 0) < 120);
+  if (junk.length) { S.activities = S.activities.filter(a => !junk.includes(a)); n += junk.length; }
+  for (const a of S.activities) if (a.countAsSession && !a.planId && !a.linkManual && S.profile?.startDate && a.date < S.profile.startDate) { a.countAsSession = false; n++; }
   for (const a of S.activities) {
     if (a.source !== 'health' || !a.planId || a.linkManual) continue;
     const pl = S.plan.find(s => s.id === a.planId);
@@ -2550,14 +2554,27 @@ const Cloud = (() => {
   }
   // convertit les activités reçues (webhook ou synchro) en séances de l'app
   // activité externe (résumé + flux seconde par seconde) -> séance FTP Builder ; renvoie null si doublon
+  const recordsFrom = (st, start) => (st?.time || []).map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null,
+    spd: st.velocity_smooth?.[i] != null ? st.velocity_smooth[i]*3.6 : null, alt: st.altitude?.[i] ?? null, dist: st.distance?.[i] != null ? st.distance[i]/1000 : null }));
+  // complète une sortie dehors déjà en place (import plus ancien ou .fit) avec la vitesse et l'altitude d'Intervals
+  function enrich(a, row){
+    const start = Math.floor(Date.parse(row.activity.start_date)/1000), rec = recordsFrom(row.streams, start); if (!rec.length) return false;
+    const x = activityFromFit({ records: rec, laps:[], user:{}, zones:{}, workout:{}, noPower: true, sessions:[{ start, timer: row.activity.moving_time }] }, 'x');
+    for (const k of ['spdSample','altSample','cadSample','hrSample']) if (!a[k] && x[k]) a[k] = x[k];
+    if (!a.sampleSecs && x.sampleSecs) a.sampleSecs = x.sampleSecs;
+    const a0 = row.activity;
+    if (a.avgSpeed == null && a0.average_speed) a.avgSpeed = +(a0.average_speed*3.6).toFixed(1);
+    if (a.maxSpeed == null && a0.max_speed) a.maxSpeed = +(a0.max_speed*3.6).toFixed(1);
+    if (a.elevM == null && a0.total_elevation_gain != null) a.elevM = Math.round(a0.total_elevation_gain);
+    return !!a.spdSample;
+  }
   function extToActivity(a0, st, source){
     st = st || {};
     const start = Math.floor(Date.parse(a0.start_date)/1000);
     if (S.activities.some(x => x.startTs && x.source !== 'health' && Math.abs(x.startTs - start) < 120)) return null; // déjà importée (.fit ou autre source)
     const old = replaceHealthDuplicate(start); // la version Apple Santé (résumé seul) laisse la place, ses corrections sont reprises plus bas
-    const time = st.time || [];
-    const records = time.map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null,
-      spd: st.velocity_smooth?.[i] != null ? st.velocity_smooth[i]*3.6 : null, alt: st.altitude?.[i] ?? null, dist: st.distance?.[i] != null ? st.distance[i]/1000 : null }));
+    if ((a0.moving_time || 0) < 120) return null; // enregistrement parasite (quelques secondes)
+    const records = recordsFrom(st, start);
     const fit = { records, laps:[], user:{}, zones:{}, workout:{ name: a0.name }, noPower: !a0.device_watts,
       sessions:[{ start, timer: a0.moving_time, distKm: (a0.distance||0)/1000, subSport: a0.trainer ? 6 : 0, avgSpeed: a0.average_speed || null, maxSpeed: a0.max_speed || null, ascent: a0.total_elevation_gain ?? null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
     let a;
@@ -2585,16 +2602,26 @@ const Cloud = (() => {
   async function importExt(){
     if (!user() || !S.profile) return 0;
     const { data, error } = await sb.from('ext_inbox').select('source, ext_id, activity, streams').eq('imported', false).order('received_at');
-    if (error || !data?.length) return 0;
+    if (error) return 0;
     let n = 0;
-    for (const row of data.sort((x,y) => String(x.activity.start_date).localeCompare(String(y.activity.start_date)))) {
+    for (const row of (data || []).sort((x,y) => String(x.activity.start_date).localeCompare(String(y.activity.start_date)))) {
       if (!S.activities.some(x => x.extId === row.ext_id)) {
         const a = extToActivity(row.activity, row.streams, row.source);
         if (a) { a.extId = row.ext_id; S.activities.push(a); n++; }
       }
       await sb.from('ext_inbox').update({ imported:true }).eq('source', row.source).eq('ext_id', row.ext_id);
     }
-    if (n) save();
+    // sorties dehors importées avant que les flux vitesse/altitude existent : on les complète une fois
+    const need = S.activities.filter(a => !isIndoor(a) && !a.spdSample && a.startTs && !a.enrichTried && a.source !== 'health');
+    let m = 0;
+    for (const a of need) {
+      a.enrichTried = true;
+      let q = sb.from('ext_inbox').select('activity, streams').eq('source', 'intervals');
+      q = a.extId ? q.eq('ext_id', a.extId) : q.gte('activity->>start_date', new Date((a.startTs-120)*1000).toISOString().slice(0,19)).lte('activity->>start_date', new Date((a.startTs+120)*1000).toISOString().slice(0,19) + 'Z');
+      const { data: rows } = await q.limit(1);
+      if (rows?.[0]?.streams && enrich(a, rows[0])) m++;
+    }
+    if (n || need.length) save();
     return n;
   }
   async function importInbox(){
