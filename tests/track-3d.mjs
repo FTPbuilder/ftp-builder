@@ -1,4 +1,4 @@
-// Tracé 3D : sortie extérieure avec GPS (col simulé) → vue 3D paysage/portrait, lecture ▶, vélo qui avance
+// Tracé 3D : sortie extérieure avec GPS (col simulé) → vue 3D paysage/portrait, lecture ▶, traceur synchronisé avec la portion parcourue
 // Three.js est servi depuis node_modules (SCRATCH/three) à la place du CDN ; les tuiles satellite par SCRATCH/tile.png.
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
@@ -27,6 +27,13 @@ await pg.screenshot({ path: out + '/t3-0-fiche.png' });
 await pg.click('[data-track3d="out1"]');
 await pg.waitForFunction(() => !!window._t3, null, { timeout: 15000 }); await pg.waitForTimeout(800);
 await pg.screenshot({ path: out + '/t3-1-paysage.png' });
+// synchro : à chaque point GPS, le traceur est sur le point et la portion parcourue s'arrête au traceur (écart en unités de scène, tracé ≈ 100)
+const sync = await pg.evaluate(() => { const { st, P, place, tracker, pts, done, segs, radial, arcU, curve } = _t3; let maxPt = 0, maxDone = 0;
+  for (const i of [5, 60, 150, 300, 450, 600, P.n-2]) { st.u = P.dist[i]/P.total; place();
+    maxPt = Math.max(maxPt, tracker.position.distanceTo(pts[i]));
+    const end = curve.getPointAt(done.drawRange.count/(radial*6)/segs); maxDone = Math.max(maxDone, end.distanceTo(tracker.position)); }
+  st.u = 0; place(); return { maxPt: +maxPt.toFixed(3), maxDone: +maxDone.toFixed(3) }; });
+console.log('SYNCHRO', JSON.stringify(sync));
 await pg.click('[data-t3="play"]'); await pg.click('[data-t3="speed"]'); await pg.click('[data-t3="speed"]'); // ×4
 await pg.waitForTimeout(2500);
 const mid = await pg.evaluate(() => ({ u: +_t3.st.u.toFixed(3), play: _t3.st.play }));
@@ -41,5 +48,5 @@ await pg.evaluate(() => { FTPB.S.activities.push({ id:'out2', source:'health', d
 await pg.click('[data-track3d="out2"]'); await pg.waitForTimeout(600);
 const msg = await pg.locator('.toast, #toast').last().innerText().catch(() => '');
 console.log('tuiles', tiles, '| lecture', JSON.stringify(mid), '| HUD', hud.replace(/\n+/g, ' '), '| fermé', closed, '| sans tracé:', msg);
-const ok = tiles > 0 && mid.u > 0.1 && closed && /Pas de tracé/.test(msg);
+const ok = tiles > 0 && sync.maxPt < 0.05 && sync.maxDone < 0.6 && mid.u > 0.1 && closed && /Pas de tracé/.test(msg);
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);

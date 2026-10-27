@@ -206,7 +206,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.10.1';
+const APP_VERSION = '0.10.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1932,7 +1932,7 @@ const Track3D = (() => {
     fs.innerHTML = `<div class="t3d">
       <canvas class="t3c"></canvas>
       <div class="t3top"><div class="t3title"><b>${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</b><span>${fmtShort(a.date)} · ${fmt1(P.total)} km · D+ ${P.up} m</span></div>
-        <button type="button" class="t3btn" data-t3="sat" title="Fond satellite">🛰️</button><button type="button" class="t3btn" data-t3="follow" aria-pressed="false" title="Suivre le vélo">🎥</button><button type="button" class="t3btn" data-t3="close" aria-label="Fermer">×</button></div>
+        <button type="button" class="t3btn" data-t3="sat" title="Fond satellite">🛰️</button><button type="button" class="t3btn" data-t3="follow" aria-pressed="false" title="Suivre le traceur">🎥</button><button type="button" class="t3btn" data-t3="close" aria-label="Fermer">×</button></div>
       <div class="t3hud"><div><small>Distance</small><b data-h="d">0</b> km</div><div><small>Altitude</small><b data-h="a">—</b> m</div><div><small>Pente</small><b data-h="g">—</b> %</div><div><small>Vitesse</small><b data-h="v">—</b> km/h</div>${P.hr ? '<div><small>FC</small><b data-h="hr">—</b></div>' : ''}</div>
       <div class="t3bot"><svg class="t3prof" viewBox="0 0 1000 60" preserveAspectRatio="none"></svg>
         <div class="t3ctl"><button type="button" class="t3play" data-t3="play" aria-label="Lecture">▶</button><input type="range" class="t3seek" min="0" max="1000" value="0" aria-label="Position sur le tracé">
@@ -1953,6 +1953,11 @@ const Track3D = (() => {
     const base = 1.2, H = i => base + (P.alt[i] - P.aMin)*sc*ex, au = i => P.aMax > P.aMin ? (P.alt[i] - P.aMin)/(P.aMax - P.aMin) : 0.3;
     const pts = P.X.map((x, i) => new T.Vector3((x - cx)*sc, H(i), (P.Z[i] - cz)*sc));
     const curve = new T.CatmullRomCurve3(pts, false, 'centripetal');
+    // synchro : la courbe passe par le point i au paramètre t = i/(n-1), mais les tubes sont découpés selon la longueur d'arc.
+    // arcU[i] = part de la longueur de courbe au point i : le traceur, la portion parcourue et les couleurs utilisent la même référence.
+    const SUB = 8; curve.arcLengthDivisions = (P.n-1)*SUB; // même finesse pour getPointAt (traceur) et pour les tubes
+    const L = curve.getLengths(), Ltot = L[L.length-1] || 1, arcU = P.X.map((_, i) => L[i*SUB]/Ltot);
+    const idxOfArc = a => { let lo = 0, hi = P.n-1; while (lo < hi) { const m = (lo+hi+1) >> 1; if (arcU[m] <= a) lo = m; else hi = m-1; } return lo; };
     const segs = Math.min(1600, P.n*2), radial = 6;
 
     // sol : grille + ombre du tracé
@@ -1978,7 +1983,7 @@ const Track3D = (() => {
       scene.add(new T.Mesh(g, new T.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.55, side: T.DoubleSide, blending: T.AdditiveBlending, depthWrite: false }))); }
     // tracé lumineux coloré selon l'altitude + halo
     const tube = new T.TubeGeometry(curve, segs, 0.32, radial, false);
-    { const c = []; for (let s = 0; s <= segs; s++) { const u = s/segs, i = Math.min(P.n-1, Math.round(u*(P.n-1))), col = heat(au(i)); for (let r = 0; r <= radial; r++) c.push(...col); }
+    { const c = []; for (let s = 0; s <= segs; s++) { const i = idxOfArc(s/segs), col = heat(au(i)); for (let r = 0; r <= radial; r++) c.push(...col); }
       tube.setAttribute('color', new T.Float32BufferAttribute(c, 3)); }
     scene.add(new T.Mesh(tube, new T.MeshBasicMaterial({ vertexColors: true })));
     const halo = new T.TubeGeometry(curve, segs, 0.9, radial, false); halo.setAttribute('color', tube.getAttribute('color'));
@@ -1990,12 +1995,14 @@ const Track3D = (() => {
     const dot = (p, col) => { const m = new T.Mesh(new T.SphereGeometry(0.9, 16, 12), new T.MeshBasicMaterial({ color: col })); m.position.copy(p); scene.add(m);
       const beam = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(p.x, 0, p.z), p]), new T.LineBasicMaterial({ color: col, transparent: true, opacity: 0.6 })); scene.add(beam); };
     dot(pts[0], 0x3ecf8e); dot(pts[P.n-1], 0xff4d5e);
-    // le vélo : pictogramme toujours face à la caméra + point lumineux + faisceau au sol
-    const cv = document.createElement('canvas'); cv.width = cv.height = 128; const cx2 = cv.getContext('2d');
-    cx2.fillStyle = 'rgba(255,255,255,.95)'; cx2.beginPath(); cx2.arc(64, 64, 58, 0, Math.PI*2); cx2.fill(); cx2.font = '80px system-ui, Apple Color Emoji, Segoe UI Emoji'; cx2.textAlign = 'center'; cx2.textBaseline = 'middle'; cx2.fillText('🚴', 64, 70);
-    const bike = new T.Sprite(new T.SpriteMaterial({ map: new T.CanvasTexture(cv), depthTest: false })); bike.renderOrder = 10; scene.add(bike); // taille recalculée à chaque image (constante à l'écran)
-    const glow = new T.Mesh(new T.SphereGeometry(0.8, 16, 12), new T.MeshBasicMaterial({ color: 0xffe08a })); scene.add(glow);
-    const bbeam = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]), new T.LineBasicMaterial({ color: 0xffe08a, transparent: true, opacity: 0.7 })); scene.add(bbeam);
+    // traceur : point lumineux + halo + onde qui pulse, toujours visible, taille constante à l'écran
+    const tracker = new T.Group(); tracker.renderOrder = 12;
+    const tMat = (color, opacity, add) => new T.MeshBasicMaterial({ color, transparent: true, opacity, depthTest: false, depthWrite: false, ...(add ? { blending: T.AdditiveBlending } : {}) });
+    const core = new T.Mesh(new T.SphereGeometry(0.55, 20, 14), tMat(0xffffff, 1)); core.renderOrder = 13;
+    const halo3 = new T.Mesh(new T.SphereGeometry(1.25, 20, 14), tMat(0xffb347, 0.45, true)); halo3.renderOrder = 12;
+    const ring = new T.Mesh(new T.RingGeometry(1.3, 1.65, 48), tMat(0xffd27a, 0.8, true)); ring.rotation.x = -Math.PI/2; ring.renderOrder = 12;
+    tracker.add(halo3, ring, core); scene.add(tracker);
+    const bbeam = new T.Line(new T.BufferGeometry().setFromPoints([new T.Vector3(), new T.Vector3()]), new T.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.7 })); scene.add(bbeam);
 
     const controls = new T.OrbitControls(camera, canvas); controls.enableDamping = true; controls.dampingFactor = 0.08; controls.maxPolarAngle = Math.PI*0.49; controls.minDistance = 15; controls.maxDistance = 400;
     // cadrage initial : tout le tracé visible, vu de trois quarts
@@ -2015,18 +2022,22 @@ const Track3D = (() => {
     const idxAt = u => { const target = u*P.total; let lo = 0, hi = P.n-1; while (lo < hi) { const m = (lo+hi) >> 1; if (P.dist[m] < target) lo = m+1; else hi = m; } return lo; };
     const hud = k => root.querySelector(`[data-h="${k}"]`);
     function place(){
-      const i = idxAt(st.u), u = P.n > 1 ? i/(P.n-1) : 0, p = curve.getPoint(u);
-      const sz = camera.position.distanceTo(p)*0.07; bike.scale.set(sz, sz, 1); bike.position.set(p.x, p.y + sz*0.6, p.z); glow.position.copy(p);
+      // position exacte entre deux points GPS (par la distance), puis même abscisse curviligne pour le traceur et la portion parcourue
+      const target = st.u*P.total; let i = Math.max(0, idxAt(st.u) - 1); while (i < P.n-2 && P.dist[i+1] < target) i++;
+      const seg = P.dist[i+1] - P.dist[i], f = P.n > 1 && seg > 0 ? clamp((target - P.dist[i])/seg, 0, 1) : 0;
+      const a = P.n > 1 ? arcU[i] + (arcU[i+1] - arcU[i])*f : 0, p = curve.getPointAt(clamp(a, 0, 1));
+      const k = camera.position.distanceTo(p)*0.02, ph = (performance.now()/1200) % 1;
+      tracker.position.copy(p); tracker.scale.setScalar(k); ring.scale.setScalar(1 + ph*1.6); ring.material.opacity = 0.85*(1 - ph);
       bbeam.geometry.setFromPoints([new T.Vector3(p.x, 0, p.z), p]);
-      done.setDrawRange(0, Math.round(u*segs)*radial*6);
+      done.setDrawRange(0, Math.floor(a*segs)*radial*6);
       const j = Math.max(0, i-3), k2 = Math.min(P.n-1, i+3), dd = (P.dist[k2]-P.dist[j])*1000;
-      hud('d').textContent = fmt1(P.dist[i]); hud('a').textContent = Math.round(P.alt[i]);
+      hud('d').textContent = fmt1(target); hud('a').textContent = Math.round(P.alt[i]);
       hud('g').textContent = dd > 5 ? fmt1((P.alt[k2]-P.alt[j])/dd*100) : '—';
       const v = P.spd?.[i] ?? (P.t && P.t[k2] > P.t[j] ? (P.dist[k2]-P.dist[j])/((P.t[k2]-P.t[j])/3600) : null); hud('v').textContent = fmt1(v);
       if (P.hr) hud('hr').textContent = P.hr[i] ?? '—';
       root.querySelector('.t3cur').setAttribute('x1', st.u*1000); root.querySelector('.t3cur').setAttribute('x2', st.u*1000);
       if (document.activeElement !== seek) seek.value = Math.round(st.u*1000);
-      if (st.follow) { const ahead = curve.getPoint(Math.min(1, u + 0.02)), dir = ahead.clone().sub(p).setY(0); if (dir.lengthSq() < 1e-6) dir.set(1, 0, 0); dir.normalize();
+      if (st.follow) { const ahead = curve.getPointAt(Math.min(1, a + 0.02)), dir = ahead.clone().sub(p).setY(0); if (dir.lengthSq() < 1e-6) dir.set(1, 0, 0); dir.normalize();
         const want = p.clone().sub(dir.multiplyScalar(rad*0.55)).add(new T.Vector3(0, rad*0.38, 0)); camera.position.lerp(want, 0.08); controls.target.lerp(p, 0.15); }
     }
     const seek = root.querySelector('.t3seek'), playBtn = root.querySelector('[data-t3="play"]');
@@ -2049,7 +2060,7 @@ const Track3D = (() => {
     st.raf = requestAnimationFrame(frame);
     try { if (fs.requestFullscreen && !/iPhone|iPod/.test(navigator.userAgent)) fs.requestFullscreen().catch(() => {}); } catch {}
     V = { dispose(){ alive = false; cancelAnimationFrame(st.raf); ro.disconnect(); controls.dispose(); scene.traverse(o => { o.geometry?.dispose?.(); if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); renderer.dispose(); renderer.forceContextLoss?.(); } };
-    window._t3 = { st, P, place }; // tests
+    window._t3 = { st, P, place, tracker, pts, done, segs, radial, arcU, curve }; // tests
   }
   fs.addEventListener('close', () => { if (V) { V.dispose(); V = null; } fs.classList.remove('fs3d'); });
   document.addEventListener('click', e => { const b = e.target.closest('[data-track3d]'); if (!b) return; open(S.activities.find(a => a.id === b.dataset.track3d)); });
