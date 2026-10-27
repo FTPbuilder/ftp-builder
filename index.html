@@ -226,7 +226,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.1';
+const APP_VERSION = '0.13.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2106,7 +2106,7 @@ const Track3D = (() => {
 /* ============ ascensions (≥ 400 m de D+ consécutifs) ============ */
 // détectées dans les tracés GPS, puissance estimée par la physique (ou mesurée si capteur), prédiction façon loi de Riegel
 const Climbs = (() => {
-  const MIN_GAIN = 400, K = 0.07, CV = 2; // CV : version de l'analyse (2 : trajet de la montée gardé pour le nommage) // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
+  const MIN_GAIN = 400, K = 0.07, CV = 3; // CV : version de l'analyse (2 : trajet de la montée gardé pour le nommage) // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
   const PHY = { g: 9.81, bike: 8, crr: 0.005, cda: 0.35, eta: 0.975 };
   const COLORS = [[4,'var(--g1)'],[7,'var(--g2)'],[10,'var(--g3)'],[99,'var(--g4)']]; // 4 teintes : < 4 %, 4-7, 7-10, ≥ 10 %
   const catOf = p => COLORS.findIndex(([m]) => p < m), gradCol = p => COLORS[catOf(p)][1];
@@ -2150,7 +2150,11 @@ const Climbs = (() => {
     const close = () => { if (alt[p] - alt[s] < MIN_GAIN) return; let a = s, b = p;
       while (a < b) { const j = ahead(a, b); if (j > a && (alt[j] - alt[a])/((d[j] - d[a])*1000 || 1) < 0.02) a++; else break; }
       while (b > a) { const j = behind(b, a); if (j < b && (alt[b] - alt[j])/((d[b] - d[j])*1000 || 1) < 0.02) b--; else break; }
-      if (alt[b] - alt[a] >= MIN_GAIN) out.push([a, b]); };
+      if (alt[b] - alt[a] < MIN_GAIN) return;
+      // cœur de la montée : la portion ≥ 400 m qui maximise D+² / longueur (l'indice « difficulté » des sites de cols)
+      let ba = a, bb = b, best = (alt[b] - alt[a])**2/Math.max(0.1, d[b] - d[a]);
+      for (let i = a; i < b; i++) for (let j = b; j > i; j--) { const H = alt[j] - alt[i]; if (H < MIN_GAIN) break; const sc = H*H/Math.max(0.1, d[j] - d[i]); if (sc > best*1.08) { best = sc; ba = i; bb = j; } }
+      out.push([ba, bb]); };
     for (let i = 1; i < n; i++) {
       if (alt[i] > alt[p]) p = i;
       else if (alt[i] <= alt[s] && p === s) { s = i; p = i; }
@@ -2259,12 +2263,20 @@ const Climbs = (() => {
     return from && from !== top && from !== hamlet?.t.name && top !== `Montée vers ${from}` ? `${top} depuis ${from}` : top;
   }
   async function autoNames(G){
-    if (S.climbAutoV !== 2) { S.climbAuto = {}; S.climbAutoV = 2; } // nouvelles règles : on renomme tout (les noms donnés à la main restent)
+    if (S.climbAutoV !== 3) { S.climbAuto = {}; S.climbAutoV = 3; } // nouvelles règles : on renomme tout (les noms donnés à la main restent)
     const todo = G.filter(g => !S.climbNames?.[g.key] && S.climbAuto?.[g.key] == null);
     if (naming || !todo.length || !navigator.onLine) return;
     naming = true; let changed = 0;
-    try { for (const g of todo.slice(0, 8)) { const n = await osmName(g); (S.climbAuto ||= {})[g.key] = n; changed++; if (TAB === 'prog') render(); await wait(1500); } } // ≤ 1 requête/s : règle d'usage
-    catch (e) { console.warn('noms des cols', e); } // réseau : on réessaiera plus tard
+    try {
+      const sb = Cloud.sb, u = Cloud.user, batch = todo.slice(0, 4);
+      if (sb && u) { // côté serveur : pas de souci de CORS, User-Agent identifié auprès d'OpenStreetMap
+        const { data, error } = await sb.functions.invoke('climb-names', { body: { climbs: batch.map(g => ({ key: g.key, s: g.s, e: g.e, path: g.path || null })) } });
+        if (error) throw error;
+        for (const [k, n] of Object.entries(data?.names || {})) { (S.climbAuto ||= {})[k] = n; changed++; }
+        S.climbNameErr = data?.errors?.length ? data.errors[0] : null;
+      } else for (const g of batch) { const n = await osmName(g); (S.climbAuto ||= {})[g.key] = n; changed++; if (TAB === 'prog') render(); await wait(1500); } // ≤ 1 requête/s
+    }
+    catch (e) { S.climbNameErr = String(e?.message || e); console.warn('noms des cols', e); } // réseau : on réessaiera plus tard
     finally { naming = false; if (changed) { save(); if (TAB === 'prog') render(); } }
   }
   const autoName = g => { const nm = g.list.map(c => c.name).find(n => /\b(col|mont|côte|cote|alpe|pic|hautacam|ventoux|tourmalet|joux)\b/i.test(n || ''));
@@ -2340,7 +2352,7 @@ const Climbs = (() => {
     const all = G.flatMap(g => g.list), totH = all.reduce((s, c) => s + c.H, 0), bestVam = Math.max(...all.map(c => c.vam || 0));
     h += `<div class="grid4"><div class="kpi"><div class="v num">${all.length}</div><div class="l">Ascensions</div></div><div class="kpi"><div class="v num">${totH.toLocaleString('fr-FR')}<small> m</small></div><div class="l">D+ en montées</div></div>
       <div class="kpi"><div class="v num">${bestVam || '—'}<small> m/h</small></div><div class="l">Meilleure VAM</div></div><div class="kpi"><div class="v num">${P60 ? Math.round(P60) : '—'}<small>${P60 ? ' W' : ''}</small></div><div class="l">Puissance 1 h estimée</div></div></div>
-      ${pending ? '<p class="tiny muted">Analyse des autres tracés en cours…</p>' : ''}
+      ${pending ? '<p class="tiny muted">Analyse des autres tracés en cours…</p>' : ''}${naming ? '<p class="tiny muted">Recherche des noms des cols…</p>' : S.climbNameErr ? `<p class="tiny muted">Noms des cols : OpenStreetMap ne répond pas pour l'instant (${esc(S.climbNameErr).slice(0, 60)}), nouvel essai plus tard.</p>` : ''}
       <div class="climbs ${open ? '' : 'stack'}">${(open ? G : G.slice(0, 4).reverse()).map(cardHTML).join('')}</div>
       ${G.length > 1 ? `<button class="btn ghost more" data-climbmore>${open ? '− Réduire' : `+ Découvrir${G.length > 4 ? ` les ${G.length} ascensions` : ''}`}</button>` : ''}
       <details class="climbpredwrap"${predOpen ? ' open' : ''}><summary>Prédire une ascension</summary>${predictorHTML(G, P60)}</details>
