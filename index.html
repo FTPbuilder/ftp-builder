@@ -133,6 +133,7 @@ dialog.fs3d{background:#0a1020}
 .t3play{width:46px;height:46px;border-radius:50%;border:0;background:#ff6a2b;color:#fff;font-size:18px;cursor:pointer;flex:none;box-shadow:0 0 18px rgba(255,106,43,.55)}
 .t3seek{flex:1;accent-color:#ff6a2b}
 .t3spd{font-size:13px;font-weight:600}
+.t3attr{font-size:9px;color:#8ea4cc;text-align:right;margin-top:4px;opacity:.8}
 @media (max-height:430px){ .t3hud b{font-size:14px} .t3prof{height:38px} }
 dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--muted);margin-top:6px}
 @media (orientation:portrait){ dialog.fs .fshint{display:block} }
@@ -205,7 +206,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.10.0';
+const APP_VERSION = '0.10.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1892,8 +1893,29 @@ const Track3D = (() => {
     const D = [0]; for (let i = 1; i < n; i++) D.push(D[i-1] + Math.hypot(X[i]-X[i-1], Z[i]-Z[i-1])/1000);
     const dist = tr.d && tr.d[n-1] ? tr.d.map((v, i) => v ?? D[i]) : D;
     let up = 0; for (let i = 1; i < n; i++) if (alt[i] > alt[i-1]) up += alt[i]-alt[i-1];
-    return { n, X, Z, alt, dist, total: dist[n-1], up: Math.round(up), aMin: Math.min(...alt), aMax: Math.max(...alt), spd: tr.spd, hr: tr.hr, t: tr.t };
+    return { n, X, Z, alt, dist, total: dist[n-1], up: Math.round(up), aMin: Math.min(...alt), aMax: Math.max(...alt), spd: tr.spd, hr: tr.hr, t: tr.t,
+      geo: { lat0, lon0, kx, kz, latMin: Math.min(...tr.lat), latMax: Math.max(...tr.lat), lonMin: Math.min(...tr.lon), lonMax: Math.max(...tr.lon) } };
   }
+
+  // fond satellite : tuiles Esri World Imagery assemblées sur une toile, posées au sol sous le tracé
+  const SAT = (z, y, x) => `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+  const lon2x = (lon, z) => (lon + 180)/360*2**z, lat2y = (lat, z) => { const r = lat*Math.PI/180; return (1 - Math.log(Math.tan(r) + 1/Math.cos(r))/Math.PI)/2*2**z; };
+  const x2lon = (x, z) => x/2**z*360 - 180, y2lat = (y, z) => Math.atan(Math.sinh(Math.PI*(1 - 2*y/2**z)))*180/Math.PI;
+  async function satellite(G){
+    const mLat = (G.latMax - G.latMin)*0.35 + 0.002, mLon = (G.lonMax - G.lonMin)*0.35 + 0.003; // marge autour du tracé
+    const box = { n: G.latMax + mLat, s: G.latMin - mLat, w: G.lonMin - mLon, e: G.lonMax + mLon };
+    let z = 17, x0, x1, y0, y1;
+    for (; z > 3; z--) { x0 = Math.floor(lon2x(box.w, z)); x1 = Math.floor(lon2x(box.e, z)); y0 = Math.floor(lat2y(box.n, z)); y1 = Math.floor(lat2y(box.s, z)); if ((x1-x0+1)*(y1-y0+1) <= 36) break; }
+    const W = x1-x0+1, H = y1-y0+1, cv = document.createElement('canvas'); cv.width = W*256; cv.height = H*256; const g = cv.getContext('2d');
+    g.fillStyle = '#0a1020'; g.fillRect(0, 0, cv.width, cv.height);
+    let ok = 0; const jobs = [];
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) jobs.push(new Promise(res => { const im = new Image(); im.crossOrigin = 'anonymous';
+      im.onload = () => { g.drawImage(im, (tx-x0)*256, (ty-y0)*256); ok++; res(); }; im.onerror = () => res(); im.src = SAT(z, ty, tx); }));
+    await Promise.all(jobs);
+    if (!ok) return null;
+    return { canvas: cv, w: x2lon(x0, z), e: x2lon(x1+1, z), n: y2lat(y0, z), s: y2lat(y1+1, z) };
+  }
+  let satOn = true; try { satOn = localStorage.getItem('ftpb-sat') !== '0'; } catch {}
 
   async function open(a){
     if (!a) return;
@@ -1910,11 +1932,11 @@ const Track3D = (() => {
     fs.innerHTML = `<div class="t3d">
       <canvas class="t3c"></canvas>
       <div class="t3top"><div class="t3title"><b>${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</b><span>${fmtShort(a.date)} · ${fmt1(P.total)} km · D+ ${P.up} m</span></div>
-        <button type="button" class="t3btn" data-t3="follow" aria-pressed="false" title="Suivre le vélo">🎥</button><button type="button" class="t3btn" data-t3="close" aria-label="Fermer">×</button></div>
+        <button type="button" class="t3btn" data-t3="sat" title="Fond satellite">🛰️</button><button type="button" class="t3btn" data-t3="follow" aria-pressed="false" title="Suivre le vélo">🎥</button><button type="button" class="t3btn" data-t3="close" aria-label="Fermer">×</button></div>
       <div class="t3hud"><div><small>Distance</small><b data-h="d">0</b> km</div><div><small>Altitude</small><b data-h="a">—</b> m</div><div><small>Pente</small><b data-h="g">—</b> %</div><div><small>Vitesse</small><b data-h="v">—</b> km/h</div>${P.hr ? '<div><small>FC</small><b data-h="hr">—</b></div>' : ''}</div>
       <div class="t3bot"><svg class="t3prof" viewBox="0 0 1000 60" preserveAspectRatio="none"></svg>
         <div class="t3ctl"><button type="button" class="t3play" data-t3="play" aria-label="Lecture">▶</button><input type="range" class="t3seek" min="0" max="1000" value="0" aria-label="Position sur le tracé">
-          <button type="button" class="t3btn t3spd" data-t3="speed">×1</button></div></div>
+          <button type="button" class="t3btn t3spd" data-t3="speed">×1</button></div><div class="t3attr" hidden>Imagerie © Esri, Maxar, Earthstar Geographics</div></div>
     </div>`;
     if (!fs.open) fs.showModal();
     const root = fs.querySelector('.t3d'), canvas = root.querySelector('canvas');
@@ -1935,6 +1957,17 @@ const Track3D = (() => {
 
     // sol : grille + ombre du tracé
     const grid = new T.GridHelper(220, 44, 0x1d5a7a, 0x12324a); grid.material.transparent = true; grid.material.opacity = 0.55; scene.add(grid);
+    // fond satellite (chargé après coup ; sans réseau, on garde la grille)
+    let satMesh = null;
+    const toLocal = (lat, lon) => [((lon - P.geo.lon0)*P.geo.kx - cx)*sc, (-(lat - P.geo.lat0)*P.geo.kz - cz)*sc];
+    const applySat = () => { if (satMesh) satMesh.visible = satOn; grid.visible = !(satOn && satMesh); root.querySelector('[data-t3="sat"]')?.classList.toggle('on', satOn); root.querySelector('.t3attr').hidden = !(satOn && satMesh); };
+    let alive = true;
+    satellite(P.geo).then(m => { if (!m || !alive) return;
+      const [xw, zn] = toLocal(m.n, m.w), [xe, zs] = toLocal(m.s, m.e);
+      const tex = new T.CanvasTexture(m.canvas); tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+      satMesh = new T.Mesh(new T.PlaneGeometry(xe - xw, zs - zn), new T.MeshBasicMaterial({ map: tex, color: 0x9aa6bd, fog: true })); // un peu assombri pour garder le tracé lumineux
+      satMesh.rotation.x = -Math.PI/2; satMesh.position.set((xw + xe)/2, -0.05, (zn + zs)/2); satMesh.renderOrder = -1; scene.add(satMesh); applySat();
+    }).catch(() => {});
     const shadow = new T.BufferGeometry().setFromPoints(pts.map(p => new T.Vector3(p.x, 0.02, p.z)));
     scene.add(new T.Line(shadow, new T.LineBasicMaterial({ color: 0x2fa8ff, transparent: true, opacity: 0.35 })));
     // rideau entre le sol et le tracé
@@ -2008,13 +2041,14 @@ const Track3D = (() => {
       if (k === 'close') fs.close();
       else if (k === 'play') setPlay(!st.play);
       else if (k === 'speed') { st.speed = SPEEDS[(SPEEDS.indexOf(st.speed)+1) % SPEEDS.length]; b.textContent = '×' + String(st.speed).replace('.', ','); }
+      else if (k === 'sat') { satOn = !satOn; try { localStorage.setItem('ftpb-sat', satOn ? '1' : '0'); } catch {} applySat(); }
       else if (k === 'follow') { st.follow = !st.follow; b.setAttribute('aria-pressed', st.follow); b.classList.toggle('on', st.follow); if (!st.follow) frameAll(); } });
     seek.addEventListener('input', () => { st.u = seek.value/1000; });
     prof.addEventListener('pointerdown', e => { const r = prof.getBoundingClientRect(); st.u = clamp((e.clientX - r.left)/r.width, 0, 1); });
     const ro = new ResizeObserver(resize); ro.observe(root); resize(); frameAll();
     st.raf = requestAnimationFrame(frame);
     try { if (fs.requestFullscreen && !/iPhone|iPod/.test(navigator.userAgent)) fs.requestFullscreen().catch(() => {}); } catch {}
-    V = { dispose(){ cancelAnimationFrame(st.raf); ro.disconnect(); controls.dispose(); scene.traverse(o => { o.geometry?.dispose?.(); if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); renderer.dispose(); renderer.forceContextLoss?.(); } };
+    V = { dispose(){ alive = false; cancelAnimationFrame(st.raf); ro.disconnect(); controls.dispose(); scene.traverse(o => { o.geometry?.dispose?.(); if (o.material) { o.material.map?.dispose?.(); o.material.dispose?.(); } }); renderer.dispose(); renderer.forceContextLoss?.(); } };
     window._t3 = { st, P, place }; // tests
   }
   fs.addEventListener('close', () => { if (V) { V.dispose(); V = null; } fs.classList.remove('fs3d'); });

@@ -1,5 +1,5 @@
 // Tracé 3D : sortie extérieure avec GPS (col simulé) → vue 3D paysage/portrait, lecture ▶, vélo qui avance
-// Three.js est servi depuis node_modules (SCRATCH/three) à la place du CDN.
+// Three.js est servi depuis node_modules (SCRATCH/three) à la place du CDN ; les tuiles satellite par SCRATCH/tile.png.
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
@@ -7,6 +7,7 @@ const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, deviceSc
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
 await pg.route('**/three@0.147.0/build/three.min.js', r => r.fulfill({ path: out + '/three/node_modules/three/build/three.min.js', contentType: 'application/javascript' }));
 await pg.route('**/three@0.147.0/examples/js/controls/OrbitControls.js', r => r.fulfill({ path: out + '/three/node_modules/three/examples/js/controls/OrbitControls.js', contentType: 'application/javascript' }));
+let tiles = 0; await pg.route('**/World_Imagery/MapServer/tile/**', r => { tiles++; return r.fulfill({ path: out + '/tile.png', contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' } }); });
 await pg.clock.setFixedTime(new Date('2026-10-27T21:30:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
@@ -39,6 +40,6 @@ const closed = await pg.evaluate(() => !document.querySelector('#fsDlg').open);
 await pg.evaluate(() => { FTPB.S.activities.push({ id:'out2', source:'health', date:'2026-10-26', startTs:1792998515, name:'Vélotaf', durationS:999, hasPower:false, indoor:false }); activityDlg('out2'); });
 await pg.click('[data-track3d="out2"]'); await pg.waitForTimeout(600);
 const msg = await pg.locator('.toast, #toast').last().innerText().catch(() => '');
-console.log('lecture', JSON.stringify(mid), '| HUD', hud.replace(/\n+/g, ' '), '| fermé', closed, '| sans tracé:', msg);
-const ok = mid.u > 0.1 && closed && /Pas de tracé/.test(msg);
+console.log('tuiles', tiles, '| lecture', JSON.stringify(mid), '| HUD', hud.replace(/\n+/g, ' '), '| fermé', closed, '| sans tracé:', msg);
+const ok = tiles > 0 && mid.u > 0.1 && closed && /Pas de tracé/.test(msg);
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
