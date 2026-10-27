@@ -211,7 +211,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.12.0';
+const APP_VERSION = '0.12.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2187,8 +2187,37 @@ const Climbs = (() => {
       g.list.push({ ...c, name: a.name });
     }
     for (const g of G) { g.list.sort((x, y) => (x.T || 9e9) - (y.T || 9e9)); g.best = g.list[0]; g.ref = g.list.slice().sort((x, y) => y.L - x.L)[0];
-      g.last = g.list.reduce((m, c) => c.date > m ? c.date : m, ''); g.name = S.climbNames?.[g.key] || autoName(g); }
+      g.last = g.list.reduce((m, c) => c.date > m ? c.date : m, ''); g.osm = S.climbAuto?.[g.key] || null; g.name = S.climbNames?.[g.key] || g.osm || autoName(g); }
     return G.sort((x, y) => y.last.localeCompare(x.last));
+  }
+  // nom automatique via OpenStreetMap (Overpass) : col ou station au sommet, village de départ — façon « Hautacam depuis Argelès-Gazost »
+  const OVERPASS = 'https://overpass-api.de/api/interpreter';
+  let naming = false;
+  async function osmName(g){
+    const [la, lo] = g.e, [sa, so] = g.s;
+    const q = `[out:json][timeout:20];(node(around:700,${la},${lo})["mountain_pass"="yes"]["name"];node(around:700,${la},${lo})["natural"~"^(saddle|peak)$"]["name"];` +
+      `nwr(around:2500,${la},${lo})["landuse"="winter_sports"]["name"];node(around:1500,${la},${lo})["place"~"^(village|hamlet|locality|isolated_dwelling)$"]["name"];` +
+      `node(around:4000,${sa},${so})["place"~"^(city|town|village)$"]["name"];);out tags center;`;
+    const r = await fetch(OVERPASS, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) });
+    if (!r.ok) throw new Error('overpass ' + r.status);
+    const els = ((await r.json()).elements || []).map(e => ({ t: e.tags || {}, p: [e.lat ?? e.center?.lat, e.lon ?? e.center?.lon] })).filter(e => e.p[0] != null && e.t.name);
+    const near = (arr, p, max) => arr.map(e => ({ ...e, d: km(...p, ...e.p) })).filter(e => e.d <= max).sort((x, y) => x.d - y.d)[0] || null;
+    const pass = near(els.filter(e => e.t.mountain_pass === 'yes' || e.t.natural === 'saddle'), g.e, 0.7);
+    const ski = near(els.filter(e => e.t.landuse === 'winter_sports'), g.e, 2.5);
+    const peak = near(els.filter(e => e.t.natural === 'peak'), g.e, 0.7);
+    const hamlet = near(els.filter(e => /^(village|hamlet|locality|isolated_dwelling)$/.test(e.t.place || '')), g.e, 1.5);
+    const from = near(els.filter(e => /^(city|town|village)$/.test(e.t.place || '')), g.s, 4);
+    const top = pass?.t.name || ski?.t.name || peak?.t.name || (hamlet ? `Montée vers ${hamlet.t.name}` : null);
+    if (!top) return '';
+    return from && from.t.name !== hamlet?.t.name && !top.includes(from.t.name) ? `${top} depuis ${from.t.name}` : top;
+  }
+  async function autoNames(G){
+    const todo = G.filter(g => !S.climbNames?.[g.key] && S.climbAuto?.[g.key] == null);
+    if (naming || !todo.length || !navigator.onLine) return;
+    naming = true; let changed = 0;
+    try { for (const g of todo.slice(0, 8)) { const n = await osmName(g); (S.climbAuto ||= {})[g.key] = n; changed++; await new Promise(r => setTimeout(r, 1100)); } } // 1 requête/s : règle d'usage Overpass
+    catch (e) { console.warn('noms des cols', e); } // réseau : on réessaiera plus tard
+    finally { naming = false; if (changed) { save(); if (TAB === 'prog') render(); } }
   }
   const autoName = g => { const nm = g.list.map(c => c.name).find(n => /\b(col|mont|côte|cote|alpe|pic|hautacam|ventoux|tourmalet|joux)\b/i.test(n || ''));
     return nm ? nm.replace(/^.*?\b((?:col|mont|côte|cote|alpe|pic)\b.*)$/i, '$1').slice(0, 40) : `Montée de ${f1(g.ref.L)} km à ${f1(g.ref.grad)} %`; };
@@ -2256,6 +2285,7 @@ const Climbs = (() => {
     if (!S.profile) return '';
     scan();
     const G = groups(), P60 = p60(G);
+    autoNames(G);
     const pending = S.activities.some(a => !isIndoor(a) && a.startTs && a.climbsV !== 1 && !tried.has(a.id));
     let h = `<div class="card" id="climbsCard"><h2>Ascensions</h2>`;
     if (!G.length) return h + `<p class="muted small" style="margin:0">${pending ? 'Analyse de tes tracés en cours…' : "Aucune montée de plus de 400 m de D+ dans tes sorties pour l'instant. Elles apparaîtront ici automatiquement (tracés Intervals.icu, .fit ou Strava)."}</p>${predictorHTML(G, P60)}</div>`;
@@ -2264,13 +2294,13 @@ const Climbs = (() => {
       <div class="kpi"><div class="v num">${bestVam || '—'}<small> m/h</small></div><div class="l">Meilleure VAM</div></div><div class="kpi"><div class="v num">${P60 ? Math.round(P60) : '—'}<small>${P60 ? ' W' : ''}</small></div><div class="l">Puissance 1 h estimée</div></div></div>
       ${pending ? '<p class="tiny muted">Analyse des autres tracés en cours…</p>' : ''}
       ${predictorHTML(G, P60)}<div class="climbs">${G.map(cardHTML).join('')}</div>
-      <p class="tiny muted" style="margin:8px 0 0">W/kg estimés par la physique (pente, vitesse, poids, roulement, air) quand il n'y a pas de capteur : ±10 %, faussés par le vent ou le drafting. Pentes : <span style="color:#8fd16a">●</span> &lt; 3 % <span style="color:#f2cf4a">●</span> 3-6 <span style="color:#f0923b">●</span> 6-9 <span style="color:#e04a35">●</span> 9-12 <span style="color:#7a1f2b">●</span> &gt; 12 %.</p></div>`;
+      <p class="tiny muted" style="margin:8px 0 0">W/kg estimés par la physique (pente, vitesse, poids, roulement, air) quand il n'y a pas de capteur : ±10 %, faussés par le vent ou le drafting. Pentes : <span style="color:#8fd16a">●</span> &lt; 3 % <span style="color:#f2cf4a">●</span> 3-6 <span style="color:#f0923b">●</span> 6-9 <span style="color:#e04a35">●</span> 9-12 <span style="color:#7a1f2b">●</span> &gt; 12 %. Noms des cols © contributeurs OpenStreetMap.</p></div>`;
     setTimeout(() => wirePredictor(G, P60), 0);
     return h;
   }
   function detailDlg(key){
     const g = groups().find(x => x.key === key); if (!g) return;
-    openDlg(`<span class="muted small">${g.list.length} ascension${g.list.length > 1 ? 's' : ''} · ${f1(g.ref.L)} km · ${g.ref.H} m D+</span>
+    openDlg(`<span class="muted small">${g.list.length} ascension${g.list.length > 1 ? 's' : ''} · ${f1(g.ref.L)} km · ${g.ref.H} m D+${!S.climbNames?.[g.key] && g.osm ? ' · nom trouvé sur OpenStreetMap' : ''}</span>
       <div class="row" style="gap:8px;margin:6px 0"><input id="clName" value="${esc(g.name)}" style="flex:1" aria-label="Nom de l'ascension"><button class="btn sm" id="clRename">Renommer</button></div>
       <div class="grid4" style="margin:6px 0">${[['Longueur', `${f1(g.ref.L)}<small> km</small>`], ['Pente moy.', `${f1(g.ref.grad)}<small> %</small>`], ['Pente max', `${f1(g.ref.gmax)}<small> %</small>`], ['Sommet', `${g.ref.a1}<small> m</small>`]].map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
       ${profileSVG(g.ref, 640, 190)}
@@ -2278,7 +2308,7 @@ const Climbs = (() => {
       ${g.list.map((c, i) => `<div class="hist"><div style="flex:1;min-width:0"><b>${i === 0 && c.T ? '🏆 ' : ''}${c.T ? fmtT(c.T) : '—'}</b> <span class="tiny muted">${fmtDate(c.date)}</span>
         <div class="tiny muted">VAM ${c.vam ?? '—'} m/h · ${c.P ? `${c.P} W · ${f2(c.wkg)} W/kg ${c.measured ? 'mesurés' : 'estimés'}` : 'puissance inconnue'}</div></div>
         <button class="btn sm" data-track3d="${c.act}">3D ▶</button></div>`).join('')}`);
-    $('#clRename').onclick = () => { (S.climbNames ||= {})[g.key] = $('#clName').value.trim() || undefined; save(); closeDlg(); render(); toast('Ascension renommée'); };
+    $('#clRename').onclick = () => { const v = $('#clName').value.trim(); S.climbNames ||= {}; if (v) S.climbNames[g.key] = v; else delete S.climbNames[g.key]; save(); closeDlg(); render(); toast(v ? 'Ascension renommée' : 'Nom automatique rétabli'); };
   }
   document.addEventListener('click', e => { const c = e.target.closest('[data-climb]'); if (c) detailDlg(c.dataset.climb); });
   return { html, scan, detect, measure, predict, groups };
