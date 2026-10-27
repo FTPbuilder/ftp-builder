@@ -17,9 +17,13 @@
   --z1:#6b7280; --z2:#3b82f6; --z3:#22c55e; --z4:#facc15; --z5:#f97316; --z6:#ef4444;
   --radius:14px; --shadow:0 1px 0 rgba(255,255,255,.03) inset;
 }
+/* pentes : 4 teintes douces (vert tendre, sable, corail, prune) */
+:root{ --g1:#b9d98c; --g2:#efd27e; --g3:#e99a7c; --g4:#9c86c7; --gt:#1d1b20; }
 @media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){ --g1:#cfe59f; --g2:#f6dc8f; --g3:#ef9f86; --g4:#5d4e7a; }
   :root:not([data-theme="dark"]){ --bg:#f5f4f1; --bg2:#ecebe7; --card:#ffffff; --line:#e1dfda; --text:#16181d; --muted:#666c78; --shadow:0 1px 2px rgba(0,0,0,.05); }
 }
+:root[data-theme="light"]{ --g1:#cfe59f; --g2:#f6dc8f; --g3:#ef9f86; --g4:#5d4e7a; }
 :root[data-theme="light"]{ --bg:#f5f4f1; --bg2:#ecebe7; --card:#ffffff; --line:#e1dfda; --text:#16181d; --muted:#666c78; --shadow:0 1px 2px rgba(0,0,0,.05); }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
@@ -118,8 +122,19 @@ dialog.fs svg.chart{width:100%;height:100%}
 dialog.fs svg.chart text{font-size:12px}
 dialog.fs3d{background:#0a1020}
 .climbs{display:flex;flex-direction:column;gap:12px;margin-top:14px}
-.climb{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--bg2);cursor:pointer;display:flex;flex-direction:column;gap:6px}
-.climb:hover{border-color:var(--accent)}
+.climb{--tint:var(--g1);border-radius:20px;padding:14px;background:color-mix(in srgb,var(--tint) 28%,var(--card));border:1px solid color-mix(in srgb,var(--tint) 45%,var(--line));cursor:pointer;display:flex;flex-direction:column;gap:6px;position:relative}
+.climb:hover{border-color:var(--tint)}
+/* pile façon dossiers : seuls les en-têtes dépassent, la dernière carte est entière */
+.climbs.stack{gap:0}
+.climbs.stack .climb:not(:last-child){max-height:92px;overflow:hidden;padding-bottom:30px}
+.climbs.stack .climb + .climb{margin-top:-26px;box-shadow:0 -6px 16px rgba(0,0,0,.10)}
+.more{width:100%;margin-top:10px;justify-content:center}
+.climbs.stack .climb:not(:last-child) .cstat{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.climb > *{flex-shrink:0}
+.gdot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:baseline;margin:0 2px 0 6px}
+.climbpredwrap{margin-top:12px}
+.climbpredwrap summary{cursor:pointer;font-weight:600;padding:10px 12px;border-radius:12px;background:var(--bg2);list-style:none}
+.climbpredwrap summary::before{content:'＋ ';color:var(--accent)} .climbpredwrap[open] summary::before{content:'− '}
 .climbpred{margin-top:12px;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,var(--card));border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line))}
 .climbpred .f{margin-top:0}
 .t3d{position:relative;width:100%;height:100%;overflow:hidden;color:#e8eefc;font-variant-numeric:tabular-nums}
@@ -211,7 +226,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.12.2';
+const APP_VERSION = '0.13.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1144,6 +1159,7 @@ function progHTML(){
   }
   h += Climbs.html();
   h += `<div class="card"><h2>Historique</h2>${acts.length ? acts.slice().reverse().map(actRow).join('') : '<p class="muted">Aucune séance enregistrée.</p>'}</div>`;
+  h += Health.otherSportsHTML();
   return h;
 }
 function projection(){
@@ -2092,8 +2108,8 @@ const Track3D = (() => {
 const Climbs = (() => {
   const MIN_GAIN = 400, K = 0.07; // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
   const PHY = { g: 9.81, bike: 8, crr: 0.005, cda: 0.35, eta: 0.975 };
-  const COLORS = [[3,'#8fd16a'],[6,'#f2cf4a'],[9,'#f0923b'],[12,'#e04a35'],[99,'#7a1f2b']];
-  const gradCol = p => COLORS.find(([m]) => p < m)[1];
+  const COLORS = [[4,'var(--g1)'],[7,'var(--g2)'],[10,'var(--g3)'],[99,'var(--g4)']]; // 4 teintes : < 4 %, 4-7, 7-10, ≥ 10 %
+  const catOf = p => COLORS.findIndex(([m]) => p < m), gradCol = p => COLORS[catOf(p)][1];
   const PRESETS = [ // valeurs approximatives (longueur km, D+ m)
     { id:'alpe', name:"Alpe d'Huez (Bourg-d'Oisans)", L:13.8, H:1071 },
     { id:'tourmalet', name:'Tourmalet (Luz-Saint-Sauveur)', L:19.0, H:1404 },
@@ -2101,7 +2117,7 @@ const Climbs = (() => {
     { id:'galibier', name:'Galibier (Valloire)', L:18.1, H:1245 },
     { id:'jouxplane', name:'Joux Plane (Samoëns)', L:11.6, H:989 },
   ];
-  let scanning = false; const tried = new Set();
+  let scanning = false, open = false, predOpen = false; const tried = new Set();
   const fmtT = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return h ? `${h}h${pad(m)}'${pad(x)}` : `${m}'${pad(x)}`; };
   const f1 = v => (Math.round(v*10)/10).toString().replace('.', ','), f2 = v => v.toFixed(2).replace('.', ',');
   const rho = alt => 1.225*Math.exp(-(alt || 0)/8500);
@@ -2241,8 +2257,8 @@ const Climbs = (() => {
     const X = x => 30 + x/L*(W-40), Y = v => Hh-18 - (v - (lo - pad))/(hi - lo + 2*pad)*(Hh-30);
     let g = '', px = 0, pa = c.a0;
     for (const [x, al] of c.prof) { const pct = (al - pa)/((x - px)*10), col = gradCol(pct);
-      g += `<path d="M${X(px)},${Hh-18}L${X(px)},${Y(pa)}L${X(x)},${Y(al)}L${X(x)},${Hh-18}Z" fill="${col}" stroke="var(--card)" stroke-width=".8"/>`;
-      if (X(x) - X(px) > 24) g += `<text x="${(X(px)+X(x))/2}" y="${Hh-24}" text-anchor="middle" style="fill:#111;font-weight:700;font-size:10px">${f1(pct)}</text>`;
+      g += `<path d="M${X(px)},${Hh-18}L${X(px)},${Y(pa)}L${X(x)},${Y(al)}L${X(x)},${Hh-18}Z" style="fill:${col}" stroke="var(--card)" stroke-width="1"/>`;
+      if (X(x) - X(px) > 24) g += `<text x="${(X(px)+X(x))/2}" y="${Hh-24}" text-anchor="middle" style="fill:${catOf(pct) === 3 ? '#fff' : 'var(--gt)'};font-weight:600;font-size:10px">${f1(pct)}</text>`;
       px = x; pa = al; }
     const st = L > 12 ? 2 : 1; for (let x = 0; x <= L + 1e-6; x += st) g += `<text x="${X(x)}" y="${Hh-4}" text-anchor="middle">${x}</text>`;
     g += `<text x="26" y="${Y(lo)+3}" text-anchor="end">${lo}</text><text x="26" y="${Y(hi)+3}" text-anchor="end">${hi}</text>`;
@@ -2262,7 +2278,7 @@ const Climbs = (() => {
   }
   function predictorHTML(G, P60){
     const own = G.map(g => `<option value="g:${g.key}">${esc(g.name)} · ${f1(g.ref.L)} km · ${g.ref.H} m</option>`).join('');
-    return `<div class="climbpred"><label class="f" for="cpSel">Prédire une ascension</label>
+    return `<div class="climbpred"><label class="f" for="cpSel">Choisis une montée</label>
       <select id="cpSel">${own ? `<optgroup label="Mes ascensions">${own}</optgroup>` : ''}<optgroup label="Cols célèbres (valeurs approx.)">${PRESETS.map(p => `<option value="p:${p.id}">${esc(p.name)} · ${f1(p.L)} km · ${p.H} m</option>`).join('')}</optgroup><option value="custom">Personnalisée…</option></select>
       <div class="grid2 hidden" id="cpCustom"><div><label class="f" for="cpL">Longueur (km)</label><input type="number" id="cpL" step="0.1" value="10"></div><div><label class="f" for="cpH">D+ (m)</label><input type="number" id="cpH" step="10" value="800"></div></div>
       <div id="cpOut"></div><p class="tiny muted" style="margin:4px 0 0">Temps estimé · W/kg à tenir.</p>
@@ -2288,9 +2304,9 @@ const Climbs = (() => {
   }
   function cardHTML(g){
     const c = g.ref, b = g.best;
-    return `<div class="climb" data-climb="${g.key}" role="button" tabindex="0">
+    return `<div class="climb" data-climb="${g.key}" role="button" tabindex="0" style="--tint:${gradCol(c.grad)}">
       <div class="row between" style="gap:8px"><b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</b><span class="tiny muted">${g.list.length} ascension${g.list.length > 1 ? 's' : ''}</span></div>
-      <div class="tiny muted">${f1(c.L)} km · ${c.H} m D+ · ${f1(c.grad)} % moy. · ${f1(c.gmax)} % max · ${c.a0} → ${c.a1} m</div>
+      <div class="tiny muted cstat">${f1(c.L)} km · ${c.H} m D+ · ${f1(c.grad)} % moy. · ${f1(c.gmax)} % max · ${c.a0} → ${c.a1} m</div>
       ${profileSVG(c)}
       ${b.T ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip num" style="color:var(--text)">⏱ ${fmtT(b.T)}</span><span class="chip num">VAM ${b.vam} m/h</span>${b.wkg ? `<span class="chip num">${f2(b.wkg)} W/kg ${b.measured ? 'mesurés' : 'estimés'}</span>` : ''}<span class="chip">${fmtShort(b.date)}</span></div>` : ''}
     </div>`;
@@ -2307,8 +2323,10 @@ const Climbs = (() => {
     h += `<div class="grid4"><div class="kpi"><div class="v num">${all.length}</div><div class="l">Ascensions</div></div><div class="kpi"><div class="v num">${totH.toLocaleString('fr-FR')}<small> m</small></div><div class="l">D+ en montées</div></div>
       <div class="kpi"><div class="v num">${bestVam || '—'}<small> m/h</small></div><div class="l">Meilleure VAM</div></div><div class="kpi"><div class="v num">${P60 ? Math.round(P60) : '—'}<small>${P60 ? ' W' : ''}</small></div><div class="l">Puissance 1 h estimée</div></div></div>
       ${pending ? '<p class="tiny muted">Analyse des autres tracés en cours…</p>' : ''}
-      ${predictorHTML(G, P60)}<div class="climbs">${G.map(cardHTML).join('')}</div>
-      <p class="tiny muted" style="margin:8px 0 0">W/kg estimés par la physique (pente, vitesse, poids, roulement, air) quand il n'y a pas de capteur : ±10 %, faussés par le vent ou le drafting. Pentes : <span style="color:#8fd16a">●</span> &lt; 3 % <span style="color:#f2cf4a">●</span> 3-6 <span style="color:#f0923b">●</span> 6-9 <span style="color:#e04a35">●</span> 9-12 <span style="color:#7a1f2b">●</span> &gt; 12 %. Noms des cols © contributeurs OpenStreetMap.</p></div>`;
+      <div class="climbs ${open ? '' : 'stack'}">${(open ? G : G.slice(0, 4).reverse()).map(cardHTML).join('')}</div>
+      ${G.length > 1 ? `<button class="btn ghost more" data-climbmore>${open ? '− Réduire' : `+ Découvrir${G.length > 4 ? ` les ${G.length} ascensions` : ''}`}</button>` : ''}
+      <details class="climbpredwrap"${predOpen ? ' open' : ''}><summary>Prédire une ascension</summary>${predictorHTML(G, P60)}</details>
+      <p class="tiny muted" style="margin:8px 0 0">Pentes : <span class="gdot" style="background:var(--g1)"></span> &lt; 4 % <span class="gdot" style="background:var(--g2)"></span> 4-7 <span class="gdot" style="background:var(--g3)"></span> 7-10 <span class="gdot" style="background:var(--g4)"></span> ≥ 10 %. W/kg estimés par la physique sans capteur (±10 %, faussés par le vent ou l'aspiration). Noms © contributeurs OpenStreetMap.</p></div>`;
     setTimeout(() => wirePredictor(G, P60), 0);
     return h;
   }
@@ -2372,7 +2390,9 @@ const Climbs = (() => {
       save(); render(); toast('Départ et arrivée corrigés'); detailDlg(newKey);
     };
   }
-  document.addEventListener('click', e => { const c = e.target.closest('[data-climb]'); if (c) detailDlg(c.dataset.climb); });
+  document.addEventListener('click', e => { const c = e.target.closest('[data-climb]'); if (c) detailDlg(c.dataset.climb);
+    if (e.target.closest('[data-climbmore]')) { open = !open; render(); } });
+  document.addEventListener('toggle', e => { if (e.target.classList?.contains('climbpredwrap')) predOpen = e.target.open; }, true);
   return { html, scan, detect, measure, predict, groups };
 })();
 
@@ -3180,15 +3200,23 @@ const Health = (() => {
       if (nights.length) h += `<div style="display:flex;align-items:flex-end;gap:4px;height:70px;margin-top:14px">${nights.map(s=>`<div title="${fmtShort(s.night)} · ${fmtDur(s.asleep_min*60)}" style="flex:1;max-width:24px;height:${clamp(s.asleep_min/600*100,5,100)}%;border-radius:4px 4px 0 0;background:${s.asleep_min>=420?'var(--z2)':s.asleep_min>=360?'var(--warn)':'var(--bad)'}"></div>`).join('')}</div><div class="tiny muted" style="margin-top:4px">Sommeil des 14 dernières nuits · moyenne ${fmtDur(nights.reduce((a,s)=>a+s.asleep_min,0)/nights.length*60)}</div>`;
       h += `</div>`;
     }
+    return h;
+  }
+  // autres sports : tout en bas de Progression, 3 dernières séances puis « + Découvrir »
+  let sportsOpen = false;
+  document.addEventListener('click', e => { if (e.target.closest('[data-sportsmore]')) { sportsOpen = !sportsOpen; render(); } });
+  function otherSportsHTML(){
+    if (!S.profile) return ''; const t = todayISO(); let h = '';
     const exm = exerciseLoad().filter(x => x.date >= addDays(t,-13));
     if (exm.length && !H.workouts.length) h += `<div class="card"><h2>Autres sports</h2><div style="display:flex;align-items:flex-end;gap:4px;height:70px">${exm.map(x=>`<div title="${fmtShort(x.date)} · ${x.minutes} min" style="flex:1;max-width:24px;height:${clamp(x.minutes/120*100,5,100)}%;border-radius:4px 4px 0 0;background:var(--z3)"></div>`).join('')}</div>
       <p class="tiny muted" style="margin:6px 0 0">Minutes d'exercice Apple Santé hors vélo, 14 derniers jours : ${exm.reduce((a,x)=>a+x.minutes,0)} min. Comptées dans ta forme/fatigue (~0,9 TSS/min).</p></div>`;
-    const ex = extraWorkouts().slice(-12).reverse();
+    const ex = extraWorkouts().slice(-30).reverse();
     if (ex.length) {
       const week = ex.filter(e => e.date >= addDays(t,-6));
       const bySport = {}; for (const e of week) bySport[e.sport] = (bySport[e.sport]||0) + (e.w.duration_min||0);
       h += `<div class="card"><h2>Autres sports</h2>${Object.keys(bySport).length?`<div class="row" style="margin-bottom:8px">${Object.entries(bySport).map(([s,m])=>`<span class="chip">${ICON[s]} ${LABEL[s]} ${fmtDur(m*60)} / 7 j</span>`).join('')}</div>`:''}
-        ${ex.map(e=>`<div class="hist"><span style="font-size:20px">${ICON[e.sport]}</span><div style="flex:1;min-width:0"><b>${esc(e.w.type||LABEL[e.sport])}</b><div class="tiny muted">${fmtDate(e.date)} · ${fmtDur((e.w.duration_min||0)*60)}${e.w.distance_km?` · ${(+e.w.distance_km).toFixed(1)} km`:''}${e.w.avg_hr?` · ${Math.round(e.w.avg_hr)} bpm`:''} · ${esc(e.w.source||'')}</div></div><span class="chip num">TSS ~${e.tss}</span></div>`).join('')}
+        ${ex.slice(0, sportsOpen ? 30 : 3).map(e=>`<div class="hist"><span style="font-size:20px">${ICON[e.sport]}</span><div style="flex:1;min-width:0"><b>${esc(e.w.type||LABEL[e.sport])}</b><div class="tiny muted">${fmtDate(e.date)} · ${fmtDur((e.w.duration_min||0)*60)}${e.w.distance_km?` · ${(+e.w.distance_km).toFixed(1)} km`:''}${e.w.avg_hr?` · ${Math.round(e.w.avg_hr)} bpm`:''} · ${esc(e.w.source||'')}</div></div><span class="chip num">TSS ~${e.tss}</span></div>`).join('')}
+        ${ex.length > 3 ? `<button class="btn ghost more" data-sportsmore>${sportsOpen ? '− Réduire' : `+ Découvrir (${ex.length})`}</button>` : ''}
         <p class="tiny muted" style="margin:8px 0 0">Ces séances comptent dans ta forme/fatigue (TSS estimé à la FC ou selon le sport).</p></div>`;
     }
     return h;
@@ -3245,7 +3273,7 @@ const Health = (() => {
     }
     return out;
   }
-  return { load, todayCard, progressCards, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, promoteBikes, bikeIndoor, sportOf, get H(){ return H; }, persist };
+  return { load, todayCard, progressCards, otherSportsHTML, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, promoteBikes, bikeIndoor, sportOf, get H(){ return H; }, persist };
 })();
 
 // ressenti a posteriori (activité importée ou correction) : pré-rempli, verdict affiché à l'enregistrement

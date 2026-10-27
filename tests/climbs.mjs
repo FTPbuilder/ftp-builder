@@ -37,6 +37,7 @@ const info = await pg.evaluate(() => { const G = Climbs.groups(); return { group
 console.log('ASCENSIONS', JSON.stringify(info));
 await pg.waitForFunction(() => Climbs.groups()[0]?.name.includes('depuis'), null, { timeout: 8000 }).catch(() => {});
 const osmName = await pg.evaluate(() => Climbs.groups()[0].name); console.log('NOM OSM', osmName, '| requêtes', overpass);
+await pg.click('.climbpredwrap summary'); await pg.waitForTimeout(100);
 const pred = await pg.locator('#cpOut').innerText(); console.log('PRÉDICTION', pred.replace(/\n+/g, ' | '));
 await pg.locator('#climbsCard').screenshot({ path: out + '/climbs-card.png' });
 await pg.selectOption('#cpSel', 'p:alpe'); await pg.waitForTimeout(100); console.log('ALPE', (await pg.locator('#cpOut').innerText()).replace(/\n+/g, ' | '));
