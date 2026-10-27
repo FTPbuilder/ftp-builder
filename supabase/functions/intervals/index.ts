@@ -1,6 +1,6 @@
 // Liaison Intervals.icu (JWT Supabase requis). La clé API reste côté serveur.
 //  { action:"connect", apiKey }            -> vérifie la clé, enregistre le compte
-//  { action:"sync", days? }                -> activités (vélo avec puissance -> ext_inbox ; autres sports -> health_workouts) + tracés GPS (activity_tracks) + wellness
+//  { action:"sync", days? }                -> activités (toutes les sorties vélo -> ext_inbox avec leurs flux ; autres sports -> health_workouts) + tracés GPS (activity_tracks) + wellness
 //  { action:"push", events:[…], remove:[…] } -> envoie/maj des séances planifiées dans le calendrier Intervals (-> Garmin Connect)
 //  { action:"disconnect" }
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -44,7 +44,7 @@ function trackOf(raw: unknown) {
 }
 
 function streamsOf(raw: unknown) {
-  const out: Record<string, unknown[] | null> = { time: null, watts: null, heartrate: null, cadence: null };
+  const out: Record<string, unknown[] | null> = { time: null, watts: null, heartrate: null, cadence: null, velocity_smooth: null, altitude: null, distance: null };
   if (Array.isArray(raw)) for (const s of raw as { type: string; data: unknown[] }[]) { if (s.type in out) out[s.type] = s.data; }
   else if (raw && typeof raw === "object") for (const k of Object.keys(out)) { const v = (raw as Record<string, { data?: unknown[] } | unknown[]>)[k]; out[k] = Array.isArray(v) ? v : (v as { data?: unknown[] })?.data ?? null; }
   return out;
@@ -96,11 +96,13 @@ Deno.serve(async (req) => {
             } catch { /* pas de GPS */ }
           }
         }
-        if (RIDES.test(type) && watts && a.device_watts !== false) {
+        // toutes les sorties vélo (avec ou sans capteur) : Intervals est la source prioritaire (FC, vitesse, altitude seconde par seconde)
+        if (RIDES.test(type)) {
           if (seen.has(id)) continue;
-          let st = null; try { st = streamsOf(await icu(key, `/activity/${id}/streams.json?types=time,watts,heartrate,cadence`)); } catch { /* résumé seul */ }
+          const hasW = !!watts && a.device_watts !== false;
+          let st = null; try { st = streamsOf(await icu(key, `/activity/${id}/streams.json?types=time,${hasW ? "watts," : ""}heartrate,cadence,velocity_smooth,altitude,distance`)); } catch { /* résumé seul */ }
           const activity = { id, name: a.name, type, start_date: start, start_date_local: a.start_date_local, moving_time: a.moving_time, elapsed_time: a.elapsed_time, distance: a.distance, trainer: a.trainer,
-            average_watts: watts, weighted_average_watts: a.icu_weighted_avg_watts ?? a.weighted_average_watts, average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, training_load: a.icu_training_load, device_watts: true,
+            average_watts: hasW ? watts : null, weighted_average_watts: hasW ? (a.icu_weighted_avg_watts ?? a.weighted_average_watts) : null, average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, training_load: a.icu_training_load, device_watts: hasW,
             total_elevation_gain: elev(a), average_speed: a.average_speed ?? null, max_speed: a.max_speed ?? null };
           await db.from("ext_inbox").upsert({ user_id: user.id, source: "intervals", ext_id: id, activity, streams: st, imported: false }, { onConflict: "user_id,source,ext_id", ignoreDuplicates: true });
           rides++;
