@@ -211,7 +211,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.12.1';
+const APP_VERSION = '0.12.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2108,11 +2108,25 @@ const Climbs = (() => {
   const km = (la1, lo1, la2, lo2) => Math.hypot((lo2-lo1)*Math.cos(la1*Math.PI/180)*111.32, (la2-la1)*110.54);
 
   // détection : du point bas au sommet, une redescente de plus de max(30 m, 10 % du gain, ≤ 100 m) clôt la montée
-  function detect(tr){
-    const n = tr.lat.length; if (!tr.alt || n < 20) return [];
+  function prep(tr){
+    const n = tr.lat.length;
     let alt = tr.alt.map(v => v ?? null); for (let i = 0; i < n; i++) if (alt[i] == null) alt[i] = alt[i-1] ?? alt.find(v => v != null) ?? 0;
     alt = alt.map((_, i) => { let s = 0, c = 0; for (let j = Math.max(0, i-2); j <= Math.min(n-1, i+2); j++) { s += alt[j]; c++; } return s/c; });
     let d = tr.d; if (!d || d[n-1] == null) { d = [0]; for (let i = 1; i < n; i++) d.push(d[i-1] + km(tr.lat[i-1], tr.lon[i-1], tr.lat[i], tr.lon[i])); }
+    return { n, alt, d };
+  }
+  // point du tracé le plus proche d'une position (entre lo et hi)
+  const nearestIdx = (tr, p, lo = 0, hi = tr.lat.length - 1) => { let best = lo, bd = Infinity; for (let i = lo; i <= hi; i++) { const x = km(p[0], p[1], tr.lat[i], tr.lon[i]); if (x < bd) { bd = x; best = i; } } return { i: best, dist: bd }; };
+  // bornes corrigées à la main : on les applique à toute montée détectée au même endroit (passages passés et futurs)
+  function applyFix(act, tr, c){
+    const f = (S.climbFix || []).find(f => km(...f.from.s, ...c.s) < 0.5 && km(...f.from.e, ...c.e) < 0.5); if (!f) return c;
+    const P = prep(tr), a = nearestIdx(tr, f.to.s), b = nearestIdx(tr, f.to.e, a.i + 1);
+    if (a.dist > 0.3 || b.dist > 0.3 || b.i <= a.i) return c;
+    return { ...measure(act, tr, { a: a.i, b: b.i, ...P }), fixed: true };
+  }
+  function detect(tr){
+    const n = tr.lat.length; if (!tr.alt || n < 20) return [];
+    const { alt, d } = prep(tr);
     const out = []; let s = 0, p = 0;
     // bornes : on retire le plat avant le pied et le replat sous le sommet (pente < 2 % sur 500 m)
     const ahead = (i, lim) => { let j = i; while (j < lim && d[j] - d[i] < 0.5) j++; return j; };
@@ -2172,7 +2186,7 @@ const Climbs = (() => {
       for (const a of todo) {
         tried.add(a.id);
         const tr = Tracks.local(a.startTs) || remote[a.startTs]; if (!tr) continue;
-        a.climbs = detect(tr).map(c => measure(a, tr, c)); a.climbsV = 1; changed++;
+        a.climbs = detect(tr).map(c => applyFix(a, tr, measure(a, tr, c))); a.climbsV = 1; changed++;
       }
       if (changed) { save(); if (TAB === 'prog') render(); }
     } catch (e) { console.warn('ascensions', e); }
@@ -2304,11 +2318,59 @@ const Climbs = (() => {
       <div class="row" style="gap:8px;margin:6px 0"><input id="clName" value="${esc(g.name)}" style="flex:1" aria-label="Nom de l'ascension"><button class="btn sm" id="clRename">Renommer</button></div>
       <div class="grid4" style="margin:6px 0">${[['Longueur', `${f1(g.ref.L)}<small> km</small>`], ['Pente moy.', `${f1(g.ref.grad)}<small> %</small>`], ['Pente max', `${f1(g.ref.gmax)}<small> %</small>`], ['Sommet', `${g.ref.a1}<small> m</small>`]].map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
       ${profileSVG(g.ref, 640, 190)}
+      <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm" id="clEdit">✎ Corriger départ / arrivée</button>${(S.climbFix || []).some(f => km(...f.to.e, ...g.e) < 0.5) ? '<button class="btn sm ghost" id="clReset">Revenir à la détection auto</button>' : ''}</div>
+      <div id="clEditor"></div>
       <h3 style="margin-top:14px">Tes passages</h3>
       ${g.list.map((c, i) => `<div class="hist"><div style="flex:1;min-width:0"><b>${i === 0 && c.T ? '🏆 ' : ''}${c.T ? fmtT(c.T) : '—'}</b> <span class="tiny muted">${fmtDate(c.date)}</span>
         <div class="tiny muted">VAM ${c.vam ?? '—'} m/h · ${c.P ? `${c.P} W · ${f2(c.wkg)} W/kg ${c.measured ? 'mesurés' : 'estimés'}` : 'puissance inconnue'}</div></div>
         <button class="btn sm" data-track3d="${c.act}">3D ▶</button></div>`).join('')}`);
+    $('#clEdit').onclick = () => editor(g);
+    $('#clReset') && ($('#clReset').onclick = () => { S.climbFix = (S.climbFix || []).filter(f => km(...f.to.e, ...g.e) >= 0.5); for (const c of g.list) { const a = S.activities.find(x => x.id === c.act); if (a) a.climbsV = 0; } tried.clear(); save(); closeDlg(); render(); toast('Détection automatique rétablie'); });
     $('#clRename').onclick = () => { const v = $('#clName').value.trim(); S.climbNames ||= {}; if (v) S.climbNames[g.key] = v; else delete S.climbNames[g.key]; save(); closeDlg(); render(); toast(v ? 'Ascension renommée' : 'Nom automatique rétabli'); };
+  }
+  // éditeur : profil de la sortie autour de la montée, deux curseurs (départ, arrivée), stats en direct
+  async function editor(g){
+    const box = $('#clEditor'); box.innerHTML = '<p class="small muted">Chargement du tracé…</p>';
+    const c = g.ref, act = S.activities.find(a => a.id === c.act), tr = act && await Tracks.get(act);
+    if (!tr?.alt) { box.innerHTML = '<p class="small muted">Tracé indisponible pour cette sortie.</p>'; return; }
+    const P = prep(tr), a0 = nearestIdx(tr, c.s).i, b0 = nearestIdx(tr, c.e, a0 + 1).i;
+    let w0 = a0; while (w0 > 0 && P.d[a0] - P.d[w0] < 4) w0--; let w1 = b0; while (w1 < P.n - 1 && P.d[w1] - P.d[b0] < 4) w1++;
+    let A = a0, B = b0;
+    box.innerHTML = `<div class="climbpred" style="margin-top:10px"><svg class="chart" id="clEdSvg" viewBox="0 0 640 150"></svg>
+      <label class="f" for="clA">Départ</label><div class="row" style="gap:6px"><button class="btn sm" data-ced="A-">−</button><input type="range" id="clA" min="${w0}" max="${w1}" value="${A}" style="flex:1"><button class="btn sm" data-ced="A+">+</button></div>
+      <label class="f" for="clB">Arrivée</label><div class="row" style="gap:6px"><button class="btn sm" data-ced="B-">−</button><input type="range" id="clB" min="${w0}" max="${w1}" value="${B}" style="flex:1"><button class="btn sm" data-ced="B+">+</button></div>
+      <p class="small" id="clEdStats" style="margin:8px 0"></p><p class="tiny muted" style="margin:0 0 8px">La correction s'applique à tous tes passages sur cette montée, et aux prochains.</p>
+      <div class="row"><button class="btn primary" id="clEdSave">Enregistrer les bornes</button></div></div>`;
+    const lo = Math.min(...P.alt.slice(w0, w1+1)), hi = Math.max(...P.alt.slice(w0, w1+1)), X = i => 10 + (P.d[i] - P.d[w0])/(P.d[w1] - P.d[w0] || 1)*620, Y = v => 135 - (v - lo)/(hi - lo || 1)*120;
+    const area = (i0, i1, fill, op) => { let d = `M${X(i0)},135`; for (let i = i0; i <= i1; i++) d += `L${X(i).toFixed(1)},${Y(P.alt[i]).toFixed(1)}`; return `<path d="${d}L${X(i1)},135Z" fill="${fill}" opacity="${op}"/>`; };
+    const draw = () => {
+      if (B <= A) B = Math.min(w1, A + 1);
+      $('#clEdSvg').innerHTML = area(w0, w1, 'var(--muted)', .25) + area(A, B, 'var(--accent)', .85) +
+        `<line x1="${X(A)}" x2="${X(A)}" y1="10" y2="135" stroke="#3ecf8e" stroke-width="2"/><line x1="${X(B)}" x2="${X(B)}" y1="10" y2="135" stroke="#ff4d5e" stroke-width="2"/>` +
+        `<text x="${X(A)+4}" y="20" style="fill:#3ecf8e">${Math.round(P.alt[A])} m</text><text x="${X(B)-4}" y="20" text-anchor="end" style="fill:#ff4d5e">${Math.round(P.alt[B])} m</text>`;
+      const L = P.d[B] - P.d[A], H = P.alt[B] - P.alt[A];
+      $('#clEdStats').innerHTML = `<b class="num">${f1(L)} km</b> · <b class="num">${Math.round(H)} m</b> D+ · <b class="num">${f1(H/(L*10 || 1))} %</b> moy.${H < MIN_GAIN ? ' <span style="color:var(--warn)">· moins de 400 m : elle ne sera plus listée</span>' : ''}`;
+      $('#clA').value = A; $('#clB').value = B;
+    };
+    $('#clA').oninput = e => { A = +e.target.value; draw(); }; $('#clB').oninput = e => { B = +e.target.value; draw(); };
+    box.querySelectorAll('[data-ced]').forEach(b => b.onclick = () => { const k = b.dataset.ced; if (k[0] === 'A') A = clamp(A + (k[1] === '+' ? 1 : -1), w0, w1); else B = clamp(B + (k[1] === '+' ? 1 : -1), w0, w1); draw(); });
+    draw();
+    $('#clEdSave').onclick = async () => {
+      const to = { s: [tr.lat[A], tr.lon[A]], e: [tr.lat[B], tr.lon[B]] };
+      const oldKey = g.key, newKey = `${to.e[0].toFixed(3)},${to.e[1].toFixed(3)}`;
+      S.climbFix = (S.climbFix || []).filter(f => km(...f.to.e, ...g.e) >= 0.5 || km(...f.to.s, ...g.s) >= 0.5);
+      for (const p of g.list) S.climbFix.push({ from: { s: p.s, e: p.e }, to }); // chaque passage reconnu à sa détection d'origine
+      for (const p of g.list) { // recalcul immédiat de chaque passage
+        const ac = S.activities.find(x => x.id === p.act), t2 = ac && (Tracks.local(ac.startTs) || await Tracks.get(ac)); if (!t2?.alt) continue;
+        const P2 = prep(t2), ia = nearestIdx(t2, to.s), ib = nearestIdx(t2, to.e, ia.i + 1);
+        const idx = (ac.climbs || []).findIndex(x => km(...x.s, ...p.s) < 0.05 && km(...x.e, ...p.e) < 0.05); if (idx < 0) continue;
+        if (ia.dist > 0.3 || ib.dist > 0.3) continue;
+        const m = { ...measure(ac, t2, { a: ia.i, b: ib.i, ...P2 }), fixed: true };
+        if (m.H >= MIN_GAIN) ac.climbs[idx] = m; else ac.climbs.splice(idx, 1);
+      }
+      for (const k of ['climbNames', 'climbAuto']) if (S[k]?.[oldKey] != null && newKey !== oldKey) { S[k][newKey] = S[k][oldKey]; delete S[k][oldKey]; }
+      save(); render(); toast('Départ et arrivée corrigés'); detailDlg(newKey);
+    };
   }
   document.addEventListener('click', e => { const c = e.target.closest('[data-climb]'); if (c) detailDlg(c.dataset.climb); });
   return { html, scan, detect, measure, predict, groups };

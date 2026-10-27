@@ -1,6 +1,6 @@
 // Ascensions : détection des montées ≥ 400 m (une petite côte de 250 m ignorée), regroupement des passages,
 // estimation W/kg par la physique, profil façon ClimbFinder, prédiction (loi de puissance type Riegel),
-// nom automatique via OpenStreetMap (Overpass simulé : col au sommet, village au départ)
+// nom automatique via OpenStreetMap (Overpass simulé : col au sommet, village au départ), correction des bornes appliquée à tous les passages
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
@@ -43,7 +43,22 @@ await pg.selectOption('#cpSel', 'p:alpe'); await pg.waitForTimeout(100); console
 await pg.locator('.climb').first().click(); await pg.waitForTimeout(200);
 await pg.fill('#clName', 'Joux Plane'); await pg.click('#clRename'); await pg.waitForTimeout(200);
 const renamed = await pg.evaluate(() => Climbs.groups()[0].name);
+await pg.locator('.climb').first().click(); await pg.waitForTimeout(200);
+// départ avancé d'environ 2 km (curseur), arrivée inchangée
+await pg.click('#clEdit'); await pg.waitForSelector('#clA');
+const before = await pg.evaluate(() => Climbs.groups()[0].list.map(c => c.L));
+await pg.evaluate(() => { const a = document.querySelector('#clA'); a.value = +a.value + 80; a.dispatchEvent(new Event('input')); });
+await pg.screenshot({ path: out + '/climbs-edit.png', fullPage: true });
+await pg.click('#clEdSave'); await pg.waitForTimeout(400);
+const after = await pg.evaluate(() => { const G = Climbs.groups(); return { n: G.length, name: G[0].name, L: G[0].list.map(c => c.L), fixed: G[0].list.every(c => c.fixed), fixes: FTPB.S.climbFix.length }; });
+console.log('BORNES', JSON.stringify(before), '→', JSON.stringify(after));
+// nouvelle analyse (comme une nouvelle sortie) : la correction doit être réappliquée
+await pg.evaluate(() => { for (const a of FTPB.S.activities) { a.climbsV = 0; a.climbs = null; } FTPB.save(); });
+await pg.evaluate(() => { location.reload(); }); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.evaluate(() => document.querySelector('button[data-tab=prog]').click()); await pg.waitForTimeout(1200);
+const rescan = await pg.evaluate(() => Climbs.groups()[0].list.map(c => c.L));
+console.log('RÉANALYSE', JSON.stringify(rescan));
 await pg.locator('.climb').first().click(); await pg.waitForTimeout(200); await pg.screenshot({ path: out + '/climbs-detail.png' });
 const c0 = info.list[0];
-const ok = osmName === 'Col de Joux Plane depuis Samoëns' && info.groups === 1 && info.nClimbsPerRide.every(n => n === 1) && Math.abs(c0.H - 989) < 40 && Math.abs(c0.L - 11.6) < 0.8 && c0.wkg > 2.8 && c0.wkg < 3.4 && renamed === 'Joux Plane';
+const ok = after.n === 1 && after.name === 'Joux Plane' && after.fixed && after.L.every((l, i) => l < before[i] - 1) && rescan.every((l, i) => Math.abs(l - after.L[i]) < 0.05) && osmName === 'Col de Joux Plane depuis Samoëns' && info.groups === 1 && info.nClimbsPerRide.every(n => n === 1) && Math.abs(c0.H - 989) < 40 && Math.abs(c0.L - 11.6) < 0.8 && c0.wkg > 2.8 && c0.wkg < 3.4 && renamed === 'Joux Plane';
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
