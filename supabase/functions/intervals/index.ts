@@ -18,6 +18,9 @@ async function icu(key: string, path: string, init: RequestInit = {}) {
   try { return JSON.parse(txt); } catch { return txt; }
 }
 const day = (d: Date) => d.toISOString().slice(0, 10);
+// vitesses en m/s chez Intervals -> km/h ; dénivelé positif en m
+const kmh = (v: unknown) => (v != null && Number(v) > 0 ? +(Number(v) * 3.6).toFixed(1) : null);
+const elev = (a: Record<string, unknown>) => { const v = a.total_elevation_gain ?? a.icu_elevation_gain; return v != null && Number(v) >= 0 ? Math.round(Number(v)) : null; };
 const RIDES = /^(Ride|VirtualRide|GravelRide|MountainBikeRide|EBikeRide|TrackRide)$/;
 const TYPES: Record<string, string> = { Ride: "Vélo", VirtualRide: "Vélo (home trainer)", GravelRide: "Gravel", MountainBikeRide: "VTT", Run: "Course à pied", TrailRun: "Trail", VirtualRun: "Course (tapis)", Swim: "Natation", OpenWaterSwim: "Natation eau libre", Walk: "Marche", Hike: "Randonnée", WeightTraining: "Renforcement musculaire", Workout: "Séance", Yoga: "Yoga", Rowing: "Aviron", Tennis: "Tennis", Soccer: "Football", Crossfit: "Crossfit", Elliptical: "Elliptique" };
 
@@ -66,7 +69,8 @@ Deno.serve(async (req) => {
           if (seen.has(id)) continue;
           let st = null; try { st = streamsOf(await icu(key, `/activity/${id}/streams.json?types=time,watts,heartrate,cadence`)); } catch { /* résumé seul */ }
           const activity = { id, name: a.name, type, start_date: start, start_date_local: a.start_date_local, moving_time: a.moving_time, elapsed_time: a.elapsed_time, distance: a.distance, trainer: a.trainer,
-            average_watts: watts, weighted_average_watts: a.icu_weighted_avg_watts ?? a.weighted_average_watts, average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, training_load: a.icu_training_load, device_watts: true };
+            average_watts: watts, weighted_average_watts: a.icu_weighted_avg_watts ?? a.weighted_average_watts, average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, training_load: a.icu_training_load, device_watts: true,
+            total_elevation_gain: elev(a), average_speed: a.average_speed ?? null, max_speed: a.max_speed ?? null };
           await db.from("ext_inbox").upsert({ user_id: user.id, source: "intervals", ext_id: id, activity, streams: st, imported: false }, { onConflict: "user_id,source,ext_id", ignoreDuplicates: true });
           rides++;
         } else {
@@ -74,9 +78,10 @@ Deno.serve(async (req) => {
           const row = { user_id: user.id, start_at: s.toISOString(), end_at: a.elapsed_time ? new Date(s.getTime() + Number(a.elapsed_time) * 1000).toISOString() : null,
             type: TYPES[type] ?? type, duration_min: a.moving_time ? Number(a.moving_time) / 60 : null, distance_km: a.distance ? Number(a.distance) / 1000 : null,
             energy_kcal: (a.calories as number) ?? null, avg_hr: (a.average_heartrate as number) ?? null, source: "Intervals.icu",
-            indoor: RIDES.test(type) ? (type === "VirtualRide" || a.trainer === true) : null, updated_at: new Date().toISOString() };
+            indoor: RIDES.test(type) ? (type === "VirtualRide" || a.trainer === true) : null,
+            elevation_m: elev(a), avg_speed_kmh: kmh(a.average_speed), max_speed_kmh: kmh(a.max_speed), updated_at: new Date().toISOString() };
           const { data: near } = await db.from("health_workouts").select("*").eq("user_id", user.id).gte("start_at", new Date(s.getTime() - 300000).toISOString()).lte("start_at", new Date(s.getTime() + 300000).toISOString());
-          if (near && near.length) { const o = near[0]; const patch: Record<string, unknown> = {}; for (const k of ["duration_min", "distance_km", "energy_kcal", "avg_hr", "indoor"]) if (o[k] == null && (row as Record<string, unknown>)[k] != null) patch[k] = (row as Record<string, unknown>)[k]; if (Object.keys(patch).length) await db.from("health_workouts").update(patch).eq("user_id", user.id).eq("start_at", o.start_at); }
+          if (near && near.length) { const o = near[0]; const patch: Record<string, unknown> = {}; for (const k of ["duration_min", "distance_km", "energy_kcal", "avg_hr", "indoor", "elevation_m", "avg_speed_kmh", "max_speed_kmh"]) if (o[k] == null && (row as Record<string, unknown>)[k] != null) patch[k] = (row as Record<string, unknown>)[k]; if (Object.keys(patch).length) await db.from("health_workouts").update(patch).eq("user_id", user.id).eq("start_at", o.start_at); }
           else await db.from("health_workouts").upsert(row);
           others++;
         }

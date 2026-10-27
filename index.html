@@ -187,7 +187,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.8.1';
+const APP_VERSION = '0.9.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -490,7 +490,7 @@ const FIT = {
     const handle = (g, m) => {
       const t = m[253] != null ? (m[253] + FIT_EPOCH) : null;
       if (g === 20) out.records.push({ t, hr: m[3], cad: m[4], pw: m[7], dist: m[5] != null ? m[5]/100000 : null });
-      else if (g === 18) out.sessions.push({ start: m[2] != null ? m[2]+FIT_EPOCH : t, sport: m[5], subSport: m[6], elapsed: m[7]!=null?m[7]/1000:null, timer: m[8]!=null?m[8]/1000:null, distKm: m[9]!=null?m[9]/100000:null, avgHr: m[16], maxHr: m[17], avgCad: m[18], avgPw: m[20], maxPw: m[21], np: m[34], tss: m[35]!=null?m[35]/10:null, if: m[36]!=null?m[36]/1000:null, ftp: m[45] });
+      else if (g === 18) out.sessions.push({ avgSpeed: (m[124] ?? m[14]) != null ? (m[124] ?? m[14])/1000 : null, maxSpeed: (m[125] ?? m[15]) != null ? (m[125] ?? m[15])/1000 : null, ascent: m[22] ?? null, start: m[2] != null ? m[2]+FIT_EPOCH : t, sport: m[5], subSport: m[6], elapsed: m[7]!=null?m[7]/1000:null, timer: m[8]!=null?m[8]/1000:null, distKm: m[9]!=null?m[9]/100000:null, avgHr: m[16], maxHr: m[17], avgCad: m[18], avgPw: m[20], maxPw: m[21], np: m[34], tss: m[35]!=null?m[35]/10:null, if: m[36]!=null?m[36]/1000:null, ftp: m[45] });
       else if (g === 19) out.laps.push({ start: m[2]!=null?m[2]+FIT_EPOCH:null, timer: m[8]!=null?m[8]/1000:null, avgPw: m[19], avgHr: m[15] });
       else if (g === 3) Object.assign(out.user, { sex: m[1]===1?'M':m[1]===0?'F':null, age: m[2], heightCm: m[3]!=null?m[3]:null, weightKg: m[4]!=null?m[4]/10:null, hrMaxBike: m[10], hrMax: m[11] });
       else if (g === 7) Object.assign(out.zones, { hrMax: m[1], lthr: m[2], ftp: m[3] });
@@ -552,6 +552,7 @@ function activityFromFit(fit, fname){
     maxHr: hrVals.length ? Math.max(...hrVals) : (sess.maxHr||null),
     avgCad: cad.length ? Math.round(cad.reduce((a,b)=>a+b,0)/cad.length) : (sess.avgCad||null),
     hasPower, indoor: sess.subSport === 6 || sess.subSport === 58,
+    avgSpeed: sess.avgSpeed > 0 ? +(sess.avgSpeed*3.6).toFixed(1) : null, maxSpeed: sess.maxSpeed > 0 ? +(sess.maxSpeed*3.6).toFixed(1) : null, elevM: sess.ascent != null ? Math.round(sess.ascent) : null,
     best: hasPower ? { s5: bestAvg(pw,5), m1: bestAvg(pw,60), m5: bestAvg(pw,300), m8: bestAvg(pw,480), m20: bestAvg(pw,1200), m60: bestAvg(pw,3600) } : null,
     hrBest20: bestAvg(hr, 1200),
     feel: null, planId: null, compliance: null,
@@ -570,6 +571,29 @@ function computeLoad(a){
 function ftpAt(date){ let f = S.ftpHistory[0]?.ftp || ftp(); for (const h of S.ftpHistory) if (h.date <= date) f = h.ftp; return f; }
 // respect des cibles : moyenne de TOUS les blocs d'effort (et plus le meilleur bloc), calculée par blocksOf()
 // a._pw / a._hr : séries 1 Hz, présentes seulement au moment de l'import
+/* ============ rattachement automatique au plan ============ */
+// une activité importée ne remplit une séance prévue que si elle peut vraiment en tenir lieu
+// (un trajet vélo de 16 min sans capteur n'est pas un test rampe)
+function planFits(a, s){
+  const W = WORKOUTS[s?.workoutId]; if (!W) return false;
+  if ((a.durationS || 0) < wDur(s.workoutId) * 0.6) return false;
+  if (W.type === 'test') return !!a.hasPower;
+  if (['end','rec','tempo'].includes(W.type)) return true;
+  return !!a.hasPower || a.indoor === true;
+}
+const autoPlanFor = a => S.plan.find(s => s.date === a.date && s.status === 'planned' && planFits(a, s)) || null;
+// répare les rattachements automatiques faits avant ces règles (sorties Apple Santé / Intervals sans puissance)
+function repairAutoLinks(){
+  let n = 0;
+  for (const a of S.activities) {
+    if (a.source !== 'health' || !a.planId || a.linkManual) continue;
+    const pl = S.plan.find(s => s.id === a.planId);
+    if (pl && !planFits(a, pl)) { if (pl.activityId === a.id) { pl.status = 'planned'; pl.activityId = null; } a.planId = null; a.countAsSession = a.durationS >= 1800; a.blocks = null; a.compliance = null; n++; }
+  }
+  return n;
+}
+const speedOf = a => a.avgSpeed || (a.distanceKm && a.durationS ? +(a.distanceKm / (a.durationS/3600)).toFixed(1) : null);
+
 function compliance(a, planItem){
   if (!planItem) { a.blocks = null; return null; }
   const B = blocksOf(a, planItem, a._pw, a._hr);
@@ -957,7 +981,7 @@ function todayHTML(){
 function actRow(a){
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
   const ev = pl ? sessionEval(a, pl) : null;
-  return `<div class="hist" data-act="${a.id}" style="cursor:pointer"><div style="flex:1;min-width:0"><b>${ev ? `<span title="${esc(ev.title)}">${ev.icon}</span> ` : ''}${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</b><div class="tiny muted">${fmtDate(a.date)} · ${fmtDur(a.durationS)}${a.np?` · NP ${a.np} W`:''}${a.avgHr?` · ${a.avgHr} bpm`:''}${a.tss?` · TSS ${a.tss}`:''}</div></div>${a.feel?.rpe?`<span class="chip num">RPE ${a.feel.rpe}</span>`:''}</div>`;
+  return `<div class="hist" data-act="${a.id}" style="cursor:pointer"><div style="flex:1;min-width:0"><b>${ev ? `<span title="${esc(ev.title)}">${ev.icon}</span> ` : ''}${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</b><div class="tiny muted">${fmtDate(a.date)} · ${fmtDur(a.durationS)}${!isIndoor(a) && a.distanceKm ? ` · ${String(a.distanceKm).replace('.',',')} km${speedOf(a)?` · ${String(speedOf(a)).replace('.',',')} km/h`:''}${a.elevM?` · D+ ${a.elevM} m`:''}` : ''}${a.np?` · NP ${a.np} W`:''}${a.avgHr?` · ${a.avgHr} bpm`:''}${a.tss?` · TSS ${a.tss}`:''}</div></div>${a.feel?.rpe?`<span class="chip num">RPE ${a.feel.rpe}</span>`:''}</div>`;
 }
 
 /* ----- Calendrier ----- */
@@ -1939,8 +1963,7 @@ async function handleFitFile(file){
     if (dup) { toast('Cette activité est déjà importée'); return; }
     _pending.act = a;
     if (!_pending.planId) { // rattacher automatiquement à la séance prévue du même jour
-      const same = S.plan.filter(s => s.date === a.date && s.status === 'planned');
-      const near = same[0] || S.plan.find(s => s.status==='planned' && Math.abs(diffDays(s.date, a.date)) <= 1);
+      const near = autoPlanFor(a) || S.plan.find(s => s.status==='planned' && Math.abs(diffDays(s.date, a.date)) <= 1 && planFits(a, s));
       if (near) _pending.planId = near.id;
     }
     showLogResult();
@@ -2009,6 +2032,47 @@ function showLogResult(){
     toast(acc && acc.checked ? `Nouvelle FTP : ${S.profile.ftp} W 🎯` : 'Séance enregistrée 💪');
   };
 }
+const fmtKmh = v => v ? `${(+v).toFixed(1).replace('.', ',')}<small> km/h</small>` : '—';
+// indicateurs de la fiche activité : vitesse et dénivelé pour les sorties extérieures
+function actKpis(a){
+  if (isIndoor(a)) return [['Durée',fmtDur(a.durationS)],['NP',a.np?a.np+' W':'—'],['TSS',a.tss??'—'],['FC moy.',a.avgHr??'—'],['P. moy.',a.avgPower?a.avgPower+' W':'—'],['IF',a.if??'—'],['FC max',a.maxHr??'—'],['Cadence',a.avgCad??'—']];
+  const k = [['Durée',fmtDur(a.durationS)],['Distance',a.distanceKm!=null?`${String(a.distanceKm).replace('.',',')}<small> km</small>`:'—'],['Vitesse moy.',fmtKmh(speedOf(a))],['Vitesse max',fmtKmh(a.maxSpeed)],
+    ['D+',a.elevM!=null?`${a.elevM}<small> m</small>`:'—'],['FC moy.',a.avgHr??'—'],['FC max',a.maxHr??'—'],['TSS',a.tss??'—']];
+  if (a.hasPower) k.push(['NP',a.np?a.np+' W':'—'],['P. moy.',a.avgPower?a.avgPower+' W':'—'],['IF',a.if??'—'],['Cadence',a.avgCad??'—']);
+  return k;
+}
+// corriger une activité : infos, type, rattachement au plan (une correction n'est jamais défaite par l'app)
+function editActDlg(id){
+  const a = S.activities.find(x => x.id === id); if (!a) return;
+  const cands = S.plan.filter(s => (s.status === 'planned' || s.id === a.planId) && Math.abs(diffDays(s.date, a.date)) <= 7).sort((x,y) => x.date.localeCompare(y.date));
+  const num = (id, lab, v, step=1, ph='') => `<div><label class="f" for="${id}">${lab}</label><input type="number" id="${id}" step="${step}" min="0" value="${v ?? ''}" placeholder="${ph}"></div>`;
+  openDlg(`<h2>Modifier l'activité</h2>
+    <label class="f" for="eName">Nom</label><input id="eName" value="${esc(a.name || '')}">
+    <div class="grid2"><div><label class="f" for="eDate">Date</label><input type="date" id="eDate" value="${a.date}"></div>${num('eDur','Durée (min)', a.durationS ? Math.round(a.durationS/60) : '')}</div>
+    <label class="f">Type</label><div class="seg" id="eIndoor"><button type="button" data-v="1" class="${isIndoor(a)?'on':''}">Home trainer</button><button type="button" data-v="0" class="${isIndoor(a)?'':'on'}">Extérieur</button></div>
+    <div class="grid2">${num('eDist','Distance (km)', a.distanceKm, 0.1)}${num('eElev','D+ (m)', a.elevM)}${num('eVmoy','Vitesse moy. (km/h)', a.avgSpeed, 0.1, speedOf(a) ? String(speedOf(a)) : '')}${num('eVmax','Vitesse max (km/h)', a.maxSpeed, 0.1)}${num('eHr','FC moyenne', a.avgHr)}${num('eHrMax','FC max', a.maxHr)}</div>
+    <label class="f" for="ePlan">Séance du plan</label><select id="ePlan"><option value="">— Aucune (séance libre) —</option>${cands.map(s => `<option value="${s.id}" ${s.id===a.planId?'selected':''}>${fmtShort(s.date)} · ${esc(WORKOUTS[s.workoutId].name)}${s.status==='done' && s.id!==a.planId?' (déjà faite)':''}</option>`).join('')}</select>
+    <label class="row small" id="eCountRow" style="margin-top:8px;gap:8px"><input type="checkbox" id="eCount" ${a.countAsSession?'checked':''}> Compter comme une séance du programme</label>
+    <div class="row" style="margin-top:14px"><button class="btn primary" id="eSave">Enregistrer</button><button class="btn ghost" id="eCancel">Annuler</button></div>`);
+  let indoor = isIndoor(a);
+  $('#eIndoor').querySelectorAll('button').forEach(b => b.onclick = () => { indoor = b.dataset.v === '1'; $('#eIndoor').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+  const syncCount = () => $('#eCountRow').classList.toggle('hidden', !!$('#ePlan').value); $('#ePlan').onchange = syncCount; syncCount();
+  $('#eCancel').onclick = () => activityDlg(a.id);
+  $('#eSave').onclick = () => {
+    const v = id => { const x = $(id).value.trim(); return x === '' ? null : +x; };
+    a.name = $('#eName').value.trim() || a.name; a.date = $('#eDate').value || a.date; a.indoor = indoor;
+    if (v('#eDur') && v('#eDur') !== Math.round(a.durationS/60)) a.durationS = Math.round(v('#eDur')*60); // inchangée : on garde la durée exacte
+    a.distanceKm = v('#eDist'); a.elevM = v('#eElev') != null ? Math.round(v('#eElev')) : null; a.avgSpeed = v('#eVmoy'); a.maxSpeed = v('#eVmax'); a.avgHr = v('#eHr'); a.maxHr = v('#eHrMax');
+    const pid = $('#ePlan').value || null;
+    if (pid !== a.planId) {
+      const old = a.planId && S.plan.find(s => s.id === a.planId); if (old && old.activityId === a.id) { old.status = 'planned'; old.activityId = null; }
+      a.planId = pid; a.blocks = null; a.compliance = null;
+      if (pid) { const pl = S.plan.find(s => s.id === pid); if (pl.activityId && pl.activityId !== a.id) { const o = S.activities.find(x => x.id === pl.activityId); if (o) o.planId = null; } pl.status = 'done'; pl.activityId = a.id; a.compliance = compliance(a, pl); }
+    }
+    a.linkManual = true; a.countAsSession = !pid && $('#eCount').checked;
+    computeLoad(a); save(); render(); activityDlg(a.id); toast('Activité modifiée');
+  };
+}
 function activityDlg(id){
   const a = S.activities.find(x=>x.id===id); if (!a) return;
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
@@ -2016,13 +2080,14 @@ function activityDlg(id){
   openDlg(`<span class="muted small">${fmtDate(a.date)} · ${ {fit:'fichier .fit', manual:'saisie manuelle', strava:'Strava', intervals:'Intervals.icu', health:'Apple Santé'}[a.source] || a.source }</span>
     <h2 style="margin:6px 0">${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</h2>
     ${a.source==='health' ? `<p class="tiny muted" style="margin:0 0 6px">Venue d'Apple Santé (${isIndoor(a)?'home trainer':'extérieur'}, sans puissance). Si tu importes le .fit de cette sortie, il la remplacera automatiquement.</p><div class="row" style="margin-bottom:8px"><button class="btn sm" data-toggleindoor="${a.id}">Marquer comme ${isIndoor(a)?'extérieur':'home trainer'}</button></div>` : ''}
-    <div class="grid4" style="margin:8px 0">${[['Durée',fmtDur(a.durationS)],['NP',a.np?a.np+' W':'—'],['TSS',a.tss??'—'],['FC moy.',a.avgHr??'—'],['P. moy.',a.avgPower?a.avgPower+' W':'—'],['IF',a.if??'—'],['FC max',a.maxHr??'—'],['Cadence',a.avgCad??'—']].map(([l,v])=>`<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+    <div class="grid4" style="margin:8px 0">${actKpis(a).map(([l,v])=>`<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
     ${a.best?`<div class="small muted">Records : ${[['5 s',a.best.s5],['1 min',a.best.m1],['5 min',a.best.m5],['20 min',a.best.m20]].filter(x=>x[1]).map(([l,v])=>`<b class="num" style="color:var(--text)">${v} W</b> ${l}`).join(' · ')}</div>`:''}
     ${ActChart.html(a)}
     ${pl ? evalHTML(a, pl) : ''}
     <p class="small">${fe.rpe?`RPE <b>${fe.rpe}</b>`:'Pas de ressenti'}${fe.legs?` · jambes ${fe.legs}/5`:''}${fe.breath?` · souffle ${fe.breath}/5`:''}${fe.motivation?` · motivation ${fe.motivation}/5`:''}${fe.sleep?` · ${fe.sleep} h de sommeil`:''}</p>
     ${fe.note?`<p class="small muted">« ${esc(fe.note)} »</p>`:''}
-    <div class="row" style="margin-top:12px"><button class="btn sm" data-feelact="${a.id}">${fe.rpe ? 'Modifier mon ressenti' : 'Ajouter mon ressenti'}</button><button class="btn sm danger" id="delAct">Supprimer l'activité</button></div>`);
+    <div class="row" style="margin-top:12px"><button class="btn sm" id="editAct">Modifier</button><button class="btn sm" data-feelact="${a.id}">${fe.rpe ? 'Modifier mon ressenti' : 'Ajouter mon ressenti'}</button><button class="btn sm danger" id="delAct">Supprimer l'activité</button></div>`);
+  $('#editAct').onclick = () => editActDlg(a.id);
   $('#delAct').onclick = () => { if (pl) { pl.status = 'planned'; pl.activityId = null; } if (a.healthStart) (S.dismissedHealth ||= []).push(a.healthStart); S.activities = S.activities.filter(x=>x.id!==a.id); save(); closeDlg(); render(); toast('Activité supprimée'); };
 }
 
@@ -2163,7 +2228,7 @@ const Cloud = (() => {
     const remote = data?.data;
     if (!remote) { if (S.profile) await push(); return; }
     const rT = remote.updatedAt || Date.parse(data.updated_at) || 0, lT = S.updatedAt || 0;
-    if (!S.profile || rT > lT) { S = Object.assign(blank(), remote); save({ remote:true }); toast('Données récupérées depuis ton compte'); }
+    if (!S.profile || rT > lT) { S = Object.assign(blank(), remote); save({ remote:true }); if (repairAutoLinks()) save(); toast('Données récupérées depuis ton compte'); }
     else if (lT > rT) await push();
   }
   async function push(){
@@ -2220,7 +2285,7 @@ const Cloud = (() => {
     const time = st.time || [];
     const records = time.map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null }));
     const fit = { records, laps:[], user:{}, zones:{}, workout:{ name: a0.name }, noPower: !a0.device_watts,
-      sessions:[{ start, timer: a0.moving_time, distKm: (a0.distance||0)/1000, subSport: a0.trainer ? 6 : 0, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
+      sessions:[{ start, timer: a0.moving_time, distKm: (a0.distance||0)/1000, subSport: a0.trainer ? 6 : 0, avgSpeed: a0.average_speed || null, maxSpeed: a0.max_speed || null, ascent: a0.total_elevation_gain ?? null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
     let a;
     if (records.length) a = activityFromFit(fit, a0.name || 'Sortie');
     else a = { id: uid(), date: iso(new Date(start*1000)), name: a0.name || 'Sortie', durationS: a0.moving_time || 0, distanceKm: a0.distance ? +(a0.distance/1000).toFixed(1) : null,
@@ -2228,7 +2293,10 @@ const Cloud = (() => {
       maxHr: a0.max_heartrate || null, hasPower: !!a0.average_watts, best: null, feel: null };
     a.source = source; a.startTs = start;
     if (!a.durationS) a.durationS = a0.moving_time || 0;
-    const pl = S.plan.find(s => s.date === a.date && s.status === 'planned');
+    if (a.avgSpeed == null && a0.average_speed) a.avgSpeed = +(a0.average_speed*3.6).toFixed(1);
+    if (a.maxSpeed == null && a0.max_speed) a.maxSpeed = +(a0.max_speed*3.6).toFixed(1);
+    if (a.elevM == null && a0.total_elevation_gain != null) a.elevM = Math.round(a0.total_elevation_gain);
+    const pl = autoPlanFor(a);
     if (pl) { a.planId = pl.id; pl.status = 'done'; pl.activityId = a.id; if (records.length) a.compliance = compliance(Object.assign(a, { _pw: powerSeries(records, 'pw'), _hr: powerSeries(records, 'hr') }), pl); }
     else a.countAsSession = a.durationS >= 1800;
     delete a._pw; delete a._hr;
@@ -2262,13 +2330,13 @@ const Cloud = (() => {
       const time = st.time || [];
       const records = time.map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null }));
       const fit = { records, laps:[], user:{}, zones:{}, workout:{ name: a0.name }, noPower: !a0.device_watts,
-        sessions:[{ start, timer: a0.moving_time, distKm: a0.distance/1000, subSport: a0.trainer ? 6 : 0, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
+        sessions:[{ start, timer: a0.moving_time, distKm: a0.distance/1000, subSport: a0.trainer ? 6 : 0, avgSpeed: a0.average_speed || null, maxSpeed: a0.max_speed || null, ascent: a0.total_elevation_gain ?? null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
       const a = activityFromFit(fit, a0.name);
       a.source = 'strava'; a.stravaId = row.strava_id; a.startTs = start;
       if (!a.durationS) a.durationS = a0.moving_time;
       // doublon avec un .fit déjà importé (même départ à 2 min près)
       if (S.activities.some(x => x.startTs && Math.abs(x.startTs - start) < 120)) { await sb.from('strava_inbox').update({ imported:true }).eq('id', row.id); continue; }
-      const pl = S.plan.find(s => s.date === a.date && s.status === 'planned');
+      const pl = autoPlanFor(a);
       if (pl) { a.planId = pl.id; pl.status = 'done'; pl.activityId = a.id; a.compliance = compliance(Object.assign(a, { _pw: powerSeries(records, 'pw'), _hr: powerSeries(records, 'hr') }), pl); }
       else a.countAsSession = a.durationS >= 1800;
       delete a._pw; delete a._hr;
@@ -2344,7 +2412,7 @@ const Health = (() => {
     const [d, s, w, t] = await Promise.all([
       sb.from('health_daily').select('day, metric, value').gte('day', since).order('day'),
       sb.from('health_sleep').select('night, source, asleep_min, deep_min, rem_min, core_min, awake_min, in_bed_min, bed_start, bed_end').gte('night', since).order('night'),
-      sb.from('health_workouts').select('start_at, end_at, type, duration_min, distance_km, energy_kcal, avg_hr, source, indoor').gte('start_at', since).order('start_at'),
+      sb.from('health_workouts').select('start_at, end_at, type, duration_min, distance_km, energy_kcal, avg_hr, source, indoor, elevation_m, avg_speed_kmh, max_speed_kmh').gte('start_at', since).order('start_at'),
       sb.rpc('ingest_status'),
     ]);
     if (!d.error) H.daily = d.data; if (!s.error) H.sleep = s.data; if (!w.error) H.workouts = w.data;
@@ -2412,6 +2480,13 @@ const Health = (() => {
   }
   // séances Santé à ajouter à la charge (sauf vélos déjà importés dans l'app)
   const bikeIndoor = w => w.indoor ?? /home trainer|intérieur|indoor|virtual|zwift|mywhoosh|rouvy/i.test(`${w.type} ${w.source}`);
+  function fillSpeed(a, w){
+    let ch = false;
+    if (a.elevM == null && w.elevation_m != null) { a.elevM = Math.round(w.elevation_m); ch = true; }
+    if (a.maxSpeed == null && w.max_speed_kmh) { a.maxSpeed = +(+w.max_speed_kmh).toFixed(1); ch = true; }
+    if (a.avgSpeed == null && w.avg_speed_kmh) { a.avgSpeed = +(+w.avg_speed_kmh).toFixed(1); ch = true; }
+    return ch;
+  }
   function promoteBikes(){
     if (!S.profile) return 0;
     let n = 0;
@@ -2424,12 +2499,22 @@ const Health = (() => {
       const a = { id: uid(), source:'health', healthStart: w.start_at, date, startTs: start, name: `${w.type || 'Vélo'}${w.source ? ' · ' + w.source : ''}`,
         durationS: Math.round((w.duration_min || 0) * 60), distanceKm: w.distance_km ? +(+w.distance_km).toFixed(1) : null, avgHr: w.avg_hr ? Math.round(w.avg_hr) : null,
         maxHr: null, avgPower: null, np: null, hasPower: false, indoor: bikeIndoor(w), best: null, feel: null };
-      const pl = S.plan.find(s => s.date === date && s.status === 'planned');
+      fillSpeed(a, w);
+      const pl = autoPlanFor(a);
       if (pl) { a.planId = pl.id; pl.status = 'done'; pl.activityId = a.id; } else a.countAsSession = a.durationS >= 1800;
       computeLoad(a); if (a.tss == null) a.tss = wTss(w);
       S.activities.push(a); n++;
     }
-    if (n) { save(); toast(`${n} sortie${n>1?'s':''} vélo ajoutée${n>1?'s':''} depuis Apple Santé`); }
+    // complète vitesses et D+ des sorties déjà présentes (.fit, Apple Santé) quand la synchro les apporte
+    let m = 0;
+    for (const a of S.activities) {
+      if (!a.startTs || (a.elevM != null && a.maxSpeed != null)) continue;
+      const w = H.workouts.find(w => sportOf(w.type) === 'bike' && Math.abs(Date.parse(w.start_at)/1000 - a.startTs) < 1800);
+      if (w && fillSpeed(a, w)) m++;
+    }
+    const fixed = repairAutoLinks();
+    if (n || m || fixed) save();
+    if (n) toast(`${n} sortie${n>1?'s':''} vélo ajoutée${n>1?'s':''} depuis Apple Santé`);
     return n;
   }
   function extraWorkouts(){
@@ -2575,6 +2660,7 @@ function feelDlg(id){
     toast(e ? `${e.icon} ${e.title}` : 'Ressenti enregistré'); };
 }
 
+if (S.profile && repairAutoLinks()) save();
 render();
 Cloud.init().catch(e => console.warn('cloud', e));
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
