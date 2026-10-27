@@ -117,6 +117,11 @@ dialog.fs .achart{position:absolute;inset:0}
 dialog.fs svg.chart{width:100%;height:100%}
 dialog.fs svg.chart text{font-size:12px}
 dialog.fs3d{background:#0a1020}
+.climbs{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.climb{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--bg2);cursor:pointer;display:flex;flex-direction:column;gap:6px}
+.climb:hover{border-color:var(--accent)}
+.climbpred{margin-top:12px;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,var(--card));border:1px solid color-mix(in srgb,var(--accent) 30%,var(--line))}
+.climbpred .f{margin-top:0}
 .t3d{position:relative;width:100%;height:100%;overflow:hidden;color:#e8eefc;font-variant-numeric:tabular-nums}
 .t3c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
 .t3top{position:absolute;left:0;right:0;top:0;display:flex;gap:8px;align-items:flex-start;padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));pointer-events:none}
@@ -206,7 +211,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.11.2';
+const APP_VERSION = '0.12.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1137,6 +1142,7 @@ function progHTML(){
     h += `<div class="card"><h2>Ressentis</h2><div style="display:flex;align-items:flex-end;gap:4px;height:90px">${felt.slice(-30).map(a=>`<div title="${fmtShort(a.date)} · RPE ${a.feel.rpe}" style="flex:1;max-width:22px;height:${a.feel.rpe*10}%;border-radius:4px 4px 0 0;background:${a.feel.rpe>=9?'var(--bad)':a.feel.rpe>=7?'var(--warn)':'var(--ok)'}"></div>`).join('')}</div>
       <div class="tiny muted" style="margin-top:6px">RPE moyen sur les 5 dernières : <b class="num">${(felt.slice(-5).reduce((a,x)=>a+x.feel.rpe,0)/Math.min(5,felt.length)).toFixed(1)}</b></div></div>`;
   }
+  h += Climbs.html();
   h += `<div class="card"><h2>Historique</h2>${acts.length ? acts.slice().reverse().map(actRow).join('') : '<p class="muted">Aucune séance enregistrée.</p>'}</div>`;
   return h;
 }
@@ -2079,6 +2085,203 @@ const Track3D = (() => {
   fs.addEventListener('close', () => { if (V) { V.dispose(); V = null; } fs.classList.remove('fs3d'); });
   document.addEventListener('click', e => { const b = e.target.closest('[data-track3d]'); if (!b) return; open(S.activities.find(a => a.id === b.dataset.track3d)); });
   return { open };
+})();
+
+/* ============ ascensions (≥ 400 m de D+ consécutifs) ============ */
+// détectées dans les tracés GPS, puissance estimée par la physique (ou mesurée si capteur), prédiction façon loi de Riegel
+const Climbs = (() => {
+  const MIN_GAIN = 400, K = 0.07; // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
+  const PHY = { g: 9.81, bike: 8, crr: 0.005, cda: 0.35, eta: 0.975 };
+  const COLORS = [[3,'#8fd16a'],[6,'#f2cf4a'],[9,'#f0923b'],[12,'#e04a35'],[99,'#7a1f2b']];
+  const gradCol = p => COLORS.find(([m]) => p < m)[1];
+  const PRESETS = [ // valeurs approximatives (longueur km, D+ m)
+    { id:'alpe', name:"Alpe d'Huez (Bourg-d'Oisans)", L:13.8, H:1071 },
+    { id:'tourmalet', name:'Tourmalet (Luz-Saint-Sauveur)', L:19.0, H:1404 },
+    { id:'ventoux', name:'Mont Ventoux (Bédoin)', L:21.5, H:1610 },
+    { id:'galibier', name:'Galibier (Valloire)', L:18.1, H:1245 },
+    { id:'jouxplane', name:'Joux Plane (Samoëns)', L:11.6, H:989 },
+  ];
+  let scanning = false; const tried = new Set();
+  const fmtT = s => { s = Math.round(s); const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60; return h ? `${h}h${pad(m)}'${pad(x)}` : `${m}'${pad(x)}`; };
+  const f1 = v => (Math.round(v*10)/10).toString().replace('.', ','), f2 = v => v.toFixed(2).replace('.', ',');
+  const rho = alt => 1.225*Math.exp(-(alt || 0)/8500);
+  const km = (la1, lo1, la2, lo2) => Math.hypot((lo2-lo1)*Math.cos(la1*Math.PI/180)*111.32, (la2-la1)*110.54);
+
+  // détection : du point bas au sommet, une redescente de plus de max(30 m, 10 % du gain, ≤ 100 m) clôt la montée
+  function detect(tr){
+    const n = tr.lat.length; if (!tr.alt || n < 20) return [];
+    let alt = tr.alt.map(v => v ?? null); for (let i = 0; i < n; i++) if (alt[i] == null) alt[i] = alt[i-1] ?? alt.find(v => v != null) ?? 0;
+    alt = alt.map((_, i) => { let s = 0, c = 0; for (let j = Math.max(0, i-2); j <= Math.min(n-1, i+2); j++) { s += alt[j]; c++; } return s/c; });
+    let d = tr.d; if (!d || d[n-1] == null) { d = [0]; for (let i = 1; i < n; i++) d.push(d[i-1] + km(tr.lat[i-1], tr.lon[i-1], tr.lat[i], tr.lon[i])); }
+    const out = []; let s = 0, p = 0;
+    // bornes : on retire le plat avant le pied et le replat sous le sommet (pente < 2 % sur 500 m)
+    const ahead = (i, lim) => { let j = i; while (j < lim && d[j] - d[i] < 0.5) j++; return j; };
+    const behind = (i, lim) => { let j = i; while (j > lim && d[i] - d[j] < 0.5) j--; return j; };
+    const close = () => { if (alt[p] - alt[s] < MIN_GAIN) return; let a = s, b = p;
+      while (a < b) { const j = ahead(a, b); if (j > a && (alt[j] - alt[a])/((d[j] - d[a])*1000 || 1) < 0.02) a++; else break; }
+      while (b > a) { const j = behind(b, a); if (j < b && (alt[b] - alt[j])/((d[b] - d[j])*1000 || 1) < 0.02) b--; else break; }
+      if (alt[b] - alt[a] >= MIN_GAIN) out.push([a, b]); };
+    for (let i = 1; i < n; i++) {
+      if (alt[i] > alt[p]) p = i;
+      else if (alt[i] <= alt[s] && p === s) { s = i; p = i; }
+      else if (alt[p] - alt[i] > Math.min(100, Math.max(30, 0.1*(alt[p] - alt[s])))) { close(); s = i; p = i; }
+      if (alt[i] < alt[s] && alt[p] - alt[s] < 20) { s = i; p = i; }
+    }
+    close();
+    return out.map(([a, b]) => ({ a, b, alt, d }));
+  }
+  // une ascension : longueur, D+, pentes par tronçon, temps en mouvement, VAM, puissance estimée
+  function measure(act, tr, { a, b, alt, d }){
+    const kg = S.profile.weightKg, m = kg + PHY.bike;
+    let E = 0, T = 0, up = 0;
+    for (let j = a; j < b; j++) {
+      const dl = (d[j+1] - d[j])*1000, dh = alt[j+1] - alt[j], dt = tr.t ? tr.t[j+1] - tr.t[j] : null;
+      if (dh > 0) up += dh;
+      if (!dt || dt <= 0) continue; const v = dl/dt; if (v < 0.8) continue; // à l'arrêt : ni temps ni énergie
+      E += m*PHY.g*dh + PHY.crr*m*PHY.g*dl + 0.5*rho(alt[j])*PHY.cda*v*v*dl; T += dt;
+    }
+    const L = d[b] - d[a], H = alt[b] - alt[a];
+    let P = T ? E/T/PHY.eta : null, measured = false;
+    if (act.hasPower && act.pwSample && tr.t) { // capteur : moyenne réelle sur la fenêtre de la montée
+      const n = act.pwSample.length, secs = act.sampleSecs || act.durationS || n, i0 = Math.floor(tr.t[a]/secs*n), i1 = Math.ceil(tr.t[b]/secs*n);
+      const w = act.pwSample.slice(Math.max(0, i0), Math.min(n, i1)); if (w.length > 3) { P = w.reduce((x, y) => x+y, 0)/w.length; measured = true; }
+    }
+    const step = L <= 6 ? 0.5 : 1, prof = [];
+    const altAt = x => { let lo = a, hi = b; while (lo < hi) { const k = (lo+hi) >> 1; if (d[k] < x) lo = k+1; else hi = k; } const i = Math.max(a+1, lo), f = d[i] > d[i-1] ? (x - d[i-1])/(d[i] - d[i-1]) : 0; return alt[i-1] + (alt[i] - alt[i-1])*clamp(f, 0, 1); };
+    for (let x = 0; x < L - 1e-6; x += step) { const x1 = Math.min(L, x + step); prof.push([+x1.toFixed(2), Math.round(altAt(d[a] + x1))]); }
+    let gmax = 0; for (let x = 0; x + 0.5 <= L; x += 0.25) gmax = Math.max(gmax, (altAt(d[a]+x+0.5) - altAt(d[a]+x))/5);
+    return { act: act.id, date: act.date, L: +L.toFixed(2), H: Math.round(H), up: Math.round(up), a0: Math.round(alt[a]), a1: Math.round(alt[b]),
+      grad: +(H/(L*10)).toFixed(1), gmax: +gmax.toFixed(1), T: T || null, vam: T ? Math.round(H/(T/3600)) : null,
+      P: P ? Math.round(P) : null, wkg: P ? +(P/kg).toFixed(2) : null, measured, prof,
+      s: [tr.lat[a], tr.lon[a]], e: [tr.lat[b], tr.lon[b]] };
+  }
+  // lecture des tracés par paquets, résultat gardé dans l'activité (a.climbs) : l'analyse ne tourne qu'une fois
+  async function scan(){
+    if (scanning || !S.profile) return; scanning = true;
+    try {
+      const todo = S.activities.filter(a => !isIndoor(a) && a.startTs && a.climbsV !== 1 && !tried.has(a.id));
+      if (!todo.length) return;
+      const sb = Cloud.sb, u = Cloud.user, remote = {};
+      const miss = todo.filter(a => !Tracks.local(a.startTs));
+      if (sb && u) for (let i = 0; i < miss.length; i += 15) {
+        const part = miss.slice(i, i+15).map(a => a.startTs);
+        const { data } = await sb.from('activity_tracks').select('start_ts, track').in('start_ts', part);
+        for (const r of data || []) remote[r.start_ts] = r.track;
+      }
+      let changed = 0;
+      for (const a of todo) {
+        tried.add(a.id);
+        const tr = Tracks.local(a.startTs) || remote[a.startTs]; if (!tr) continue;
+        a.climbs = detect(tr).map(c => measure(a, tr, c)); a.climbsV = 1; changed++;
+      }
+      if (changed) { save(); if (TAB === 'prog') render(); }
+    } catch (e) { console.warn('ascensions', e); }
+    finally { scanning = false; }
+  }
+  // mêmes départ et sommet (à 400 m près) = même ascension
+  function groups(){
+    const G = [];
+    for (const a of S.activities) for (const c of a.climbs || []) {
+      let g = G.find(g => km(...g.e, ...c.e) < 0.4 && km(...g.s, ...c.s) < 0.4);
+      if (!g) { g = { key: `${c.e[0].toFixed(3)},${c.e[1].toFixed(3)}`, s: c.s, e: c.e, list: [] }; G.push(g); }
+      g.list.push({ ...c, name: a.name });
+    }
+    for (const g of G) { g.list.sort((x, y) => (x.T || 9e9) - (y.T || 9e9)); g.best = g.list[0]; g.ref = g.list.slice().sort((x, y) => y.L - x.L)[0];
+      g.last = g.list.reduce((m, c) => c.date > m ? c.date : m, ''); g.name = S.climbNames?.[g.key] || autoName(g); }
+    return G.sort((x, y) => y.last.localeCompare(x.last));
+  }
+  const autoName = g => { const nm = g.list.map(c => c.name).find(n => /\b(col|mont|côte|cote|alpe|pic|hautacam|ventoux|tourmalet|joux)\b/i.test(n || ''));
+    return nm ? nm.replace(/^.*?\b((?:col|mont|côte|cote|alpe|pic)\b.*)$/i, '$1').slice(0, 40) : `Montée de ${f1(g.ref.L)} km à ${f1(g.ref.grad)} %`; };
+  // profil façon ClimbFinder : un trapèze par tronçon, coloré selon la pente, pourcentage inscrit
+  function profileSVG(c, W = 600, Hh = 150){
+    const L = c.L, lo = c.a0, hi = Math.max(...c.prof.map(p => p[1]), c.a1), pad = (hi - lo)*0.08 || 10;
+    const X = x => 30 + x/L*(W-40), Y = v => Hh-18 - (v - (lo - pad))/(hi - lo + 2*pad)*(Hh-30);
+    let g = '', px = 0, pa = c.a0;
+    for (const [x, al] of c.prof) { const pct = (al - pa)/((x - px)*10), col = gradCol(pct);
+      g += `<path d="M${X(px)},${Hh-18}L${X(px)},${Y(pa)}L${X(x)},${Y(al)}L${X(x)},${Hh-18}Z" fill="${col}" stroke="var(--card)" stroke-width=".8"/>`;
+      if (X(x) - X(px) > 24) g += `<text x="${(X(px)+X(x))/2}" y="${Hh-24}" text-anchor="middle" style="fill:#111;font-weight:700;font-size:10px">${f1(pct)}</text>`;
+      px = x; pa = al; }
+    const st = L > 12 ? 2 : 1; for (let x = 0; x <= L + 1e-6; x += st) g += `<text x="${X(x)}" y="${Hh-4}" text-anchor="middle">${x}</text>`;
+    g += `<text x="26" y="${Y(lo)+3}" text-anchor="end">${lo}</text><text x="26" y="${Y(hi)+3}" text-anchor="end">${hi}</text>`;
+    return `<svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Profil de l'ascension">${g}</svg>`;
+  }
+  // P60 « de référence » : moyenne des 3 meilleures montées ramenées à 1 h par la loi de puissance
+  function p60(G){
+    const pts = G.flatMap(g => g.list).filter(c => c.P && c.T >= 600).map(c => c.P*Math.pow(c.T/3600, K)).sort((x, y) => y - x).slice(0, 3);
+    return pts.length ? pts.reduce((x, y) => x+y, 0)/pts.length : null;
+  }
+  // temps pour une montée (L km, H m) avec P(t) = P60·(t/1 h)^−K : on cherche t où la puissance demandée égale la puissance tenable
+  function predict(L, H, P60){
+    const m = S.profile.weightKg + PHY.bike, Lm = L*1000, r = 1.1;
+    const need = t => (m*PHY.g*H + PHY.crr*m*PHY.g*Lm + 0.5*r*PHY.cda*Math.pow(Lm/t, 2)*Lm)/t/PHY.eta;
+    let lo = 120, hi = 6*3600; for (let i = 0; i < 60; i++) { const t = (lo+hi)/2; if (need(t) > P60*Math.pow(t/3600, -K)) lo = t; else hi = t; }
+    const t = (lo+hi)/2, P = need(t); return { t, P, wkg: P/S.profile.weightKg };
+  }
+  function predictorHTML(G, P60){
+    const own = G.map(g => `<option value="g:${g.key}">${esc(g.name)} · ${f1(g.ref.L)} km · ${g.ref.H} m</option>`).join('');
+    return `<div class="climbpred"><label class="f" for="cpSel">Prédire une ascension</label>
+      <select id="cpSel">${own ? `<optgroup label="Mes ascensions">${own}</optgroup>` : ''}<optgroup label="Cols célèbres (valeurs approx.)">${PRESETS.map(p => `<option value="p:${p.id}">${esc(p.name)} · ${f1(p.L)} km · ${p.H} m</option>`).join('')}</optgroup><option value="custom">Personnalisée…</option></select>
+      <div class="grid2 hidden" id="cpCustom"><div><label class="f" for="cpL">Longueur (km)</label><input type="number" id="cpL" step="0.1" value="10"></div><div><label class="f" for="cpH">D+ (m)</label><input type="number" id="cpH" step="10" value="800"></div></div>
+      <div id="cpOut"></div><p class="tiny muted" style="margin:4px 0 0">Temps estimé · W/kg à tenir.</p>
+      <p class="tiny muted" style="margin:6px 0 0">Loi de Riegel version vélo : la puissance tenable baisse avec la durée, P(t) = P<sub>1 h</sub> × (t / 1 h)<sup>−0,07</sup> (l'équivalent d'un exposant b ≈ 1,07 sur les temps). Le temps est calculé par la physique : poids ${S.profile.weightKg} kg + vélo ${PHY.bike} kg, sans vent. ${P60 ? `Ta référence tirée de tes 3 meilleures montées : ${Math.round(P60)} W sur 1 h.` : ''}</p></div>`;
+  }
+  function wirePredictor(G, P60){
+    const sel = $('#cpSel'); if (!sel) return;
+    const run = () => {
+      const v = sel.value; $('#cpCustom').classList.toggle('hidden', v !== 'custom');
+      let L, H, actual = null;
+      if (v.startsWith('g:')) { const g = G.find(x => x.key === v.slice(2)); L = g.ref.L; H = g.ref.H; actual = g.best; }
+      else if (v.startsWith('p:')) { const p = PRESETS.find(x => x.id === v.slice(2)); L = p.L; H = p.H; }
+      else { L = +$('#cpL').value || 0; H = +$('#cpH').value || 0; }
+      if (!(L > 0 && H > 0)) { $('#cpOut').innerHTML = ''; return; }
+      const rows = [];
+      if (P60) rows.push(['Selon tes ascensions', predict(L, H, P60)]);
+      rows.push([`Selon ta FTP (${ftp()} W)`, predict(L, H, ftp())]);
+      if (S.profile.goalFtp) rows.push([`À ton objectif (${S.profile.goalFtp} W)`, predict(L, H, S.profile.goalFtp)]);
+      $('#cpOut').innerHTML = `<div class="grid${rows.length > 2 ? 3 : 2}" style="margin-top:10px">${rows.map(([l, r]) => `<div class="kpi"><div class="v num" style="font-size:22px">${fmtT(r.t)}<small> · ${f2(r.wkg)}</small></div><div class="l">${esc(l)}</div></div>`).join('')}</div>
+        ${actual?.T ? `<p class="small muted" style="margin:8px 0 0">Ton record ici : <b class="num" style="color:var(--text)">${fmtT(actual.T)}</b> le ${fmtShort(actual.date)} (${f2(actual.wkg)} W/kg${actual.measured ? ' mesurés' : ' estimés'}).</p>` : ''}`;
+    };
+    sel.onchange = run; $('#cpL').oninput = run; $('#cpH').oninput = run; run();
+  }
+  function cardHTML(g){
+    const c = g.ref, b = g.best;
+    return `<div class="climb" data-climb="${g.key}" role="button" tabindex="0">
+      <div class="row between" style="gap:8px"><b style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</b><span class="tiny muted">${g.list.length} ascension${g.list.length > 1 ? 's' : ''}</span></div>
+      <div class="tiny muted">${f1(c.L)} km · ${c.H} m D+ · ${f1(c.grad)} % moy. · ${f1(c.gmax)} % max · ${c.a0} → ${c.a1} m</div>
+      ${profileSVG(c)}
+      ${b.T ? `<div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip num" style="color:var(--text)">⏱ ${fmtT(b.T)}</span><span class="chip num">VAM ${b.vam} m/h</span>${b.wkg ? `<span class="chip num">${f2(b.wkg)} W/kg ${b.measured ? 'mesurés' : 'estimés'}</span>` : ''}<span class="chip">${fmtShort(b.date)}</span></div>` : ''}
+    </div>`;
+  }
+  function html(){
+    if (!S.profile) return '';
+    scan();
+    const G = groups(), P60 = p60(G);
+    const pending = S.activities.some(a => !isIndoor(a) && a.startTs && a.climbsV !== 1 && !tried.has(a.id));
+    let h = `<div class="card" id="climbsCard"><h2>Ascensions</h2>`;
+    if (!G.length) return h + `<p class="muted small" style="margin:0">${pending ? 'Analyse de tes tracés en cours…' : "Aucune montée de plus de 400 m de D+ dans tes sorties pour l'instant. Elles apparaîtront ici automatiquement (tracés Intervals.icu, .fit ou Strava)."}</p>${predictorHTML(G, P60)}</div>`;
+    const all = G.flatMap(g => g.list), totH = all.reduce((s, c) => s + c.H, 0), bestVam = Math.max(...all.map(c => c.vam || 0));
+    h += `<div class="grid4"><div class="kpi"><div class="v num">${all.length}</div><div class="l">Ascensions</div></div><div class="kpi"><div class="v num">${totH.toLocaleString('fr-FR')}<small> m</small></div><div class="l">D+ en montées</div></div>
+      <div class="kpi"><div class="v num">${bestVam || '—'}<small> m/h</small></div><div class="l">Meilleure VAM</div></div><div class="kpi"><div class="v num">${P60 ? Math.round(P60) : '—'}<small>${P60 ? ' W' : ''}</small></div><div class="l">Puissance 1 h estimée</div></div></div>
+      ${pending ? '<p class="tiny muted">Analyse des autres tracés en cours…</p>' : ''}
+      ${predictorHTML(G, P60)}<div class="climbs">${G.map(cardHTML).join('')}</div>
+      <p class="tiny muted" style="margin:8px 0 0">W/kg estimés par la physique (pente, vitesse, poids, roulement, air) quand il n'y a pas de capteur : ±10 %, faussés par le vent ou le drafting. Pentes : <span style="color:#8fd16a">●</span> &lt; 3 % <span style="color:#f2cf4a">●</span> 3-6 <span style="color:#f0923b">●</span> 6-9 <span style="color:#e04a35">●</span> 9-12 <span style="color:#7a1f2b">●</span> &gt; 12 %.</p></div>`;
+    setTimeout(() => wirePredictor(G, P60), 0);
+    return h;
+  }
+  function detailDlg(key){
+    const g = groups().find(x => x.key === key); if (!g) return;
+    openDlg(`<span class="muted small">${g.list.length} ascension${g.list.length > 1 ? 's' : ''} · ${f1(g.ref.L)} km · ${g.ref.H} m D+</span>
+      <div class="row" style="gap:8px;margin:6px 0"><input id="clName" value="${esc(g.name)}" style="flex:1" aria-label="Nom de l'ascension"><button class="btn sm" id="clRename">Renommer</button></div>
+      <div class="grid4" style="margin:6px 0">${[['Longueur', `${f1(g.ref.L)}<small> km</small>`], ['Pente moy.', `${f1(g.ref.grad)}<small> %</small>`], ['Pente max', `${f1(g.ref.gmax)}<small> %</small>`], ['Sommet', `${g.ref.a1}<small> m</small>`]].map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+      ${profileSVG(g.ref, 640, 190)}
+      <h3 style="margin-top:14px">Tes passages</h3>
+      ${g.list.map((c, i) => `<div class="hist"><div style="flex:1;min-width:0"><b>${i === 0 && c.T ? '🏆 ' : ''}${c.T ? fmtT(c.T) : '—'}</b> <span class="tiny muted">${fmtDate(c.date)}</span>
+        <div class="tiny muted">VAM ${c.vam ?? '—'} m/h · ${c.P ? `${c.P} W · ${f2(c.wkg)} W/kg ${c.measured ? 'mesurés' : 'estimés'}` : 'puissance inconnue'}</div></div>
+        <button class="btn sm" data-track3d="${c.act}">3D ▶</button></div>`).join('')}`);
+    $('#clRename').onclick = () => { (S.climbNames ||= {})[g.key] = $('#clName').value.trim() || undefined; save(); closeDlg(); render(); toast('Ascension renommée'); };
+  }
+  document.addEventListener('click', e => { const c = e.target.closest('[data-climb]'); if (c) detailDlg(c.dataset.climb); });
+  return { html, scan, detect, measure, predict, groups };
 })();
 
 /* ============ ajuster une séance selon la forme du jour ============ */
