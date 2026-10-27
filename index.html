@@ -104,6 +104,20 @@ nav.tabs button.on{color:var(--accent)}
 .achips button.on{color:var(--text);border-color:var(--text)}
 .atip{position:absolute;top:-6px;left:0;right:0;margin:0 auto;width:max-content;max-width:100%;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:11.5px;box-shadow:0 4px 14px rgba(0,0,0,.12);font-variant-numeric:tabular-nums;text-align:center}
 .awrap{position:relative;touch-action:pan-y}
+.achips button.afull{margin-left:auto;color:var(--text)}
+dialog.fs{max-width:none;max-height:none;width:100vw;height:100vh;height:100dvh;margin:0;background:var(--bg)}
+dialog.fs .actchart{height:100%;display:flex;flex-direction:column;box-sizing:border-box;padding:max(8px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(12px,env(safe-area-inset-left))}
+dialog.fs .fshead{display:flex;align-items:center;gap:10px}
+dialog.fs .fshead h3{margin:0;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+dialog.fs .fshead button{border:1px solid var(--line);background:var(--bg2);border-radius:999px;width:36px;height:36px;font-size:20px;line-height:1;cursor:pointer;color:var(--text);flex:none}
+dialog.fs .achips{flex-wrap:nowrap;overflow-x:auto;margin:8px 0 4px;scrollbar-width:none}
+dialog.fs .achips button{flex:none}
+dialog.fs .awrap{flex:1;min-height:0}
+dialog.fs .achart{position:absolute;inset:0}
+dialog.fs svg.chart{width:100%;height:100%}
+dialog.fs svg.chart text{font-size:12px}
+dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--muted);margin-top:6px}
+@media (orientation:portrait){ dialog.fs .fshint{display:block} }
 .week{margin-bottom:14px}
 .week .wh{display:flex;justify-content:space-between;align-items:baseline;margin:0 2px 6px}
 .week .wh h3{font-size:16px;text-transform:uppercase}
@@ -166,13 +180,14 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
   <button data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
 </div></nav>
 <dialog id="dlg"><div class="card" id="dlgBody"></div></dialog>
+<dialog id="fsDlg" class="fs"></dialog>
 <dialog id="infoDlg"><div class="card" id="infoBody"></div></dialog>
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.8.0';
+const APP_VERSION = '0.8.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1659,14 +1674,32 @@ const ActChart = (() => {
     if (!a || !(a.pwSample || a.hrSample)) return a && a.source === 'health' ? '' : '';
     st.id = a.id; st.planId = planItem?.id || a.planId || null; if (st.cmp === a.id) st.cmp = null;
     const others = S.activities.filter(x => x.id !== a.id && x.pwSample).sort((x,y) => y.date.localeCompare(x.date)).slice(0, 30);
-    const avail = ['pw','pw30','hr','cad','tgt','zones'].filter(k => k === 'zones' ? a.pwSample : k === 'tgt' ? !!(st.planId && S.plan.find(s=>s.id===st.planId)) : k === 'cad' ? a.cadSample : k === 'hr' ? a.hrSample : a.pwSample);
+    const avail = availOf(a);
     return `<div class="actchart" data-aid="${a.id}">
-      <div class="achips">${avail.map(k => `<button type="button" class="${st.on.has(k)?'on':''}" data-ac="${k}"><i style="background:${k==='zones'?'linear-gradient(90deg,var(--z2),var(--z4),var(--z6))':C[k]}"></i>${NAMES[k]}</button>`).join('')}</div>
+      <div class="achips">${chips(avail)}<button type="button" class="afull" data-acfull="${a.id}" aria-label="Agrandir le graphique">⤢ Agrandir</button></div>
       <div class="awrap"><div class="achart">${svg(a)}</div><div class="atip" hidden></div></div>
       ${others.length && a.pwSample ? `<div class="row" style="margin-top:8px;gap:6px"><label class="small muted" for="acCmp">Superposer avec</label><select id="acCmp" style="flex:1;min-width:150px;min-height:36px;padding:4px 8px"><option value="">—</option>${others.map(o => `<option value="${o.id}" ${st.cmp===o.id?'selected':''}>${fmtShort(o.date)} · ${esc(o.planId ? WORKOUTS[S.plan.find(s=>s.id===o.planId)?.workoutId]?.name || o.name : o.name)}${o.np?` · ${o.np} W`:''}</option>`).join('')}</select></div>` : ''}
       ${a.best ? `<h3 style="margin-top:16px">Courbe de puissance</h3>${curve(a)}` : ''}
     </div>`;
   }
+  const chips = avail => avail.map(k => `<button type="button" class="${st.on.has(k)?'on':''}" data-ac="${k}"><i style="background:${k==='zones'?'linear-gradient(90deg,var(--z2),var(--z4),var(--z6))':C[k]}"></i>${NAMES[k]}</button>`).join('');
+  const availOf = a => ['pw','pw30','hr','cad','tgt','zones'].filter(k => k === 'zones' ? a.pwSample : k === 'tgt' ? !!(st.planId && S.plan.find(s=>s.id===st.planId)) : k === 'cad' ? a.cadSample : k === 'hr' ? a.hrSample : a.pwSample);
+  // plein écran : occupe tout l'écran et se redessine à la taille réelle (paysage si on tourne le téléphone)
+  const fs = document.getElementById('fsDlg');
+  function openFull(id){
+    const a = S.activities.find(x => x.id === id); if (!a) return;
+    const pl = S.plan.find(s => s.id === st.planId);
+    fs.innerHTML = `<div class="actchart full" data-aid="${a.id}"><div class="fshead"><h3>${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)} <span class="muted small">· ${fmtShort(a.date)}</span></h3><button type="button" data-fsclose aria-label="Fermer">×</button></div>
+      <div class="achips">${chips(availOf(a))}</div><div class="awrap"><div class="achart"></div><div class="atip" hidden></div></div><div class="fshint">Tourne ton téléphone pour un affichage en paysage</div></div>`;
+    fs.showModal(); redraw(fs.querySelector('.actchart'));
+    try { if (fs.requestFullscreen && !/iPhone|iPod/.test(navigator.userAgent)) fs.requestFullscreen().catch(() => {}); } catch {}
+  }
+  function closeFull(){ if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); if (fs.open) fs.close(); }
+  fs.addEventListener('close', () => { fs.innerHTML = ''; if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    document.querySelectorAll('.actchart:not(.full)').forEach(box => { box.querySelectorAll('[data-ac]').forEach(b => b.classList.toggle('on', st.on.has(b.dataset.ac))); redraw(box); }); });
+  document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && fs.open) setTimeout(() => redraw(fs.querySelector('.actchart')), 50); });
+  let rz; const onResize = () => { clearTimeout(rz); rz = setTimeout(() => { if (fs.open) redraw(fs.querySelector('.actchart')); }, 120); };
+  window.addEventListener('resize', onResize); screen.orientation?.addEventListener?.('change', onResize);
   function series(a){
     const n = (a.pwSample || a.hrSample).length, secs = a.sampleSecs || a.durationS || n;
     const out = {};
@@ -1676,9 +1709,9 @@ const ActChart = (() => {
     if (st.cmp) { const o = S.activities.find(x => x.id === st.cmp); if (o?.pwSample) { const on = o.pwSample.length, os = o.sampleSecs || o.durationS || on; out.cmp = Array.from({length:n}, (_,i) => { const t = i*secs/n; const j = Math.round(t / os * on); return j < on ? o.pwSample[j] : null; }); } }
     return { n, secs, out };
   }
-  function svg(a){
+  function svg(a, W = 680, H = 230){
     const { n, secs, out } = series(a);
-    const W = 680, H = 230, L = 38, R = 34, T = 10, B = 22, iw = W-L-R, ih = H-T-B;
+    const L = 38, R = 34, T = W === 680 ? 10 : 24, B = 22, iw = W-L-R, ih = H-T-B; // plein écran : place pour les unités au-dessus des axes
     const X = i => L + i/(n-1) * iw;
     const pMax = Math.max(200, ...(out.pw||[0]), ...((st.on.has('tgt') && out.tgt) ? out.tgt.filter(Boolean) : [0]), ...((out.cmp) ? out.cmp.filter(Boolean) : [0])) * 1.08;
     const Yp = v => T + ih - v/pMax*ih;
@@ -1687,7 +1720,7 @@ const ActChart = (() => {
     let g = '';
     for (let i=0;i<=4;i++){ const v = pMax*i/4; g += `<line x1="${L}" x2="${W-R}" y1="${Yp(v)}" y2="${Yp(v)}" stroke="var(--line)"/><text x="${L-5}" y="${Yp(v)+3}" text-anchor="end">${Math.round(v)}</text>`; }
     if (st.on.has('hr') && out.hr) for (let i=0;i<=4;i++){ const v = hMin + (hMax-hMin)*i/4; g += `<text x="${W-R+5}" y="${Yh(v)+3}" style="fill:var(--bad)">${Math.round(v)}</text>`; }
-    const mins = secs/60, step = mins > 90 ? 30 : mins > 40 ? 15 : 10;
+    const mins = secs/60, step = (mins > 90 ? 30 : mins > 40 ? 15 : 10) / (W > 1000 ? 2 : 1);
     for (let m = 0; m <= mins; m += step) g += `<text x="${X(m*60/secs*(n-1))}" y="${H-6}" text-anchor="middle">${m}'</text>`;
     if (st.on.has('zones') && out.pw) { const f = ftpAt(a.date); for (const [lo, hi, z] of [[0,.56,1],[.56,.76,2],[.76,.91,3],[.91,1.06,4],[1.06,1.21,5],[1.21,3,6]]) { const y1 = Yp(Math.min(hi*f, pMax)), y0 = Yp(Math.min(lo*f, pMax)); if (lo*f < pMax) g += `<rect x="${L}" y="${y1}" width="${iw}" height="${Math.max(0,y0-y1)}" fill="var(--z${z})" opacity=".08"/>`; } }
     const path = (arr, Y) => { let d = '', pen = false; arr.forEach((v,i) => { if (v == null || isNaN(v)) { pen = false; return; } d += `${pen ? 'L' : 'M'}${X(i).toFixed(1)},${Y(v).toFixed(1)}`; pen = true; }); return d; };
@@ -1698,7 +1731,7 @@ const ActChart = (() => {
     if (st.on.has('cad') && out.cad) g += `<path d="${path(out.cad, Yc)}" fill="none" stroke="${C.cad}" stroke-width="1" opacity=".85"/>`;
     if (st.on.has('hr') && out.hr) g += `<path d="${path(out.hr, Yh)}" fill="none" stroke="${C.hr}" stroke-width="1.4"/>`;
     g += `<line class="acur" x1="0" x2="0" y1="${T}" y2="${T+ih}" stroke="var(--text)" stroke-width="1" opacity="0"/>`;
-    return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Courbes de la séance">${g}<text x="${L}" y="${T-1}" style="font-size:9px">W</text>${st.on.has('hr')&&out.hr?`<text x="${W-R+5}" y="${T-1}" style="font-size:9px;fill:var(--bad)">bpm</text>`:''}</svg>`;
+    return `<svg class="chart" viewBox="0 0 ${W} ${H}" data-w="${W}" preserveAspectRatio="none" role="img" aria-label="Courbes de la séance">${g}<text x="${L}" y="${T-1}" style="font-size:9px">W</text>${st.on.has('hr')&&out.hr?`<text x="${W-R+5}" y="${T-1}" style="font-size:9px;fill:var(--bad)">bpm</text>`:''}</svg>`;
   }
   function curve(a){
     const K = [['s5',5,'5 s'],['m1',60,'1 min'],['m5',300,'5 min'],['m8',480,'8 min'],['m20',1200,'20 min'],['m60',3600,'60 min']].filter(([k]) => a.best[k]);
@@ -1717,8 +1750,15 @@ const ActChart = (() => {
     const ftpLine = Y(ftpAt(a.date)); g += `<line x1="${L}" x2="${W-R}" y1="${ftpLine}" y2="${ftpLine}" stroke="var(--z4)" stroke-dasharray="2 4"/><text x="${W-R}" y="${ftpLine-4}" text-anchor="end" style="fill:var(--z4)">FTP ${ftpAt(a.date)}</text>`;
     return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Courbe de puissance">${g}</svg><div class="legend"><span><i style="background:var(--accent)"></i>Cette séance</span><span><i style="background:var(--muted)"></i>Tes records à cette date</span></div><p class="tiny muted" style="margin:4px 0 0">Ta meilleure puissance moyenne sur chaque durée. Si la courbe orange touche la grise, c'est un record.</p>`;
   }
-  function redraw(box){ const a = S.activities.find(x => x.id === box.dataset.aid); if (a) box.querySelector('.achart').innerHTML = svg(a); }
+  function redraw(box){
+    const a = box && S.activities.find(x => x.id === box.dataset.aid); if (!a) return;
+    const el = box.querySelector('.achart');
+    if (box.classList.contains('full')) { const r = el.getBoundingClientRect(); el.innerHTML = svg(a, Math.max(320, Math.round(r.width)), Math.max(180, Math.round(r.height))); }
+    else el.innerHTML = svg(a);
+  }
   document.addEventListener('click', e => {
+    const f = e.target.closest('[data-acfull]'); if (f) { openFull(f.dataset.acfull); return; }
+    if (e.target.closest('[data-fsclose]')) { closeFull(); return; }
     const b = e.target.closest('.actchart [data-ac]'); if (!b) return;
     const k = b.dataset.ac; st.on.has(k) ? st.on.delete(k) : st.on.add(k); b.classList.toggle('on', st.on.has(k));
     redraw(b.closest('.actchart'));
@@ -1729,9 +1769,9 @@ const ActChart = (() => {
     const wrap = e.target.closest?.('.actchart .awrap'); if (!wrap) return;
     const box = wrap.closest('.actchart'), a = S.activities.find(x => x.id === box.dataset.aid); if (!a) return;
     const svgEl = wrap.querySelector('svg'), r = svgEl.getBoundingClientRect(); const pt = (e.touches ? e.touches[0] : e);
-    const fx = (pt.clientX - r.left) / r.width * 680; const { n, secs, out } = series(a);
-    const i = clamp(Math.round((fx - 38) / (680-38-34) * (n-1)), 0, n-1);
-    const cur = svgEl.querySelector('.acur'); const xx = 38 + i/(n-1)*(680-38-34); cur.setAttribute('x1', xx); cur.setAttribute('x2', xx); cur.setAttribute('opacity', .5);
+    const VW = +svgEl.dataset.w || 680; const fx = (pt.clientX - r.left) / r.width * VW; const { n, secs, out } = series(a);
+    const i = clamp(Math.round((fx - 38) / (VW-38-34) * (n-1)), 0, n-1);
+    const cur = svgEl.querySelector('.acur'); const xx = 38 + i/(n-1)*(VW-38-34); cur.setAttribute('x1', xx); cur.setAttribute('x2', xx); cur.setAttribute('opacity', .5);
     const t = Math.round(i*secs/(n-1)); const tip = wrap.querySelector('.atip'); tip.hidden = false;
     const parts = [`<b>${Math.floor(t/60)}'${pad(t%60)}</b>`];
     if (out.pw && st.on.has('pw')) parts.push(`<span style="color:var(--accent)">${out.pw[i]} W</span>`);
