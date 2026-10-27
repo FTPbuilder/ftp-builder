@@ -226,7 +226,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.0';
+const APP_VERSION = '0.13.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2106,7 +2106,7 @@ const Track3D = (() => {
 /* ============ ascensions (≥ 400 m de D+ consécutifs) ============ */
 // détectées dans les tracés GPS, puissance estimée par la physique (ou mesurée si capteur), prédiction façon loi de Riegel
 const Climbs = (() => {
-  const MIN_GAIN = 400, K = 0.07; // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
+  const MIN_GAIN = 400, K = 0.07, CV = 2; // CV : version de l'analyse (2 : trajet de la montée gardé pour le nommage) // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
   const PHY = { g: 9.81, bike: 8, crr: 0.005, cda: 0.35, eta: 0.975 };
   const COLORS = [[4,'var(--g1)'],[7,'var(--g2)'],[10,'var(--g3)'],[99,'var(--g4)']]; // 4 teintes : < 4 %, 4-7, 7-10, ≥ 10 %
   const catOf = p => COLORS.findIndex(([m]) => p < m), gradCol = p => COLORS[catOf(p)][1];
@@ -2183,13 +2183,14 @@ const Climbs = (() => {
     return { act: act.id, date: act.date, L: +L.toFixed(2), H: Math.round(H), up: Math.round(up), a0: Math.round(alt[a]), a1: Math.round(alt[b]),
       grad: +(H/(L*10)).toFixed(1), gmax: +gmax.toFixed(1), T: T || null, vam: T ? Math.round(H/(T/3600)) : null,
       P: P ? Math.round(P) : null, wkg: P ? +(P/kg).toFixed(2) : null, measured, prof,
-      s: [tr.lat[a], tr.lon[a]], e: [tr.lat[b], tr.lon[b]] };
+      s: [tr.lat[a], tr.lon[a]], e: [tr.lat[b], tr.lon[b]],
+      path: Array.from({ length: 9 }, (_, k) => { const i = Math.round(a + (b - a)*k/8); return [+tr.lat[i].toFixed(5), +tr.lon[i].toFixed(5)]; }) };
   }
   // lecture des tracés par paquets, résultat gardé dans l'activité (a.climbs) : l'analyse ne tourne qu'une fois
   async function scan(){
     if (scanning || !S.profile) return; scanning = true;
     try {
-      const todo = S.activities.filter(a => !isIndoor(a) && a.startTs && a.climbsV !== 1 && !tried.has(a.id));
+      const todo = S.activities.filter(a => !isIndoor(a) && a.startTs && a.climbsV !== CV && !tried.has(a.id));
       if (!todo.length) return;
       const sb = Cloud.sb, u = Cloud.user, remote = {};
       const miss = todo.filter(a => !Tracks.local(a.startTs));
@@ -2202,7 +2203,7 @@ const Climbs = (() => {
       for (const a of todo) {
         tried.add(a.id);
         const tr = Tracks.local(a.startTs) || remote[a.startTs]; if (!tr) continue;
-        a.climbs = detect(tr).map(c => applyFix(a, tr, measure(a, tr, c))); a.climbsV = 1; changed++;
+        a.climbs = detect(tr).map(c => applyFix(a, tr, measure(a, tr, c))); a.climbsV = CV; changed++;
       }
       if (changed) { save(); if (TAB === 'prog') render(); }
     } catch (e) { console.warn('ascensions', e); }
@@ -2214,7 +2215,7 @@ const Climbs = (() => {
     for (const a of S.activities) for (const c of a.climbs || []) {
       let g = G.find(g => km(...g.e, ...c.e) < 0.4 && km(...g.s, ...c.s) < 0.4);
       if (!g) { g = { key: `${c.e[0].toFixed(3)},${c.e[1].toFixed(3)}`, s: c.s, e: c.e, list: [] }; G.push(g); }
-      g.list.push({ ...c, name: a.name });
+      g.list.push({ ...c, name: a.name }); if (c.path && !g.path) g.path = c.path;
     }
     for (const g of G) { g.list.sort((x, y) => (x.T || 9e9) - (y.T || 9e9)); g.best = g.list[0]; g.ref = g.list.slice().sort((x, y) => y.L - x.L)[0];
       g.last = g.list.reduce((m, c) => c.date > m ? c.date : m, ''); g.osm = S.climbAuto?.[g.key] || null; g.name = S.climbNames?.[g.key] || g.osm || autoName(g); }
@@ -2223,29 +2224,46 @@ const Climbs = (() => {
   // nom automatique via OpenStreetMap (Overpass) : col ou station au sommet, village de départ — façon « Hautacam depuis Argelès-Gazost »
   const OVERPASS = 'https://overpass-api.de/api/interpreter';
   let naming = false;
+  const ENDPOINTS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://maps.mail.ru/osm/tools/overpass/api/interpreter'];
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  async function overpass(q){
+    let last; for (const url of ENDPOINTS) for (let k = 0; k < 2; k++) {
+      try { const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) });
+        if (r.ok) return (await r.json()).elements || []; last = new Error('overpass ' + r.status); if (r.status !== 429 && r.status < 500) break; } catch (e) { last = e; }
+      await wait(2000);
+    }
+    throw last;
+  }
+  async function nominatim(p, zoom){ // repli : lieu-dit / commune le plus proche
+    try { const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p[0]}&lon=${p[1]}&zoom=${zoom}&accept-language=fr`); if (!r.ok) return null;
+      const a = (await r.json()).address || {}; return a.hamlet || a.locality || a.village || a.town || a.city || a.municipality || null; } catch { return null; }
+  }
+  // col franchi par la montée (le plus haut, le long de son trajet), sinon station / sommet / lieu-dit au point haut ; village de départ
   async function osmName(g){
     const [la, lo] = g.e, [sa, so] = g.s;
-    const q = `[out:json][timeout:20];(node(around:700,${la},${lo})["mountain_pass"="yes"]["name"];node(around:700,${la},${lo})["natural"~"^(saddle|peak)$"]["name"];` +
-      `nwr(around:2500,${la},${lo})["landuse"="winter_sports"]["name"];node(around:1500,${la},${lo})["place"~"^(village|hamlet|locality|isolated_dwelling)$"]["name"];` +
-      `node(around:4000,${sa},${so})["place"~"^(city|town|village)$"]["name"];);out tags center;`;
-    const r = await fetch(OVERPASS, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q) });
-    if (!r.ok) throw new Error('overpass ' + r.status);
-    const els = ((await r.json()).elements || []).map(e => ({ t: e.tags || {}, p: [e.lat ?? e.center?.lat, e.lon ?? e.center?.lon] })).filter(e => e.p[0] != null && e.t.name);
+    const line = (g.path || [g.s, g.e]).map(p => p.join(',')).join(','), r = g.path ? 500 : 1500;
+    const els = (await overpass(`[out:json][timeout:25];(node(around:${r},${line})["mountain_pass"="yes"]["name"];node(around:${r},${line})["natural"="saddle"]["name"];` +
+      `node(around:900,${la},${lo})["natural"="peak"]["name"];nwr(around:2500,${la},${lo})["landuse"="winter_sports"]["name"];` +
+      `node(around:2500,${la},${lo})["place"~"^(village|hamlet|locality|isolated_dwelling)$"]["name"];node(around:6000,${sa},${so})["place"~"^(city|town|village)$"]["name"];);out tags center;`))
+      .map(e => ({ t: e.tags || {}, p: [e.lat ?? e.center?.lat, e.lon ?? e.center?.lon] })).filter(e => e.p[0] != null && e.t.name);
     const near = (arr, p, max) => arr.map(e => ({ ...e, d: km(...p, ...e.p) })).filter(e => e.d <= max).sort((x, y) => x.d - y.d)[0] || null;
-    const pass = near(els.filter(e => e.t.mountain_pass === 'yes' || e.t.natural === 'saddle'), g.e, 0.7);
+    const pass = near(els.filter(e => e.t.mountain_pass === 'yes' || e.t.natural === 'saddle'), g.e, 60); // déjà filtrés le long du trajet : le plus proche du sommet
     const ski = near(els.filter(e => e.t.landuse === 'winter_sports'), g.e, 2.5);
-    const peak = near(els.filter(e => e.t.natural === 'peak'), g.e, 0.7);
-    const hamlet = near(els.filter(e => /^(village|hamlet|locality|isolated_dwelling)$/.test(e.t.place || '')), g.e, 1.5);
-    const from = near(els.filter(e => /^(city|town|village)$/.test(e.t.place || '')), g.s, 4);
-    const top = pass?.t.name || ski?.t.name || peak?.t.name || (hamlet ? `Montée vers ${hamlet.t.name}` : null);
+    const peak = near(els.filter(e => e.t.natural === 'peak'), g.e, 0.9);
+    const hamlet = near(els.filter(e => /^(village|hamlet|locality|isolated_dwelling)$/.test(e.t.place || '')), g.e, 2.5);
+    let from = near(els.filter(e => /^(city|town|village)$/.test(e.t.place || '')), g.s, 6)?.t.name || null;
+    let top = pass?.t.name || ski?.t.name || peak?.t.name || (hamlet ? `Montée vers ${hamlet.t.name}` : null);
+    if (!top) { await wait(1100); const x = await nominatim(g.e, 14); if (x) top = `Montée vers ${x}`; }
+    if (!from) { await wait(1100); from = await nominatim(g.s, 12); }
     if (!top) return '';
-    return from && from.t.name !== hamlet?.t.name && !top.includes(from.t.name) ? `${top} depuis ${from.t.name}` : top;
+    return from && from !== top && from !== hamlet?.t.name && top !== `Montée vers ${from}` ? `${top} depuis ${from}` : top;
   }
   async function autoNames(G){
+    if (S.climbAutoV !== 2) { S.climbAuto = {}; S.climbAutoV = 2; } // nouvelles règles : on renomme tout (les noms donnés à la main restent)
     const todo = G.filter(g => !S.climbNames?.[g.key] && S.climbAuto?.[g.key] == null);
     if (naming || !todo.length || !navigator.onLine) return;
     naming = true; let changed = 0;
-    try { for (const g of todo.slice(0, 8)) { const n = await osmName(g); (S.climbAuto ||= {})[g.key] = n; changed++; await new Promise(r => setTimeout(r, 1100)); } } // 1 requête/s : règle d'usage Overpass
+    try { for (const g of todo.slice(0, 8)) { const n = await osmName(g); (S.climbAuto ||= {})[g.key] = n; changed++; if (TAB === 'prog') render(); await wait(1500); } } // ≤ 1 requête/s : règle d'usage
     catch (e) { console.warn('noms des cols', e); } // réseau : on réessaiera plus tard
     finally { naming = false; if (changed) { save(); if (TAB === 'prog') render(); } }
   }
@@ -2316,7 +2334,7 @@ const Climbs = (() => {
     scan();
     const G = groups(), P60 = p60(G);
     autoNames(G);
-    const pending = S.activities.some(a => !isIndoor(a) && a.startTs && a.climbsV !== 1 && !tried.has(a.id));
+    const pending = S.activities.some(a => !isIndoor(a) && a.startTs && a.climbsV !== CV && !tried.has(a.id));
     let h = `<div class="card" id="climbsCard"><h2>Ascensions</h2>`;
     if (!G.length) return h + `<p class="muted small" style="margin:0">${pending ? 'Analyse de tes tracés en cours…' : "Aucune montée de plus de 400 m de D+ dans tes sorties pour l'instant. Elles apparaîtront ici automatiquement (tracés Intervals.icu, .fit ou Strava)."}</p>${predictorHTML(G, P60)}</div>`;
     const all = G.flatMap(g => g.list), totH = all.reduce((s, c) => s + c.H, 0), bestVam = Math.max(...all.map(c => c.vam || 0));

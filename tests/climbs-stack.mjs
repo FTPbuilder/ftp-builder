@@ -1,8 +1,21 @@
 // Ascensions en pile façon dossiers (4 montées), « + Découvrir » pour tout déplier, autres sports repliés en bas de Progression
+// + nommage : premier serveur Overpass saturé (429), col franchi en milieu de montée, station au sommet, repli Nominatim
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: process.env.DARK ? 'dark' : 'light' });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
+const calls = { main: 0, kumi: 0, nomi: 0 };
+await pg.route('https://overpass-api.de/**', r => { calls.main++; return r.fulfill({ status: 429, headers: { 'Access-Control-Allow-Origin': '*' }, body: 'busy' }); });
+await pg.route('https://overpass.kumi.systems/**', r => { calls.kumi++;
+  const body = decodeURIComponent((r.request().postData() || '').replace(/^data=/, '').replace(/\+/g, ' '));
+  const path = body.match(/around:\d+,([-\d.,]+)\)/)[1].split(',').map(Number), pts = []; for (let i = 0; i < path.length; i += 2) pts.push([path[i], path[i+1]]);
+  const top = pts[pts.length-1], mid = pts[4] || pts[0], start = pts[0], el = [];
+  if (start[0] > 42.99 && start[0] < 43.2) el.push({ type:'way', center:{ lat: top[0]+0.003, lon: top[1] }, tags:{ landuse:'winter_sports', name:'Hautacam' } }, { type:'node', lat: start[0]+0.01, lon: start[1], tags:{ place:'town', name:'Argelès-Gazost' } });
+  if (start[0] > 43.7 && start[0] < 44) el.push({ type:'node', lat: mid[0], lon: mid[1], tags:{ mountain_pass:'yes', name:'Col de Vence' } }, { type:'node', lat: start[0], lon: start[1]+0.01, tags:{ place:'town', name:'Vence' } });
+  if (start[0] < 42.99) el.push({ type:'node', lat: top[0], lon: top[1]+0.002, tags:{ mountain_pass:'yes', name:'Col du Soulor' } });
+  return r.fulfill({ contentType:'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ elements: el }) }); });
+await pg.route('https://nominatim.openstreetmap.org/**', r => { calls.nomi++; const z = new URL(r.request().url()).searchParams.get('zoom');
+  return r.fulfill({ contentType:'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ address: z === '14' ? { hamlet:'Le Mas' } : { village:'Samoëns' } }) }); });
 await pg.clock.setFixedTime(new Date('2026-10-28T00:10:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
@@ -26,5 +39,8 @@ await pg.locator('#climbsCard').screenshot({ path: out + '/stack-2.png' });
 console.log('PILE', JSON.stringify(stacked), '| dépliée', open);
 const lastCard = await pg.evaluate(() => [...document.querySelectorAll('#progView .card, .card')].slice(-1)[0]?.querySelector('h2')?.textContent);
 console.log('dernière carte', lastCard);
-const ok = stacked.stack && stacked.cards === 4 && stacked.h.slice(0, 3).every(h => h <= 92) && open;
+await pg.waitForFunction(() => Climbs.groups().filter(g => FTPB.S.climbAuto?.[g.key] != null).length === 4, null, { timeout: 30000 }).catch(() => {});
+const names = await pg.evaluate(() => Climbs.groups().map(g => g.name).sort());
+console.log('NOMS', JSON.stringify(names), JSON.stringify(calls));
+const ok = JSON.stringify(names) === JSON.stringify(['Col de Vence depuis Vence', 'Col du Soulor depuis Samoëns', 'Hautacam depuis Argelès-Gazost', 'Montée vers Le Mas depuis Samoëns']) && stacked.stack && stacked.cards === 4 && stacked.h.slice(0, 3).every(h => h <= 92) && open;
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
