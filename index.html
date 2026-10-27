@@ -206,7 +206,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.11.0';
+const APP_VERSION = '0.11.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2435,11 +2435,14 @@ const Cloud = (() => {
   async function autoIcu(force=false){
     if (icuBusy || !icu.connected) return;
     const last = S.icuLastAuto || 0;
-    if (!force && Date.now() - last < 15*60000) return;
+    if (!force && S.icuBackfill === 2 && Date.now() - last < 15*60000) return;
     icuBusy = true; S.icuLastAuto = Date.now();
     try {
-      const r = await icuCall({ action:'sync', days: force ? 60 : 14 });
+      // une fois (puis à chaque synchro manuelle) : 4 mois d'historique pour récupérer les anciennes sorties avec leurs flux et tracés
+      const deep = force || S.icuBackfill !== 2;
+      const r = await icuCall({ action:'sync', days: deep ? 120 : 14 });
       const n = await importExt();
+      if (deep && S.icuBackfill !== 2) { S.icuBackfill = 2; save(); }
       await Health.load(sb);
       const pushed = await pushPlan(false);
       if (force) toast(`Intervals : ${n} séance${n>1?'s':''} vélo importée${n>1?'s':''}, ${r.others} autre${r.others>1?'s':''} activité${r.others>1?'s':''}${pushed ? `, ${pushed} séance${pushed>1?'s':''} envoyée${pushed>1?'s':''} au calendrier` : ''}`);
