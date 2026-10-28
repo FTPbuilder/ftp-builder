@@ -5,14 +5,15 @@ const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
-const calls = { fn: 0 }; const NAMEFN = () => 'Col de Joux Plane depuis Samoëns';
+const calls = { fn: 0 }; const TABLE = {}; const NAMEFN = () => 'Col de Joux Plane depuis Samoëns';
 // session Supabase simulée + fonction climb-names (le nommage passe par le serveur)
 const SC0 = process.env.SCRATCH || '.';
 await pg.route('**/supabase.js', r => r.fulfill({ path: SC0 + '/node_modules/@supabase/supabase-js/dist/umd/supabase.js', contentType:'application/javascript' }));
 await pg.route('**/*.supabase.co/**', async r => {
   const u = new URL(r.request().url()); const j = (body, s=200) => r.fulfill({ status:s, contentType:'application/json', body: JSON.stringify(body) });
   if (u.pathname.includes('/auth/v1/user')) return j({ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' });
-  if (u.pathname.endsWith('/functions/v1/climb-names')) { calls.fn++; const body = JSON.parse(r.request().postData()); return j({ names: Object.fromEntries(body.climbs.map(c => [c.key, NAMEFN(c)])), errors: [] }); }
+  if (u.pathname.endsWith('/functions/v1/climb-names')) { calls.fn++; const body = JSON.parse(r.request().postData()); for (const c of body.climbs) TABLE[c.key] = NAMEFN(c); return j({ queued: body.climbs.length }); }
+  if (u.pathname.endsWith('/rest/v1/climb_names')) return j(Object.entries(TABLE).map(([key, name]) => ({ key, name, error: null })));
   if (u.pathname.endsWith('/user_state')) return r.fulfill({ status:200, contentType:'application/json', body:'null' });
   return j([]);
 });
