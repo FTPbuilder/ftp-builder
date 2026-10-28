@@ -226,7 +226,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.2';
+const APP_VERSION = '0.13.3';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2265,19 +2265,20 @@ const Climbs = (() => {
   async function autoNames(G){
     if (S.climbAutoV !== 3) { S.climbAuto = {}; S.climbAutoV = 3; } // nouvelles règles : on renomme tout (les noms donnés à la main restent)
     const todo = G.filter(g => !S.climbNames?.[g.key] && S.climbAuto?.[g.key] == null);
-    if (naming || !todo.length || !navigator.onLine) return;
+    // noms cherchés par le serveur (fonction climb-names) : on attend que la session soit prête, la page se redessine ensuite
+    const sb = Cloud.sb, u = Cloud.user;
+    if (naming || !todo.length || !navigator.onLine || !sb || !u) return;
     naming = true; let changed = 0;
     try {
-      const sb = Cloud.sb, u = Cloud.user, batch = todo.slice(0, 4);
-      if (sb && u) { // côté serveur : pas de souci de CORS, User-Agent identifié auprès d'OpenStreetMap
-        const { data, error } = await sb.functions.invoke('climb-names', { body: { climbs: batch.map(g => ({ key: g.key, s: g.s, e: g.e, path: g.path || null })) } });
-        if (error) throw error;
-        for (const [k, n] of Object.entries(data?.names || {})) { (S.climbAuto ||= {})[k] = n; changed++; }
-        S.climbNameErr = data?.errors?.length ? data.errors[0] : null;
-      } else for (const g of batch) { const n = await osmName(g); (S.climbAuto ||= {})[g.key] = n; changed++; if (TAB === 'prog') render(); await wait(1500); } // ≤ 1 requête/s
+      const batch = todo.slice(0, 4);
+      const call = sb.functions.invoke('climb-names', { body: { climbs: batch.map(g => ({ key: g.key, s: g.s, e: g.e, path: g.path || null })) } });
+      const { data, error } = await Promise.race([call, wait(90000).then(() => ({ error: new Error('délai dépassé') }))]);
+      if (error) throw error;
+      for (const [k, n] of Object.entries(data?.names || {})) { (S.climbAuto ||= {})[k] = n; changed++; }
+      S.climbNameErr = data?.errors?.length ? data.errors[0] : null;
     }
     catch (e) { S.climbNameErr = String(e?.message || e); console.warn('noms des cols', e); } // réseau : on réessaiera plus tard
-    finally { naming = false; if (changed) { save(); if (TAB === 'prog') render(); } }
+    finally { naming = false; if (changed) save(); if (TAB === 'prog') render(); }
   }
   const autoName = g => { const nm = g.list.map(c => c.name).find(n => /\b(col|mont|côte|cote|alpe|pic|hautacam|ventoux|tourmalet|joux)\b/i.test(n || ''));
     return nm ? nm.replace(/^.*?\b((?:col|mont|côte|cote|alpe|pic)\b.*)$/i, '$1').slice(0, 40) : `Montée de ${f1(g.ref.L)} km à ${f1(g.ref.grad)} %`; };

@@ -1,17 +1,22 @@
 // Ascensions : détection des montées ≥ 400 m (une petite côte de 250 m ignorée), regroupement des passages,
 // estimation W/kg par la physique, profil façon ClimbFinder, prédiction (loi de puissance type Riegel),
-// nom automatique via OpenStreetMap (Overpass simulé : col au sommet, village au départ), correction des bornes appliquée à tous les passages
+// nom automatique par la fonction serveur climb-names (simulée), correction des bornes appliquée à tous les passages
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
-let overpass = 0;
-await pg.route('https://overpass-api.de/**', async r => { overpass++; const body = decodeURIComponent((r.request().postData() || '').replace(/^data=/, '').replace(/\+/g, ' '));
-  const pts = [...body.matchAll(/around:(\d+),([-\d.]+),([-\d.]+)/g)].map(m => [+m[2], +m[3]]); const top = pts[0], start = pts[pts.length-1];
-  return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ elements: [
-    { type:'node', lat: top[0] + 0.001, lon: top[1], tags: { mountain_pass:'yes', name:'Col de Joux Plane', ele:'1691' } },
-    { type:'node', lat: top[0] + 0.004, lon: top[1], tags: { natural:'peak', name:'Pointe de Ressachaux' } },
-    { type:'node', lat: start[0] + 0.01, lon: start[1], tags: { place:'village', name:'Samoëns' } } ] }) }); });
+const calls = { fn: 0 }; const NAMEFN = () => 'Col de Joux Plane depuis Samoëns';
+// session Supabase simulée + fonction climb-names (le nommage passe par le serveur)
+const SC0 = process.env.SCRATCH || '.';
+await pg.route('**/supabase.js', r => r.fulfill({ path: SC0 + '/node_modules/@supabase/supabase-js/dist/umd/supabase.js', contentType:'application/javascript' }));
+await pg.route('**/*.supabase.co/**', async r => {
+  const u = new URL(r.request().url()); const j = (body, s=200) => r.fulfill({ status:s, contentType:'application/json', body: JSON.stringify(body) });
+  if (u.pathname.includes('/auth/v1/user')) return j({ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' });
+  if (u.pathname.endsWith('/functions/v1/climb-names')) { calls.fn++; const body = JSON.parse(r.request().postData()); return j({ names: Object.fromEntries(body.climbs.map(c => [c.key, NAMEFN(c)])), errors: [] }); }
+  if (u.pathname.endsWith('/user_state')) return r.fulfill({ status:200, contentType:'application/json', body:'null' });
+  return j([]);
+});
+await pg.addInitScript(() => localStorage.setItem('sb-jhemwfhmohqncywjixgh-auth-token', JSON.stringify({ access_token:'x.y.z', refresh_token:'r', token_type:'bearer', expires_in:3600, expires_at:Math.floor(Date.now()/1000)+3600, user:{ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' } })));
 await pg.clock.setFixedTime(new Date('2026-10-27T23:30:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
@@ -36,7 +41,7 @@ const info = await pg.evaluate(() => { const G = Climbs.groups(); return { group
   nClimbsPerRide: FTPB.S.activities.filter(a => a.climbs).map(a => a.climbs.length) }; });
 console.log('ASCENSIONS', JSON.stringify(info));
 await pg.waitForFunction(() => Climbs.groups()[0]?.name.includes('depuis'), null, { timeout: 8000 }).catch(() => {});
-const osmName = await pg.evaluate(() => Climbs.groups()[0].name); console.log('NOM OSM', osmName, '| requêtes', overpass);
+const osmName = await pg.evaluate(() => Climbs.groups()[0].name); console.log('NOM OSM', osmName, '| appels', calls.fn);
 await pg.click('.climbpredwrap summary'); await pg.waitForTimeout(100);
 const pred = await pg.locator('#cpOut').innerText(); console.log('PRÉDICTION', pred.replace(/\n+/g, ' | '));
 await pg.locator('#climbsCard').screenshot({ path: out + '/climbs-card.png' });
