@@ -129,6 +129,7 @@ dialog.fs3d{background:#0a1020}
 .climbs.stack .climb:not(:last-child){max-height:92px;overflow:hidden;padding-bottom:30px}
 .climbs.stack .climb + .climb{margin-top:-26px;box-shadow:0 -6px 16px rgba(0,0,0,.10)}
 .more{width:100%;margin-top:10px;justify-content:center}
+.chhead{cursor:pointer;border-radius:8px}.chhead:hover b{color:var(--accent)}
 .climbs.stack .climb:not(:last-child) .cstat{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .climb > *{flex-shrink:0}
 .gdot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:baseline;margin:0 2px 0 6px}
@@ -226,7 +227,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.5';
+const APP_VERSION = '0.13.6';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1584,32 +1585,54 @@ function challengesHTML(){
     const perDay = left / daysLeft, today = c.entries[t] || 0;
     const stCol = ahead >= 0 ? 'var(--ok)' : ahead > -c.target*0.03 ? 'var(--warn)' : 'var(--bad)';
     return `<div style="margin-top:14px">
-      <div class="row between"><b>${esc(c.name)}</b><span class="num small"><b>${fmtCh(c, done)}</b> / ${fmtCh(c, c.target)} · ${Math.floor(pct)} %</span></div>
+      <div class="row between chhead" data-chedit="${c.id}" role="button" tabindex="0" title="Voir le détail"><b>${esc(c.name)} <span class="muted" style="font-weight:400">›</span></b><span class="num small"><b>${fmtCh(c, done)}</b> / ${fmtCh(c, c.target)} · ${Math.floor(pct)} %</span></div>
       <div class="bar" style="margin:8px 0;position:relative"><i style="width:${pct}%"></i><span title="Rythme prévu" style="position:absolute;top:-3px;bottom:-3px;left:${clamp(expected/c.target*100,0,100)}%;width:2px;background:var(--text);opacity:.5"></span></div>
       <div class="tiny muted">Aujourd'hui : <b style="color:var(--text)">${fmtCh(c, today)}</b> · objectif du jour ~${fmtCh(c, perDay)} · <span style="color:${stCol}">${ahead >= 0 ? `${fmtCh(c, ahead)} d'avance` : `${fmtCh(c, -ahead)} de retard`}</span></div>
       <div class="row" style="margin-top:8px;gap:6px">${c.step.map(s => `<button class="btn sm" data-chadd="${c.id}" data-v="${s}">+${s}${c.unit==='min'?' min':''}</button>`).join('')}
         <input type="text" inputmode="decimal" id="chIn-${c.id}" placeholder="${c.unit==='min'?'min':'nb'}" style="width:76px;min-height:32px;padding:4px 8px">
         <button class="btn sm primary" data-chadd="${c.id}">Ajouter</button>
-        <button class="btn sm ghost" data-chedit="${c.id}">Historique</button></div>
+        <button class="btn sm ghost" data-chedit="${c.id}">Détail</button></div>
     </div>`;
   }).join('') + `</div>`;
 }
 function chAdd(id, v){
   const c = challenges().find(x => x.id === id); if (!c || !(v > 0)) return toast('Indique un nombre');
   const t = todayISO(); c.entries[t] = +((c.entries[t] || 0) + v).toFixed(2);
+  (c.log ||= []).push({ ts: Date.now(), v }); // journal horodaté : qui voit « +50 à 12:51 »
   save(); render(); toast(`+${fmtCh(c, v)} ${c.unit==='min'?'de chaise':'squats'} 💪`);
 }
+// détail d'un défi : chiffres clés, 30 derniers jours, journal jour par jour avec l'heure de chaque ajout, corrections
 function chEditDlg(id){
   const c = challenges().find(x => x.id === id); if (!c) return;
-  const days = Object.keys(c.entries).sort().reverse();
-  openDlg(`<h2>${esc(c.name)}</h2><p class="muted small">Corrige un jour (0 pour l'effacer) ou modifie l'objectif.</p>
-    <div class="grid2"><div><label class="f" for="chT">Objectif (${c.unit==='min'?'minutes':'répétitions'})</label><input type="number" id="chT" value="${c.target}"></div><div><label class="f" for="chE">Échéance</label><input type="date" id="chE" value="${c.end}"></div></div>
-    <label class="f" for="chD">Ajouter ou corriger un jour</label><div class="row"><input type="date" id="chD" value="${todayISO()}" style="flex:1"><input type="text" inputmode="decimal" id="chV" placeholder="total du jour" style="width:120px"><button class="btn" id="chSet">OK</button></div>
-    <div style="margin-top:12px">${days.length ? days.map(d => `<div class="hist"><div style="flex:1">${fmtDate(d)}</div><b class="num">${fmtCh(c, c.entries[d])}</b></div>`).join('') : '<p class="muted small">Aucune saisie pour l’instant.</p>'}</div>
-    <div class="row" style="margin-top:12px"><button class="btn primary" id="chSave">Enregistrer</button></div>`);
-  $('#chSet').onclick = () => { const d = $('#chD').value, v = parseFloat(String($('#chV').value).replace(',','.')); if (!d || isNaN(v)) return toast('Date et valeur'); if (v <= 0) delete c.entries[d]; else c.entries[d] = v; save(); chEditDlg(id); render(); };
+  const t = todayISO(), days = Object.keys(c.entries).filter(d => c.entries[d] > 0).sort().reverse();
+  const done = chTotal(c), active = days.length;
+  let streak = 0; for (let d = c.entries[t] > 0 ? t : addDays(t, -1); c.entries[d] > 0; d = addDays(d, -1)) streak++;
+  const best = days.reduce((m, d) => c.entries[d] > (c.entries[m] || 0) ? d : m, null);
+  const last30 = Array.from({ length: 30 }, (_, i) => addDays(t, i - 29)), max30 = Math.max(1, ...last30.map(d => c.entries[d] || 0));
+  const byDay = {}; for (const e of c.log || []) { const d = iso(new Date(e.ts)); (byDay[d] ||= []).push(e); }
+  const hm = ts => { const x = new Date(ts); return `${pad(x.getHours())}:${pad(x.getMinutes())}`; };
+  const kpi = (v, l) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`;
+  openDlg(`<span class="muted small">Du ${fmtShort(c.start)} au ${fmtShort(c.end)}</span><h2 style="margin:4px 0 10px">${esc(c.name)}</h2>
+    <div class="grid4">${kpi(fmtCh(c, done), `sur ${fmtCh(c, c.target)}`)}${kpi(active, `jour${active > 1 ? 's' : ''} actif${active > 1 ? 's' : ''}`)}${kpi(streak, 'jours d\'affilée')}${kpi(best ? fmtCh(c, c.entries[best]) : '—', best ? `record · ${fmtShort(best)}` : 'record')}</div>
+    <div style="display:flex;align-items:flex-end;gap:3px;height:80px;margin:14px 0 4px">${last30.map(d => `<div title="${fmtShort(d)} · ${fmtCh(c, c.entries[d] || 0)}" style="flex:1;height:${Math.max(3, (c.entries[d] || 0)/max30*100)}%;border-radius:3px 3px 0 0;background:${c.entries[d] ? 'var(--accent)' : 'var(--line)'}${d === t ? ';outline:1.5px solid var(--text);outline-offset:1px' : ''}"></div>`).join('')}</div>
+    <div class="row between tiny muted"><span>${fmtShort(last30[0])}</span><span>30 derniers jours</span><span>aujourd'hui</span></div>
+    <h3 style="margin-top:16px">Ce que tu as fait</h3>
+    <div>${days.length ? days.slice(0, chShowAll ? days.length : 14).map(d => `<div class="hist" style="align-items:flex-start"><div style="flex:1;min-width:0"><b>${fmtDate(d)}</b>
+        ${byDay[d]?.length ? `<div class="tiny muted">${byDay[d].sort((x, y) => x.ts - y.ts).map(e => `${e.v < 0 ? '' : '+'}${fmtCh(c, e.v)} à ${hm(e.ts)}`).join(' · ')}</div>` : '<div class="tiny muted">total du jour (saisi avant l\'horodatage)</div>'}</div>
+        <b class="num">${fmtCh(c, c.entries[d])}</b></div>`).join('') + (days.length > 14 && !chShowAll ? `<button class="btn ghost more" id="chMore">+ Découvrir (${days.length} jours)</button>` : '')
+      : '<p class="muted small">Aucune saisie pour l’instant.</p>'}</div>
+    <details style="margin-top:14px"><summary class="small" style="cursor:pointer;font-weight:600">Corriger ou modifier l'objectif</summary>
+      <div class="grid2"><div><label class="f" for="chT">Objectif (${c.unit==='min'?'minutes':'répétitions'})</label><input type="number" id="chT" value="${c.target}"></div><div><label class="f" for="chE">Échéance</label><input type="date" id="chE" value="${c.end}"></div></div>
+      <label class="f" for="chD">Total d'un jour (0 pour l'effacer)</label><div class="row"><input type="date" id="chD" value="${t}" style="flex:1"><input type="text" inputmode="decimal" id="chV" placeholder="total du jour" style="width:120px"><button class="btn" id="chSet">Appliquer</button></div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="chSave">Enregistrer l'objectif</button></div></details>`);
+  $('#chMore') && ($('#chMore').onclick = () => { chShowAll = true; chEditDlg(id); });
+  $('#chSet').onclick = () => { const d = $('#chD').value, v = parseFloat(String($('#chV').value).replace(',','.')); if (!d || isNaN(v)) return toast('Date et valeur');
+    const before = c.entries[d] || 0; if (v <= 0) delete c.entries[d]; else c.entries[d] = v;
+    if (v - before) (c.log ||= []).push({ ts: Date.parse(d + 'T12:00:00') || Date.now(), v: +(Math.max(v, 0) - before).toFixed(2), fix: true });
+    save(); chEditDlg(id); render(); };
   $('#chSave').onclick = () => { const tv = +$('#chT').value; if (tv > 0) c.target = tv; if ($('#chE').value) c.end = $('#chE').value; save(); closeDlg(); render(); };
 }
+let chShowAll = false;
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-chadd]');
   if (a) { const id = a.dataset.chadd; const v = a.dataset.v ? +a.dataset.v : parseFloat(String($('#chIn-'+id).value).replace(',','.')); chAdd(id, v); return; }
