@@ -227,7 +227,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.7';
+const APP_VERSION = '0.13.8';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1168,9 +1168,13 @@ function progHTML(){
   }
   h += Health.progressCards();
   // records
-  h += `<div class="card"><h2>Records de puissance</h2><div class="grid4">
-    ${[['s5','5 s'],['m1','1 min'],['m5','5 min'],['m20','20 min']].map(([k,l])=>`<div class="kpi"><div class="v num">${best(k)??'—'}<small>${best(k)?' W':''}</small></div><div class="l">${l}${best(k)?` · ${(best(k)/p.weightKg).toFixed(1)} W/kg`:''}</div></div>`).join('')}
-  </div></div>`;
+  // records actuels, ou projetés à la FTP objectif : l'aérobie suit la FTP, le sprint beaucoup moins
+  const rGoal = p.goalFtp && ftp() ? p.goalFtp / ftp() : 1, showGoal = recGoal && rGoal > 1;
+  const projRec = (k, v) => !v ? null : Math.round(v * (1 + (rGoal - 1) * ({ s5: 0.2, m1: 0.5, m5: 0.9, m20: 1 }[k])));
+  h += `<div class="card"><div class="row between"><h2>Records de puissance</h2>${p.goalFtp > ftp() ? `<button class="btn sm ${showGoal ? 'primary' : ''}" data-recgoal aria-pressed="${showGoal}">${showGoal ? 'Actuels' : `À ${p.goalFtp} W`}</button>` : ''}</div>
+    <div class="grid4">${[['s5','5 s'],['m1','1 min'],['m5','5 min'],['m20','20 min']].map(([k,l]) => { const v = showGoal ? projRec(k, best(k)) : best(k);
+      return `<div class="kpi"><div class="v num"${showGoal ? ' style="color:var(--accent)"' : ''}>${v ?? '—'}<small>${v ? ' W' : ''}</small></div><div class="l">${l}${v ? ` · ${(v/p.weightKg).toFixed(1)} W/kg` : ''}</div>${showGoal && v ? `<div class="tiny muted" style="margin-top:2px">+${v - best(k)} W</div>` : ''}</div>`; }).join('')}
+    </div>${showGoal ? `<p class="tiny muted" style="margin:10px 0 0">Projection si ta FTP passe de ${ftp()} à ${p.goalFtp} W (+${Math.round((rGoal-1)*100)} %) à poids égal : 20 min et 5 min suivent la FTP, la minute à moitié, le sprint de 5 s à peine (il dépend surtout de la force et de la vitesse de pédalage). Ordres de grandeur, pas une promesse.</p>` : ''}</div>`;
   // ressentis
   const felt = acts.filter(a=>a.feel?.rpe);
   if (felt.length) {
@@ -1585,6 +1589,9 @@ document.addEventListener('click', e => {
   const el = e.target.closest('[data-i]'); if (el && !e.target.closest('button,input,select,a')) showInfo(el.dataset.i);
 });
 new MutationObserver(() => decorateInfo()).observe(document.body, { childList:true, subtree:true });
+
+let recGoal = false; // records de puissance : afficher la projection à la FTP objectif
+document.addEventListener('click', e => { if (e.target.closest('[data-recgoal]')) { recGoal = !recGoal; render(); } });
 
 /* ============ défis (squats, chaise…) ============ */
 const DEFAULT_CHALLENGES = () => [
