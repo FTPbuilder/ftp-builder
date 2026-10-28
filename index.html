@@ -227,7 +227,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.6';
+const APP_VERSION = '0.13.7';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -938,6 +938,25 @@ function loadSeries(){
 }
 
 /* ============ graphiques SVG ============ */
+// 5 jours en colonnes avec valeurs, moyenne 30 j en pointillé (fiches de la Forme du jour)
+function trendChart(kind){
+  const T = Health.trend(kind), vals = T.map(x => x.v).filter(v => v != null); if (vals.length < 2) return '';
+  const fmt = { hrv: v => `${Math.round(v)}`, rhr: v => `${Math.round(v)}`, weight: v => v.toFixed(1).replace('.', ','), score: v => `${Math.round(v)}`, sleep: v => `${Math.floor(v)}h${pad(Math.round(v%1*60))}` }[kind];
+  const unit = { hrv:'ms', rhr:'bpm', weight:'kg', score:'/100', sleep:'' }[kind], base = T.find(x => x.base != null)?.base ?? null;
+  const all = [...vals, ...(base != null ? [base] : [])], lo0 = kind === 'score' ? 0 : Math.min(...all), hi0 = kind === 'score' ? 100 : Math.max(...all), pad0 = (hi0 - lo0)*0.25 || 1;
+  const lo = kind === 'score' ? 0 : lo0 - pad0, hi = hi0 + (kind === 'score' ? 0 : pad0);
+  const W = 320, Hh = 150, L = 8, R = 8, Tp = 22, B = 22, cw = (W - L - R)/T.length, Y = v => Tp + (Hh - Tp - B)*(1 - (v - lo)/(hi - lo || 1));
+  const good = { hrv: 1, score: 1, sleep: 1, rhr: -1, weight: 0 }[kind];
+  let g = '';
+  if (base != null) g += `<line x1="${L}" x2="${W-R}" y1="${Y(base)}" y2="${Y(base)}" stroke="var(--muted)" stroke-dasharray="4 4"/><text x="${W-R}" y="${Y(base)-4}" text-anchor="end" style="font-size:9px">moy. 30 j ${fmt(base)}</text>`;
+  T.forEach((x, i) => { const cx = L + cw*i + cw/2, today = i === T.length - 1;
+    if (x.v != null) { const better = base == null || good === 0 ? null : (x.v - base)*good >= 0;
+      const col = kind === 'score' ? (x.v >= 75 ? 'var(--ok)' : x.v >= 55 ? 'var(--z2)' : x.v >= 40 ? 'var(--warn)' : 'var(--bad)') : better == null ? 'var(--accent)' : better ? 'var(--ok)' : 'var(--warn)';
+      g += `<rect x="${cx - cw*0.28}" y="${Y(x.v)}" width="${cw*0.56}" height="${Hh - B - Y(x.v)}" rx="5" style="fill:${col}" opacity="${today ? 1 : .55}"/><text x="${cx}" y="${Y(x.v) - 5}" text-anchor="middle" style="fill:var(--text);font-weight:600;font-size:11px">${fmt(x.v)}</text>`; }
+    else g += `<text x="${cx}" y="${Hh - B - 6}" text-anchor="middle" style="font-size:10px">—</text>`;
+    g += `<text x="${cx}" y="${Hh - 6}" text-anchor="middle" style="font-size:10px${today ? ';fill:var(--text);font-weight:600' : ''}">${today ? "auj." : fmtShort(x.d).replace(/ .*/, '')}</text>`; });
+  return `<svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="5 derniers jours" style="margin:4px 0 10px">${g}</svg><div class="tiny muted" style="margin:-6px 0 10px">5 derniers jours${unit ? ` · ${unit}` : ''}</div>`;
+}
 function lineChart({ series, xMin, xMax, yMin, yMax, w=680, h=220, xLabels=[], yTicks=5, unit='' }){
   const L=34, R=10, T=10, B=22; const iw = w-L-R, ih = h-T-B;
   const X = x => L + (x - xMin)/(xMax - xMin || 1) * iw, Y = y => T + ih - (y - yMin)/(yMax - yMin || 1) * ih;
@@ -1527,12 +1546,12 @@ const INFO = {
   tss: () => ({ t:'Charge (TSS)', body:`<p>Le coût d'une séance : durée × intensité². <b>1 h à ta FTP = 100</b>. Sans capteur de puissance, il est estimé à la fréquence cardiaque.</p>${scale([[0,50,'< 50','Facile, récupéré le lendemain'],[50,100,'50 – 100','Séance normale'],[100,150,'100 – 150','Grosse séance, fatigue le lendemain'],[150,9999,'> 150','Très dure, 2 jours pour récupérer']], null)}` }),
   avgp: () => ({ t:'Puissance moyenne', body:`<p>La moyenne simple des watts sur toute la séance, récupérations comprises. Pour juger l'effort réel, regarde plutôt la NP.</p>` }),
   hr: () => ({ t:'Fréquence cardiaque', body:`<p>Moyenne et maximum de la séance, mesurés par ta ceinture. À puissance égale, une FC qui baisse au fil des semaines est un bon signe de progression ; une FC anormalement haute signale souvent fatigue, chaleur ou déshydratation.</p>` }),
-  hrv: () => ({ t:'VFC (variabilité cardiaque)', body:`<p>La variation du temps entre deux battements, mesurée par ta montre surtout la nuit. <b>Plus elle est haute par rapport à TA normale, mieux tu es récupéré.</b> Les valeurs ne se comparent pas entre personnes : seule ta tendance compte.</p><p>Une VFC sous ta moyenne de 30 jours plusieurs jours de suite = fatigue, stress, maladie ou alcool.</p>` }),
-  rhr: () => ({ t:'FC au repos', body:`<p>Ton pouls au repos (mesuré par la montre). Elle baisse quand ta forme s'améliore. <b>+5 bpm ou plus</b> par rapport à ta moyenne : signe de fatigue ou d'infection qui arrive, à prendre au sérieux avant une séance dure.</p>` }),
-  sleep: () => ({ t:'Sommeil', body:`<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
-  weight: () => ({ t:'Poids', body:`<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
+  hrv: () => ({ t:'VFC (variabilité cardiaque)', body:`${trendChart('hrv')}<p>La variation du temps entre deux battements, mesurée par ta montre surtout la nuit. <b>Plus elle est haute par rapport à TA normale, mieux tu es récupéré.</b> Les valeurs ne se comparent pas entre personnes : seule ta tendance compte.</p><p>Une VFC sous ta moyenne de 30 jours plusieurs jours de suite = fatigue, stress, maladie ou alcool.</p>` }),
+  rhr: () => ({ t:'FC au repos', body:`${trendChart('rhr')}<p>Ton pouls au repos (mesuré par la montre). Elle baisse quand ta forme s'améliore. <b>+5 bpm ou plus</b> par rapport à ta moyenne : signe de fatigue ou d'infection qui arrive, à prendre au sérieux avant une séance dure.</p>` }),
+  sleep: () => ({ t:'Sommeil', body:`${trendChart('sleep')}<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
+  weight: () => ({ t:'Poids', body:`${trendChart('weight')}<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
   score: () => { const sc = Health.score(); if (!sc) return { t:'Indice de forme', body:'<p>Pas encore assez de données Santé.</p>' };
-    return { t:`Indice de forme · ${sc.v}/100`, body:`<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
+    return { t:`Indice de forme · ${sc.v}/100`, body:`${trendChart('score')}<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
       <div class="infoscale">${sc.parts.map(p => `<div><b>${p.k} · ${Math.round(p.s)}</b><span>${esc(p.d)} <span class="muted">(poids ${Math.round(p.w*100)} %)</span></span></div>`).join('')}</div>
       <ul><li><b>VFC</b> : comparée à ta moyenne et ta variabilité habituelles (échelle logarithmique, méthode utilisée en recherche sur l'entraînement).</li><li><b>FC repos</b> : chaque bpm au-dessus de ta moyenne fait baisser l'indice.</li><li><b>Sommeil</b> : la nuit dernière (60 %) et les 3 dernières (40 %) ; 8 h = plein score, 5 h = zéro.</li><li><b>Charge</b> : ta forme (TSB) ; très fatigué = pénalité.</li></ul>
       ${scale([[75,101,'75 – 100','Prêt : bon jour pour pousser'],[55,75,'55 – 75','Correct : séance prévue'],[40,55,'40 – 55','Prudence : cibles −3 à −5 %'],[0,40,'< 40','Récupère : endurance ou repos']], sc.v)}
@@ -3111,6 +3130,14 @@ const Health = (() => {
     if (vals.length < 4) return null; return vals.reduce((a,b)=>a+b,0)/vals.length;
   }
   const sleepOn = day => H.sleep.find(s => s.night === day) || null;
+  // 5 derniers jours d'un indicateur (+ moyenne 30 j) pour les graphiques des fiches « Forme du jour »
+  function trend(kind, n = 5){
+    const t = todayISO(); const days = Array.from({ length: n }, (_, i) => addDays(t, i - n + 1));
+    if (kind === 'score') return days.map(d => ({ d, v: score(d)?.v ?? null, base: null }));
+    if (kind === 'sleep') { const b = H.sleep.filter(x => x.night < t && x.night >= addDays(t, -30) && x.asleep_min).map(x => x.asleep_min/60);
+      return days.map(d => ({ d, v: sleepOn(d)?.asleep_min ? sleepOn(d).asleep_min/60 : null, base: b.length >= 4 ? b.reduce((a, x) => a + x, 0)/b.length : null })); }
+    return days.map(d => ({ d, v: valOn(kind, d), base: baseline(kind, t) }));
+  }
 
   // sport -> catégorie + TSS estimé
   function sportOf(type){
@@ -3305,7 +3332,7 @@ const Health = (() => {
     }
     return out;
   }
-  return { load, todayCard, progressCards, otherSportsHTML, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, promoteBikes, bikeIndoor, sportOf, get H(){ return H; }, persist };
+  return { load, todayCard, progressCards, otherSportsHTML, settingsHTML, extraWorkouts, readiness, exerciseLoad, score, trend, promoteBikes, bikeIndoor, sportOf, get H(){ return H; }, persist };
 })();
 
 // ressenti a posteriori (activité importée ou correction) : pré-rempli, verdict affiché à l'enregistrement
