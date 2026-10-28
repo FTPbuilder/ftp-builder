@@ -227,7 +227,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.8';
+const APP_VERSION = '0.13.9';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -3250,7 +3250,7 @@ const Health = (() => {
     return `<div class="card"><div class="row between"><h2>Forme du jour</h2><span class="chip" style="color:${col[r.level==='none'?'':r.level]}">● ${ {ok:'Récupéré',warn:'Moyen',bad:'Fatigué',none:'Apple Santé'}[r.level] }</span></div>
       ${gauge}<div class="grid4">${r.items.map(i=>`<div class="kpi"><div class="v num" style="font-size:24px;color:${i.st?col[i.st]:'var(--text)'}">${i.v}</div><div class="l">${i.l}</div><div class="tiny muted" style="margin-top:2px">${i.sub}</div></div>`).join('')}</div>
       ${sc ? '' : `<p class="small" style="margin:10px 0 0">${msg}</p>`}${wNote}
-      ${!S.healthImportedAt ? `<p class="tiny muted" style="margin:10px 0 0">Pour un indice fiable dès aujourd'hui, importe ton historique Santé (Profil › Apple Santé).</p>` : ''}</div>`;
+      ${H.daily.filter(x => x.metric === 'hrv' && x.day >= addDays(todayISO(), -60)).length < 21 ? `<p class="tiny muted" style="margin:10px 0 0">Pour un indice fiable dès aujourd'hui, importe ton historique Santé (Profil › Apple Santé) : il faut ~3 semaines de VFC pour connaître ta normale.</p>` : ''}</div>`;
   }
   function progressCards(){
     if (!H.daily.length && !H.sleep.length && !H.workouts.length) return '';
