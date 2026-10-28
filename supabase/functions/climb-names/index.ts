@@ -16,19 +16,19 @@ const km = (a: P, b: P) => Math.hypot((b[1] - a[1]) * Math.cos(a[0] * Math.PI / 
 
 let lastCall = 0;
 async function photon(p: P, radiusKm: number, tags: string[]): Promise<F[]> {
-  const gap = Date.now() - lastCall; if (gap < 1000) await wait(1000 - gap); // usage raisonnable : une requête par seconde
+  const gap = Date.now() - lastCall; if (gap < 1300) await wait(1300 - gap); // usage raisonnable : moins d'une requête par seconde (Photon renvoie 503 en rafale)
   lastCall = Date.now();
   const q = new URLSearchParams({ lat: String(p[0]), lon: String(p[1]), radius: String(radiusKm), limit: "20", lang: "fr" });
   for (const t of tags) q.append("osm_tag", t);
   for (let k = 0; k < 3; k++) {
-    const r = await fetch(`https://photon.komoot.io/reverse?${q}`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(15000) }).catch(() => null);
+    const r = await fetch(`https://photon.komoot.io/reverse?${q}`, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(10000) }).catch(() => null);
     if (r?.ok) {
       const j = await r.json();
       return (j.features ?? []).map((f: any) => { const c = f.geometry?.coordinates ?? []; const pp: P = [c[1], c[0]];
         return { name: f.properties?.name, key: f.properties?.osm_key, value: f.properties?.osm_value, city: f.properties?.city, p: pp, d: km(p, pp) }; })
         .filter((f: F) => f.name && f.p[0] != null).sort((a: F, b: F) => a.d - b.d);
     }
-    await wait(1500 * (k + 1)); // 503 / 429 : on patiente puis on réessaie
+    await wait(2500 * (k + 1)); // 503 / 429 : on patiente puis on réessaie
   }
   throw new Error("photon indisponible");
 }
@@ -40,7 +40,8 @@ async function nameOf(c: { s: P; e: P; path?: P[] }) {
   const passTop = around.find((f) => isPass(f) && f.d <= 1) ?? null;
   let top: string | null = null;
   if (passTop && passTop.d <= 0.1) top = passTop.name; // on franchit le col pile au sommet
-  if (!top) { const ski = around.find((f) => f.key === "landuse" && f.value === "winter_sports" && f.d <= 1.5); if (ski) top = ski.name; } // arrivée en station (Hautacam…)
+  // arrivée en station (Hautacam) seulement si la station est au sommet ; une station voisine d'un col (Praz de Lys / Ramaz) ne l'emporte pas
+  if (!top) { const ski = around.find((f) => f.key === "landuse" && f.value === "winter_sports" && f.d <= 0.5); if (ski) top = ski.name; }
   const isCol = (n: string) => /^(col|pas|port|puerto|passo|colla|collado|coll|colláu|portillo|sella|forcla|cou)\b/i.test(n);
   if (!top && passTop && passTop.d <= 1 && isCol(passTop.name)) top = passTop.name;
   if (!top && c.path?.length) for (const pt of c.path.slice(4, 8).reverse()) { // col franchi plus bas (la montée continue au-delà)
@@ -65,8 +66,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const list = (Array.isArray(body.climbs) ? body.climbs : []).filter((c: any) => c?.key && c?.s && c?.e).slice(0, 12);
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+    // anti-doublon : une montée déjà « en cours » depuis moins de 3 min (autre appel) est ignorée
+    const { data: rows } = await db.from("climb_names").select("key, name, error, updated_at").eq("user_id", user.id).in("key", list.map((c: any) => c.key));
+    const busy = new Set((rows ?? []).filter((r) => r.name || (r.error === "en cours" && Date.now() - Date.parse(r.updated_at) < 180000)).map((r) => r.key));
+    const todo = list.filter((c: any) => !busy.has(c.key));
+    if (todo.length) await db.from("climb_names").upsert(todo.map((c: any) => ({ user_id: user.id, key: c.key, name: null, error: "en cours", updated_at: new Date().toISOString() })));
     const work = (async () => {
-      for (const c of list) {
+      for (const c of todo) {
         let name: string | null = null, error: string | null = null;
         try { name = await nameOf(c); } catch (e) { error = String((e as Error).message ?? e); }
         await db.from("climb_names").upsert({ user_id: user.id, key: c.key, name, error, updated_at: new Date().toISOString() });
@@ -74,7 +80,7 @@ Deno.serve(async (req) => {
     })();
     // @ts-ignore EdgeRuntime existe dans l'environnement Supabase
     if (typeof EdgeRuntime !== "undefined") EdgeRuntime.waitUntil(work); else await work;
-    return json({ queued: list.length });
+    return json({ queued: todo.length });
   } catch (e) {
     return json({ error: String((e as Error).message ?? e) }, 500);
   }

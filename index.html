@@ -226,7 +226,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.4';
+const APP_VERSION = '0.13.5';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2229,9 +2229,9 @@ const Climbs = (() => {
   let naming = false;
   // noms : la fonction serveur climb-names les calcule en tâche de fond (Photon / OpenStreetMap) et les range dans la table climb_names ;
   // l'app lit la table, demande les montées manquantes (au plus une fois toutes les 10 min) et relit quelques fois ensuite
-  let polls = 0;
+  let polls = 0; const asked = {}; // demandes envoyées pendant cette session (pas dans S : une synchro cloud peut remplacer S)
   async function autoNames(G){
-    if (S.climbAutoV !== 4) { S.climbAuto = {}; S.climbAutoV = 4; S.climbReq = {}; }
+    if (S.climbAutoV !== 4) { S.climbAuto = {}; S.climbAutoV = 4; }
     const sb = Cloud.sb, u = Cloud.user;
     const todo = G.filter(g => !S.climbNames?.[g.key] && !S.climbAuto?.[g.key]);
     if (naming || !todo.length || !navigator.onLine || !sb || !u) return;
@@ -2241,12 +2241,11 @@ const Climbs = (() => {
       if (error) throw error;
       const got = new Map((rows || []).map(r => [r.key, r]));
       for (const g of todo) { const r = got.get(g.key); if (r?.name) { (S.climbAuto ||= {})[g.key] = r.name; changed++; } }
-      const errs = (rows || []).filter(r => r.error).map(r => r.error);
+      const errs = (rows || []).filter(r => r.error && r.error !== 'en cours').map(r => r.error);
       S.climbNameErr = errs.length ? errs[0] : null;
-      const now = Date.now(), ask = todo.filter(g => !got.get(g.key)?.name && now - (S.climbReq?.[g.key] || 0) > 10*60000);
+      const now = Date.now(), ask = todo.filter(g => !got.get(g.key)?.name && now - (asked[g.key] || 0) > 10*60000);
       if (ask.length) {
-        for (const g of ask) (S.climbReq ||= {})[g.key] = now;
-        save();
+        for (const g of ask) asked[g.key] = now;
         await sb.functions.invoke('climb-names', { body: { climbs: ask.map(g => ({ key: g.key, s: g.s, e: g.e, path: g.path || null })) } });
         polls = 0;
       }
