@@ -103,7 +103,7 @@ async function syncUser(user: { id: string }, key: string, days: number) {
   try {
     const w = await icu(key, `/athlete/0/wellness?oldest=${oldest}&newest=${newest}`) as Record<string, unknown>[];
     const rows: Record<string, unknown>[] = [];
-    const map: Record<string, string> = { hrv: "hrv", restingHR: "rhr", weight: "weight", vo2max: "vo2max", spO2: "spo2", respiration: "resp_rate", bodyFat: "body_fat", readiness: "icu_readiness", sleepScore: "sleep_score" };
+    const map: Record<string, string> = { hrv: "hrv", restingHR: "rhr", weight: "weight", vo2max: "vo2max", spO2: "spo2", respiration: "resp_rate", bodyFat: "body_fat", readiness: "icu_readiness", sleepScore: "sleep_score", avgSleepingHR: "sleep_hr" };
     for (const d of w) for (const [k, m] of Object.entries(map)) if (d[k] != null && Number(d[k]) > 0) rows.push({ user_id: user.id, day: String(d.id).slice(0, 10), metric: m, value: Number(d[k]), updated_at: new Date().toISOString() });
     if (rows.length) { await db.from("health_daily").upsert(rows, { onConflict: "user_id,day,metric", ignoreDuplicates: true }); wcount = rows.length; }
     for (const d of w) if (d.sleepSecs && Number(d.sleepSecs) > 3600) await db.from("health_sleep").upsert({ user_id: user.id, night: String(d.id).slice(0, 10), source: "Intervals.icu", asleep_min: Math.round(Number(d.sleepSecs) / 60), updated_at: new Date().toISOString() }, { onConflict: "user_id,night", ignoreDuplicates: true });

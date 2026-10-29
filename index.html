@@ -227,7 +227,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.13.9';
+const APP_VERSION = '0.14.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -938,6 +938,51 @@ function loadSeries(){
 }
 
 /* ============ graphiques SVG ============ */
+// fiche Sommeil : 7 nuits par phases vs durée recommandée, puis VFC et FC de nuit
+function sleepDetail(){
+  const H = Health.H, t = todayISO(), n = 7, nights = Array.from({ length: n }, (_, i) => addDays(t, i - n + 1));
+  const S0 = d => H.sleep.find(x => x.night === d) || null, val = (m, d) => H.daily.find(x => x.metric === m && x.day === d)?.value ?? null;
+  const last = S0(t) || S0(addDays(t, -1)); if (!nights.some(S0) && !last) return '<p class="small muted">Aucune nuit reçue pour l\'instant : porte ta montre la nuit, l\'automatisation au réveil s\'occupe du reste.</p>';
+  const REC = [7, 9], GOAL = 8; // adulte : 7 à 9 h ; sportif en charge : viser 8 h et plus
+  const PH = [['deep_min', 'Profond', 'var(--z2)'], ['core_min', 'Léger', 'color-mix(in srgb,var(--z2) 45%,var(--card))'], ['rem_min', 'Paradoxal', '#9c86c7'], ['awake_min', 'Éveillé', 'var(--warn)']];
+  const W = 330, Hh = 170, L = 26, R = 6, T = 16, B = 20, cw = (W - L - R)/n, maxH = 10, Y = h => T + (Hh - T - B)*(1 - Math.min(h, maxH)/maxH);
+  const hhmm = m => `${Math.floor(m/60)}h${pad(Math.round(m%60))}`;
+  let g = `<rect x="${L}" y="${Y(REC[1])}" width="${W-L-R}" height="${Y(REC[0]) - Y(REC[1])}" style="fill:var(--ok)" opacity=".10"/>
+    <line x1="${L}" x2="${W-R}" y1="${Y(GOAL)}" y2="${Y(GOAL)}" stroke="var(--ok)" stroke-dasharray="4 4"/>`;
+  for (const h of [0, 4, 7, 9]) g += `<text x="${L-4}" y="${Y(h)+3}" text-anchor="end" style="font-size:9px">${h} h</text>`;
+  nights.forEach((d, i) => { const sl = S0(d), x = L + cw*i + cw*0.2, w = cw*0.6, cx = L + cw*i + cw/2;
+    if (sl?.asleep_min) {
+      const staged = (sl.deep_min || 0) + (sl.core_min || 0) + (sl.rem_min || 0);
+      const parts = staged ? [[sl.deep_min || 0, PH[0][2]], [(sl.core_min || 0) + Math.max(0, sl.asleep_min - staged), PH[1][2]], [sl.rem_min || 0, PH[2][2]], [sl.awake_min || 0, PH[3][2]]].filter(([m]) => m > 0)
+        : [[sl.asleep_min, 'var(--z2)']]; // durée seule (Intervals) : une barre unie
+      let acc = 0; for (const [m, c] of parts) { const y0 = Y(acc/60), y1 = Y((acc + m)/60); g += `<rect x="${x}" y="${y1}" width="${w}" height="${Math.max(0, y0 - y1)}" style="fill:${c}"${acc === 0 ? ' rx="2"' : ''}/>`; acc += m; }
+      g += `<text x="${cx}" y="${Y(acc/60) - 4}" text-anchor="middle" style="fill:var(--text);font-size:9.5px;font-weight:600">${hhmm(sl.asleep_min)}</text>`;
+    } else g += `<text x="${cx}" y="${Y(0) - 5}" text-anchor="middle" style="font-size:10px">—</text>`;
+    g += `<text x="${cx}" y="${Hh - 5}" text-anchor="middle" style="font-size:10px${d === t ? ';fill:var(--text);font-weight:600' : ''}">${d === t ? 'auj.' : +d.slice(8)}</text>`; });
+  const hasPh = nights.some(d => S0(d)?.deep_min || S0(d)?.rem_min);
+  const legend = `<div class="legend" style="margin:2px 0 10px">${hasPh ? PH.map(([, l, c]) => `<span><i style="background:${c}"></i>${l}</span>`).join('') : '<span><i style="background:var(--z2)"></i>Sommeil</span>'}<span><i style="background:var(--ok);opacity:.4"></i>Recommandé 7-9 h · cible 8 h</span></div>`;
+  // dernière nuit
+  let sum = '';
+  if (last?.asleep_min) {
+    const diff = last.asleep_min - GOAL*60, d0 = last.night, hrv = val('hrv', d0), rhr = val('rhr', d0), shr = val('sleep_hr', d0), hrvB = Health.trend('hrv', 1)[0]?.base;
+    const ph = PH.slice(0, 3).filter(([k]) => last[k]).map(([k, l]) => `${l} ${hhmm(last[k])} (${Math.round(last[k]/last.asleep_min*100)} %)`);
+    const chip = (txt, col) => `<span class="chip num" style="color:${col || 'var(--text)'}">${txt}</span>`;
+    sum = `<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px">
+      ${chip(`${hhmm(last.asleep_min)} · ${diff >= 0 ? '+' : '−'}${hhmm(Math.abs(diff))} vs 8 h`, last.asleep_min >= REC[0]*60 ? 'var(--ok)' : last.asleep_min >= 6*60 ? 'var(--warn)' : 'var(--bad)')}
+      ${hrv != null ? chip(`VFC ${Math.round(hrv)} ms${hrvB ? ` · moy. ${Math.round(hrvB)}` : ''}`, hrvB ? (hrv >= hrvB*0.95 ? 'var(--ok)' : 'var(--warn)') : null) : ''}
+      ${rhr != null ? chip(`FC min ≈ ${Math.round(rhr)} bpm`) : ''}${shr != null ? chip(`FC moy. nuit ${Math.round(shr)} bpm`) : ''}
+      ${last.bed_start && last.bed_end ? chip(`${new Date(last.bed_start).toTimeString().slice(0, 5)} → ${new Date(last.bed_end).toTimeString().slice(0, 5)}`) : ''}</div>
+      ${ph.length ? `<p class="tiny muted" style="margin:-4px 0 10px">${ph.join(' · ')}</p>` : '<p class="tiny muted" style="margin:-4px 0 10px">Phases non reçues pour cette nuit (seule la durée est arrivée par Intervals) : elles arrivent avec le raccourci Santé au réveil.</p>'}`;
+  }
+  // VFC et FC de repos sur les 7 nuits
+  const sv = nights.map(d => [d, val('hrv', d), val('rhr', d), val('sleep_hr', d)]);
+  const spark = (idx, col, unit, label) => { const pts = sv.map((x, i) => [i, x[idx]]).filter(x => x[1] != null); if (pts.length < 2) return '';
+    const lo = Math.min(...pts.map(x => x[1])), hi = Math.max(...pts.map(x => x[1])), X = i => 30 + i*(W - 46)/(n - 1), Yv = v => 26 - (v - lo)/((hi - lo) || 1)*18;
+    return `<div class="row" style="gap:8px;align-items:center"><span class="tiny muted" style="width:62px">${label}</span><svg viewBox="0 0 ${W} 34" style="flex:1;height:34px" aria-label="${label}"><polyline points="${pts.map(([i, v]) => `${X(i)},${Yv(v)}`).join(' ')}" fill="none" stroke="${col}" stroke-width="2"/>${pts.map(([i, v]) => `<circle cx="${X(i)}" cy="${Yv(v)}" r="2.8" style="fill:${col}"/><text x="${X(i)}" y="${Yv(v) - 5}" text-anchor="middle" style="font-size:8.5px;fill:var(--muted)">${Math.round(v)}</text>`).join('')}</svg><span class="tiny muted" style="width:26px">${unit}</span></div>`; };
+  const lines = [spark(1, 'var(--z3)', 'ms', 'VFC'), spark(2, 'var(--bad)', 'bpm', 'FC repos'), spark(3, 'var(--z5)', 'bpm', 'FC nuit')].join('');
+  return `${sum}<svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Sommeil des 7 dernières nuits">${g}</svg>${legend}
+    ${lines ? `<h3 style="margin:6px 0 4px;font-size:15px">Cœur la nuit · 7 jours</h3>${lines}<p class="tiny muted" style="margin:4px 0 10px">FC min ≈ FC de repos de la montre. La FC max de la nuit n'est pas transmise par Apple Santé / Intervals.</p>` : ''}`;
+}
 // 5 jours en colonnes avec valeurs, moyenne 30 j en pointillé (fiches de la Forme du jour)
 function trendChart(kind){
   const T = Health.trend(kind), vals = T.map(x => x.v).filter(v => v != null); if (vals.length < 2) return '';
@@ -1552,7 +1597,7 @@ const INFO = {
   hr: () => ({ t:'Fréquence cardiaque', body:`<p>Moyenne et maximum de la séance, mesurés par ta ceinture. À puissance égale, une FC qui baisse au fil des semaines est un bon signe de progression ; une FC anormalement haute signale souvent fatigue, chaleur ou déshydratation.</p>` }),
   hrv: () => ({ t:'VFC (variabilité cardiaque)', body:`${trendChart('hrv')}<p>La variation du temps entre deux battements, mesurée par ta montre surtout la nuit. <b>Plus elle est haute par rapport à TA normale, mieux tu es récupéré.</b> Les valeurs ne se comparent pas entre personnes : seule ta tendance compte.</p><p>Une VFC sous ta moyenne de 30 jours plusieurs jours de suite = fatigue, stress, maladie ou alcool.</p>` }),
   rhr: () => ({ t:'FC au repos', body:`${trendChart('rhr')}<p>Ton pouls au repos (mesuré par la montre). Elle baisse quand ta forme s'améliore. <b>+5 bpm ou plus</b> par rapport à ta moyenne : signe de fatigue ou d'infection qui arrive, à prendre au sérieux avant une séance dure.</p>` }),
-  sleep: () => ({ t:'Sommeil', body:`${trendChart('sleep')}<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
+  sleep: () => ({ t:'Sommeil', body:`${sleepDetail()}<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
   weight: () => ({ t:'Poids', body:`${trendChart('weight')}<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
   score: () => { const sc = Health.score(); if (!sc) return { t:'Indice de forme', body:'<p>Pas encore assez de données Santé.</p>' };
     return { t:`Indice de forme · ${sc.v}/100`, body:`${trendChart('score')}<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>

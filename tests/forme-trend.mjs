@@ -9,7 +9,7 @@ await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await
 await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(() => { const H = Health.H; H.daily.length = 0; H.sleep.length = 0;
   for (let i = 40; i >= 0; i--) { const d = addDays(todayISO(), -i); H.daily.push({ day: d, metric: 'hrv', value: 62 + Math.sin(i)*6 - (i < 3 ? 9 : 0) }, { day: d, metric: 'rhr', value: 49 + (i < 2 ? 4 : Math.cos(i)) }, { day: d, metric: 'weight', value: 83.2 - i*0.01 });
-    H.sleep.push({ night: d, asleep_min: 420 + Math.round(Math.sin(i*1.7)*50), deep_min: 60, rem_min: 90, source: 'Apple Watch' }); }
+    H.sleep.push(i === 0 ? { night: d, asleep_min: 412, source: 'Intervals.icu' } : { night: d, asleep_min: 420 + Math.round(Math.sin(i*1.7)*50), deep_min: 60, core_min: 240, rem_min: 90, awake_min: 25, source: 'Apple Watch', bed_start: d + 'T22:40:00Z', bed_end: addDays(d, 1) + 'T06:10:00Z' }); }
   render(); });
 const kpis = await pg.locator('.kpi', { hasText: 'VFC' }).count(); console.log('kpi VFC', kpis);
 await pg.locator('.kpi', { hasText: 'VFC' }).first().click(); await pg.waitForTimeout(200);
@@ -17,5 +17,8 @@ const hrv = await pg.locator('#infoBody').innerText(); await pg.locator('#infoBo
 await pg.click('[data-closeinfo]'); await pg.locator('[data-i="score"]').first().click(); await pg.waitForTimeout(200);
 const sc = await pg.locator('#infoBody svg.chart').count();
 console.log('VFC:', hrv.replace(/\n+/g, ' | ').slice(0, 200), '| graphe indice', sc);
-const ok = /5 derniers jours/.test(hrv) && /moy\. 30 j/.test(hrv) && sc >= 1;
+await pg.click('[data-closeinfo]'); await pg.locator('.kpi', { hasText: 'Sommeil' }).first().click(); await pg.waitForTimeout(200);
+const sl = (await pg.locator('#infoBody').innerText()).replace(/\n+/g, ' | '); await pg.locator('#infoBody').screenshot({ path: out + '/forme-sleep.png' });
+console.log('SOMMEIL:', sl.slice(0, 400));
+const ok = /vs 8 h/.test(sl) && /Recommandé 7-9 h/.test(sl) && /VFC/.test(sl) && /5 derniers jours/.test(hrv) && /moy\. 30 j/.test(hrv) && sc >= 1;
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
