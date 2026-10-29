@@ -17,6 +17,8 @@
   --z1:#6b7280; --z2:#3b82f6; --z3:#22c55e; --z4:#facc15; --z5:#f97316; --z6:#ef4444;
   --radius:14px; --shadow:0 1px 0 rgba(255,255,255,.03) inset;
 }
+/* hypnogramme : éveil, paradoxal, léger, profond */
+:root{ --hy-awake:#f0805f; --hy-rem:#7cc8f2; --hy-core:#3b82f6; --hy-deep:#4338ca; }
 /* pentes : 4 teintes douces (vert tendre, sable, corail, prune) */
 :root{ --g1:#b9d98c; --g2:#efd27e; --g3:#e99a7c; --g4:#9c86c7; --gt:#1d1b20; }
 @media (prefers-color-scheme: light){
@@ -227,7 +229,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.14.0';
+const APP_VERSION = '0.14.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -938,6 +940,29 @@ function loadSeries(){
 }
 
 /* ============ graphiques SVG ============ */
+// hypnogramme de la nuit (phases minute par minute, comme l'app Santé) à partir des segments envoyés par le raccourci
+function hypnogram(night){
+  const segs = (Health.H.segs || []); if (!night || !segs.length) return '';
+  const from = Date.parse(addDays(night, -1) + 'T18:00:00'), to = Date.parse(night + 'T14:00:00');
+  let list = segs.filter(x => Date.parse(x.end_at) > from && Date.parse(x.start_at) < to && x.stage !== 'inbed');
+  if (!list.length) return '';
+  const bySrc = {}; for (const x of list) bySrc[x.source] = (bySrc[x.source] || 0) + 1; // une seule source : la plus détaillée (la montre)
+  const src = Object.keys(bySrc).sort((a, b) => (/watch/i.test(b) - /watch/i.test(a)) || bySrc[b] - bySrc[a])[0]; list = list.filter(x => x.source === src);
+  const ROW = { awake: 0, rem: 1, core: 2, asleep: 2, deep: 3 }, COL = ['var(--hy-awake)', 'var(--hy-rem)', 'var(--hy-core)', 'var(--hy-deep)'], LAB = ['Éveil', 'Paradoxal', 'Léger', 'Profond'];
+  const t0 = Math.min(...list.map(x => Date.parse(x.start_at))), t1 = Math.max(...list.map(x => Date.parse(x.end_at)));
+  const W = 330, L = 56, R = 6, T = 8, rowH = 30, Hh = T + rowH*4 + 22, X = ms => L + (ms - t0)/(t1 - t0 || 1)*(W - L - R), Yc = r => T + rowH*r + rowH/2;
+  let g = ''; for (let r = 0; r < 4; r++) g += `<line x1="${L}" x2="${W-R}" y1="${T + rowH*(r+1)}" y2="${T + rowH*(r+1)}" stroke="var(--line)"/><circle cx="5" cy="${Yc(r)}" r="3.5" style="fill:${COL[r]}"/><text x="12" y="${Yc(r) + 3}" style="font-size:9.5px">${LAB[r]}</text>`;
+  for (let h = Math.ceil(t0/3600000)*3600000; h <= t1; h += 3600000) { const d = new Date(h); if (d.getHours() % 2) continue;
+    g += `<line x1="${X(h)}" x2="${X(h)}" y1="${T}" y2="${T + rowH*4}" stroke="var(--line)" stroke-dasharray="2 3"/><text x="${X(h)}" y="${Hh - 6}" text-anchor="middle" style="font-size:9px">${pad(d.getHours())}:00</text>`; }
+  list.sort((a, b) => Date.parse(a.start_at) - Date.parse(b.start_at));
+  let prev = null;
+  for (const x of list) { const r = ROW[x.stage] ?? 2, x0 = X(Date.parse(x.start_at)), x1 = Math.max(x0 + 1.5, X(Date.parse(x.end_at)));
+    if (prev) g += `<line x1="${x0}" x2="${x0}" y1="${Yc(prev)}" y2="${Yc(r)}" stroke="var(--muted)" stroke-width=".8" opacity=".5"/>`;
+    g += `<rect x="${x0}" y="${Yc(r) - 9}" width="${x1 - x0}" height="18" rx="4" style="fill:${COL[r]}"/>`; prev = r; }
+  const span = Math.round((t1 - t0)/60000);
+  return `<h3 style="margin:2px 0 4px;font-size:15px">Ta nuit · phases</h3><svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Phases de sommeil de la nuit">${g}</svg>
+    <p class="tiny muted" style="margin:0 0 12px">${new Date(t0).toTimeString().slice(0, 5)} → ${new Date(t1).toTimeString().slice(0, 5)} (${Math.floor(span/60)}h${pad(span%60)}) · ${esc(src || '')}</p>`;
+}
 // fiche Sommeil : 7 nuits par phases vs durée recommandée, puis VFC et FC de nuit
 function sleepDetail(){
   const H = Health.H, t = todayISO(), n = 7, nights = Array.from({ length: n }, (_, i) => addDays(t, i - n + 1));
@@ -972,7 +997,7 @@ function sleepDetail(){
       ${hrv != null ? chip(`VFC ${Math.round(hrv)} ms${hrvB ? ` · moy. ${Math.round(hrvB)}` : ''}`, hrvB ? (hrv >= hrvB*0.95 ? 'var(--ok)' : 'var(--warn)') : null) : ''}
       ${rhr != null ? chip(`FC min ≈ ${Math.round(rhr)} bpm`) : ''}${shr != null ? chip(`FC moy. nuit ${Math.round(shr)} bpm`) : ''}
       ${last.bed_start && last.bed_end ? chip(`${new Date(last.bed_start).toTimeString().slice(0, 5)} → ${new Date(last.bed_end).toTimeString().slice(0, 5)}`) : ''}</div>
-      ${ph.length ? `<p class="tiny muted" style="margin:-4px 0 10px">${ph.join(' · ')}</p>` : '<p class="tiny muted" style="margin:-4px 0 10px">Phases non reçues pour cette nuit (seule la durée est arrivée par Intervals) : elles arrivent avec le raccourci Santé au réveil.</p>'}`;
+      ${ph.length ? `<p class="tiny muted" style="margin:-4px 0 10px">${ph.join(' · ')}</p>` : (hypnogram(last.night) ? '' : '<p class="tiny muted" style="margin:-4px 0 10px">Phases non reçues pour cette nuit (seule la durée est arrivée par Intervals) : elles arrivent avec le raccourci Santé au réveil.</p>')}`;
   }
   // VFC et FC de repos sur les 7 nuits
   const sv = nights.map(d => [d, val('hrv', d), val('rhr', d), val('sleep_hr', d)]);
@@ -980,7 +1005,7 @@ function sleepDetail(){
     const lo = Math.min(...pts.map(x => x[1])), hi = Math.max(...pts.map(x => x[1])), X = i => 30 + i*(W - 46)/(n - 1), Yv = v => 26 - (v - lo)/((hi - lo) || 1)*18;
     return `<div class="row" style="gap:8px;align-items:center"><span class="tiny muted" style="width:62px">${label}</span><svg viewBox="0 0 ${W} 34" style="flex:1;height:34px" aria-label="${label}"><polyline points="${pts.map(([i, v]) => `${X(i)},${Yv(v)}`).join(' ')}" fill="none" stroke="${col}" stroke-width="2"/>${pts.map(([i, v]) => `<circle cx="${X(i)}" cy="${Yv(v)}" r="2.8" style="fill:${col}"/><text x="${X(i)}" y="${Yv(v) - 5}" text-anchor="middle" style="font-size:8.5px;fill:var(--muted)">${Math.round(v)}</text>`).join('')}</svg><span class="tiny muted" style="width:26px">${unit}</span></div>`; };
   const lines = [spark(1, 'var(--z3)', 'ms', 'VFC'), spark(2, 'var(--bad)', 'bpm', 'FC repos'), spark(3, 'var(--z5)', 'bpm', 'FC nuit')].join('');
-  return `${sum}<svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Sommeil des 7 dernières nuits">${g}</svg>${legend}
+  return `${sum}${hypnogram(last?.night)}<h3 style="margin:6px 0 4px;font-size:15px">7 dernières nuits</h3><svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Sommeil des 7 dernières nuits">${g}</svg>${legend}
     ${lines ? `<h3 style="margin:6px 0 4px;font-size:15px">Cœur la nuit · 7 jours</h3>${lines}<p class="tiny muted" style="margin:4px 0 10px">FC min ≈ FC de repos de la montre. La FC max de la nuit n'est pas transmise par Apple Santé / Intervals.</p>` : ''}`;
 }
 // 5 jours en colonnes avec valeurs, moyenne 30 j en pointillé (fiches de la Forme du jour)
@@ -3135,13 +3160,14 @@ const Health = (() => {
   async function load(sb){
     if (!sb) return;
     const since = addDays(todayISO(), -130);
-    const [d, s, w, t] = await Promise.all([
+    const [d, s, w, t, g] = await Promise.all([
       sb.from('health_daily').select('day, metric, value').gte('day', since).order('day'),
       sb.from('health_sleep').select('night, source, asleep_min, deep_min, rem_min, core_min, awake_min, in_bed_min, bed_start, bed_end').gte('night', since).order('night'),
       sb.from('health_workouts').select('start_at, end_at, type, duration_min, distance_km, energy_kcal, avg_hr, source, indoor, elevation_m, avg_speed_kmh, max_speed_kmh').gte('start_at', since).order('start_at'),
       sb.rpc('ingest_status'),
+      sb.from('health_sleep_seg').select('start_at, end_at, stage, source').gte('end_at', addDays(todayISO(), -3)).order('start_at'), // phases détaillées (hypnogramme)
     ]);
-    if (!d.error) H.daily = d.data; if (!s.error) H.sleep = s.data; if (!w.error) H.workouts = w.data;
+    if (!d.error) H.daily = d.data; if (!s.error) H.sleep = s.data; if (!w.error) H.workouts = w.data; if (g && !g.error) H.segs = g.data;
     promoteBikes();
     H.token = t.data && t.data.length ? { last: t.data[0].last_used_at } : null;
     persist();
