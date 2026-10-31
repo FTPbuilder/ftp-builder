@@ -103,6 +103,8 @@ nav.tabs button.on{color:var(--text)}
 @keyframes iriShiftT{from{background-position:0% 50%}to{background-position:100% 50%}}
 @media (prefers-reduced-motion:reduce){.tile,.tile .tv{animation:none}}
 .tiles-home{margin-top:6px}
+.tiles-home .tile{aspect-ratio:3/4.3}
+.tiles-home .tile .tv{display:block;transform:scaleY(1.75);transform-origin:left top;margin-bottom:calc(.86em * .75)}
 .pane-head{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .pane-head h2{font-size:26px;font-weight:700;text-transform:uppercase;flex:1}
 .pane-back{width:44px;height:44px;flex:none;border-radius:50%;border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
