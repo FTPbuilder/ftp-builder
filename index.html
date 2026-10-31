@@ -285,7 +285,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.16.3';
+const APP_VERSION = '0.16.4';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1312,12 +1312,7 @@ function progHTML(){
   const best = k => Math.max(0, ...acts.map(a => a.best?.[k] || 0)) || null;
   const f0 = S.ftpHistory[0]?.ftp || ftp();
   const proj = projection();
-  let h = `<div class="card"><h2>Où j'en suis</h2><div class="grid4">
-    <div class="kpi"><div class="v num">${done}<small>/${p.minSessions}</small></div><div class="l">Séances</div></div>
-    <div class="kpi"><div class="v num">${ftp()}<small> W</small></div><div class="l">FTP · ${ftp()-f0>=0?'+':''}${ftp()-f0} W</div></div>
-    <div class="kpi"><div class="v num">${(ftp()/p.weightKg).toFixed(2)}</div><div class="l">W/kg · obj. ${(p.goalFtp/p.weightKg).toFixed(2)}</div></div>
-    <div class="kpi"><div class="v num">${proj ? proj.value : '—'}<small>${proj?' W':''}</small></div><div class="l">Projection ${fmtShort(p.goalDate)}</div></div>
-  </div>${proj ? `<p class="small muted" style="margin:10px 0 0">${esc(proj.text)}</p>` : `<p class="small muted" style="margin:10px 0 0">La projection apparaît après ton premier test FTP.</p>`}</div>`;
+  let h = '';
   // courbe FTP
   const x0 = parseD(p.startDate).getTime(), x1 = parseD(p.endDate).getTime();
   const tests = S.ftpHistory.map(h => [parseD(h.date).getTime(), h.ftp, String(h.ftp)]);
