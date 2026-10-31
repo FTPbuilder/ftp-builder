@@ -114,14 +114,15 @@ nav.tabs button.on{color:var(--text)}
 .pane-num small{font-size:.45em;margin-left:2px}
 .tile{animation:iriShift 9s ease-in-out infinite alternate,tileIn .35s cubic-bezier(.3,1.3,.5,1) backwards;animation-delay:var(--idl,0s),var(--tdl,0s)}
 @keyframes tileIn{from{opacity:0;transform:scale(.9)}}
-#todayPane:not([data-p=seance]) .pane-head + .card > h2:first-child,#todayPane:not([data-p=seance]) .pane-head + .card > .row.between:first-child > h2{display:none}
-#todayPane:not([data-p=seance]) .pane-head + .card > .row.between:first-child{justify-content:flex-end}
+#todayPane:not([data-p=seance]) .pane-head + .card > h2:first-child,#todayPane:not([data-p=seance]) .pane-head + .card > .row.between:first-child > h2,#todayPane .arcs-wrap + .card > .row.between:first-child > h2{display:none}
+#todayPane:not([data-p=seance]) .pane-head + .card > .row.between:first-child,#todayPane .arcs-wrap + .card > .row.between:first-child{justify-content:flex-end}
 .pane-in{animation:paneIn .28s ease-out}
 @keyframes paneIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 /* carrousel du programme : arches façon scène */
 .arcs-wrap{position:relative;margin:0 -16px 12px}
 .arcs-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 16px}
-.arcs-head h2{font-size:20px;font-weight:600;text-transform:uppercase}
+.arcs-head h2{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.arcs-head #arcPos{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-weight:800;font-size:22px;line-height:1;background:var(--iri);background-size:260% 260%;-webkit-background-clip:text;background-clip:text;color:transparent}
 .arcs{display:flex;align-items:flex-end;overflow-x:auto;scroll-snap-type:x mandatory;padding:46px calc(50% - 68px) 14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .arcs::-webkit-scrollbar{display:none}
 .arc{flex:0 0 136px;height:190px;margin-left:-40px;border-radius:68px 68px 16px 16px;scroll-snap-align:center;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:1px;padding:0 10px 16px;text-align:center;cursor:pointer;transform-origin:bottom center;will-change:transform;
@@ -284,7 +285,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.16.1';
+const APP_VERSION = '0.16.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1122,7 +1123,7 @@ function render(){
   app.innerHTML = head + ({ today: todayHTML, cal: calHTML, prog: progHTML, profile: profileHTML })[TAB]();
   if (TAB === 'profile') bindQuestionnaire(false);
   moveTabPill();
-  if (TAB === 'cal') bindArcs();
+  if (TAB === 'today' && TODAY_PANE === 'prog') bindArcs();
 }
 let _pillReady = false;
 function moveTabPill(){
@@ -1167,7 +1168,7 @@ function todayHTML(){
   if (!TODAY_PANE) return h + `<div class="tiles tiles-home">${tiles.map((x,i)=>`<button class="tile" data-pane="${x.k}" style="--idl:-${i*2.3}s;--ip:${i*30}%;--tdl:${i*50}ms"><span class="tl">${x.l}</span><span class="tv num">${x.v}${x.u?`<small>${x.u}</small>`:''}</span><span class="ts">${esc(x.sub)}</span></button>`).join('')}</div>`;
   const cur = tiles.find(x => x.k === TODAY_PANE);
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
-  if (TODAY_PANE === 'prog') h += progCard;
+  if (TODAY_PANE === 'prog') h += arcsHTML() + progCard;
   if (TODAY_PANE === 'defis') h += challengesHTML();
   if (TODAY_PANE === 'forme') h += Health.todayCard() || (ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil).</p></div>`);
   if (TODAY_PANE === 'seance') {
@@ -1257,7 +1258,7 @@ function calHTML(){
   const weeks = {}; for (const s of S.plan) (weeks[monday(s.date)] ||= []).push(s);
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
-  let h = arcsHTML() + monthHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
+  let h = monthHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
@@ -1286,7 +1287,7 @@ function arcsHTML(){
     <div class="arcs" id="arcs">${plan.map(s => { const W = WORKOUTS[s.workoutId]; const ms = mainStep(s.workoutId);
       const col = ZCOL(zoneOf(ms?.p || (W.steps.length && flat(W.steps)[0].p) || 60));
       return `<div class="arc ${s.status}" data-arc="${s.id}" data-date="${s.date}" style="--ac:${col}"><span class="ast">${s.status==='done'?'✅':s.status==='skipped'?'⏭️':W.type==='test'?'🎯':''}</span><span class="ad">${s.date===t?"Aujourd'hui":fmtShort(s.date)}</span><span class="an">${esc(W.name)}</span><span class="am num">${fmtDur(wDur(s.workoutId))}${ms?` · ${watts(ms.p)} W`:''}</span></div>`; }).join('')}</div>
-    <div class="arcs-hint">Glisse pour parcourir · touche la séance centrale pour l'ouvrir</div></div>`;
+    <div class="arcs-hint">Glisse · touche la séance au centre pour l'ouvrir</div></div>`;
 }
 function bindArcs(){
   const box = $('#arcs'); if (!box) return;
