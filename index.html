@@ -76,11 +76,33 @@ label.f{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px}
 input[type=text],input[type=number],input[type=date],select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px}
 textarea{min-height:70px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
-nav.tabs{position:fixed;left:0;right:0;bottom:0;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(12px);border-top:1px solid var(--line);display:flex;justify-content:center;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
-nav.tabs .in{display:flex;max-width:760px;width:100%;justify-content:space-around}
-nav.tabs button{background:none;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11.5px;padding:6px 10px;cursor:pointer;border-radius:10px;min-width:64px}
-nav.tabs button svg{width:22px;height:22px}
-nav.tabs button.on{color:var(--accent)}
+nav.tabs{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:center;padding:0 22px;z-index:20;pointer-events:none}
+nav.tabs .in{position:relative;display:flex;max-width:420px;width:100%;padding:6px;border-radius:999px;background:color-mix(in srgb,var(--card) 62%,transparent);border:1px solid color-mix(in srgb,var(--text) 10%,transparent);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);box-shadow:0 10px 30px rgba(0,0,0,.28);pointer-events:auto}
+nav.tabs .pill{position:absolute;top:6px;bottom:6px;left:6px;width:0;border-radius:999px;background:color-mix(in srgb,var(--text) 14%,transparent);transition:left .42s cubic-bezier(.3,1.45,.5,1),width .42s cubic-bezier(.3,1.45,.5,1);pointer-events:none}
+nav.tabs .pill.still{transition:none}
+nav.tabs button{position:relative;z-index:1;flex:1;background:none;border:0;color:var(--muted);display:flex;align-items:center;justify-content:center;height:52px;padding:0;cursor:pointer;border-radius:999px;-webkit-tap-highlight-color:transparent;transition:color .25s,transform .15s}
+nav.tabs button:active{transform:scale(.92)}
+nav.tabs button svg{width:25px;height:25px}
+nav.tabs button .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+nav.tabs button.on{color:var(--text)}
+/* carrousel du programme : arches façon scène */
+.arcs-wrap{position:relative;margin:0 -16px 12px}
+.arcs-head{display:flex;justify-content:space-between;align-items:baseline;padding:0 16px}
+.arcs-head h2{font-size:20px;font-weight:600;text-transform:uppercase}
+.arcs{display:flex;align-items:flex-end;overflow-x:auto;scroll-snap-type:x mandatory;padding:46px calc(50% - 68px) 14px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.arcs::-webkit-scrollbar{display:none}
+.arc{flex:0 0 136px;height:190px;margin-left:-40px;border-radius:68px 68px 16px 16px;scroll-snap-align:center;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:1px;padding:0 10px 16px;text-align:center;cursor:pointer;transform-origin:bottom center;will-change:transform;
+  background:color-mix(in srgb,var(--ac) 22%,transparent);border:1px solid color-mix(in srgb,var(--ac) 45%,transparent);color:var(--text);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);transition:background .25s,border-color .25s,box-shadow .25s}
+.arc:first-child{margin-left:0}
+.arc .ad{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+.arc .an{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:18px;font-weight:600;line-height:1.05;text-transform:uppercase;max-width:110px}
+.arc .am{font-size:12px;color:var(--muted)}
+.arc .ast{font-size:15px;min-height:18px}
+.arc.on{background:color-mix(in srgb,var(--ac) 86%,transparent);border-color:color-mix(in srgb,#fff 45%,transparent);color:#fff;box-shadow:0 6px 22px color-mix(in srgb,var(--ac) 35%,transparent)}
+.arc.on .ad,.arc.on .am{color:rgba(255,255,255,.85)}
+.arc>span{opacity:var(--fo,1);transition:opacity .15s}
+.arc.done{opacity:.8}
+.arcs-hint{text-align:center;font-size:12px;color:var(--muted);margin-top:-2px}
 .prof{display:flex;align-items:flex-end;gap:1px;height:70px;background:var(--bg2);border-radius:10px;padding:6px;overflow:hidden}
 .prof div{border-radius:2px 2px 0 0;min-width:1px}
 .steps{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -215,11 +237,11 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 </head>
 <body>
 <div class="app" id="app"></div>
-<nav class="tabs hidden" id="tabs"><div class="in">
-  <button data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Aujourd'hui</button>
-  <button data-tab="cal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Calendrier</button>
-  <button data-tab="prog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg>Progression</button>
-  <button data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
+<nav class="tabs hidden" id="tabs"><div class="in"><span class="pill" id="tabPill"></span>
+  <button data-tab="today" aria-label="Aujourd'hui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="lbl">Aujourd'hui</span></button>
+  <button data-tab="cal" aria-label="Calendrier"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="lbl">Calendrier</span></button>
+  <button data-tab="prog" aria-label="Progression"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 20h18M5 16l4-5 4 3 6-8"/></svg><span class="lbl">Progression</span></button>
+  <button data-tab="profile" aria-label="Profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg><span class="lbl">Profil</span></button>
 </div></nav>
 <dialog id="dlg"><div class="card" id="dlgBody"></div></dialog>
 <dialog id="fsDlg" class="fs"></dialog>
@@ -229,7 +251,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.14.1';
+const APP_VERSION = '0.15.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1066,7 +1088,17 @@ function render(){
   const head = `<header class="top"><div class="brand"><h1>FTP<b>·</b>Builder</h1><small>v${APP_VERSION}</small></div><span class="chip num">FTP ${ftp()} W · ${(ftp()/S.profile.weightKg).toFixed(2)} W/kg</span></header>`;
   app.innerHTML = head + ({ today: todayHTML, cal: calHTML, prog: progHTML, profile: profileHTML })[TAB]();
   if (TAB === 'profile') bindQuestionnaire(false);
+  moveTabPill();
+  if (TAB === 'cal') bindArcs();
 }
+let _pillReady = false;
+function moveTabPill(){
+  const pill = $('#tabPill'), b = document.querySelector('#tabs button.on'); if (!pill || !b) return;
+  if (!_pillReady) pill.classList.add('still');
+  pill.style.left = b.offsetLeft + 'px'; pill.style.width = b.offsetWidth + 'px';
+  if (!_pillReady && b.offsetWidth) { pill.offsetWidth; pill.classList.remove('still'); _pillReady = true; }
+}
+window.addEventListener('resize', () => { _pillReady = false; moveTabPill(); });
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; TAB = b.dataset.tab; render(); window.scrollTo(0,0); });
 
 /* ----- Aujourd'hui ----- */
@@ -1172,7 +1204,7 @@ function calHTML(){
   const weeks = {}; for (const s of S.plan) (weeks[monday(s.date)] ||= []).push(s);
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
-  let h = monthHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
+  let h = arcsHTML() + monthHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
@@ -1191,6 +1223,31 @@ function calHTML(){
   }
   setTimeout(() => { const b = $('#jumpToday'); if (b) b.onclick = () => { const el = document.getElementById('w-'+monday(t)) || document.querySelector('.week'); el?.scrollIntoView({ behavior:'smooth', block:'start' }); }; }, 0);
   return h;
+}
+
+/* ----- Carrousel d'arches (programme) ----- */
+function arcsHTML(){
+  if (!S.plan.length) return '';
+  const t = todayISO(), plan = S.plan.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  return `<div class="arcs-wrap"><div class="arcs-head"><h2>Séances</h2><span class="muted small num" id="arcPos"></span></div>
+    <div class="arcs" id="arcs">${plan.map(s => { const W = WORKOUTS[s.workoutId]; const ms = mainStep(s.workoutId);
+      const col = ZCOL(zoneOf(ms?.p || (W.steps.length && flat(W.steps)[0].p) || 60));
+      return `<div class="arc ${s.status}" data-arc="${s.id}" data-date="${s.date}" style="--ac:${col}"><span class="ast">${s.status==='done'?'✅':s.status==='skipped'?'⏭️':W.type==='test'?'🎯':''}</span><span class="ad">${s.date===t?"Aujourd'hui":fmtShort(s.date)}</span><span class="an">${esc(W.name)}</span><span class="am num">${fmtDur(wDur(s.workoutId))}${ms?` · ${watts(ms.p)} W`:''}</span></div>`; }).join('')}</div>
+    <div class="arcs-hint">Glisse pour parcourir · touche la séance centrale pour l'ouvrir</div></div>`;
+}
+function bindArcs(){
+  const box = $('#arcs'); if (!box) return;
+  const cards = [...box.children]; let cur = -1, raf = 0;
+  const upd = () => { raf = 0; const c = box.scrollLeft + box.clientWidth / 2; let best = 0, bd = 1e9;
+    cards.forEach((el, i) => { const d = Math.abs(el.offsetLeft + el.offsetWidth / 2 - c); const k = Math.min(d / 115, 1);
+      el.style.transform = `scale(${(1.16 - k * 0.38).toFixed(3)})`; el.style.zIndex = Math.round(1000 - d); el.style.setProperty('--fo', (1 - k * 0.7).toFixed(2)); if (d < bd) { bd = d; best = i; } });
+    if (best !== cur) { cards[cur]?.classList.remove('on'); cards[best].classList.add('on'); cur = best; const pos = $('#arcPos'); if (pos) pos.textContent = `${best + 1} / ${cards.length}`; } };
+  box.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(upd); }, { passive: true });
+  box.addEventListener('click', e => { const el = e.target.closest('.arc'); if (!el) return; const i = cards.indexOf(el);
+    if (i === cur) sessionDlg(el.dataset.arc); else box.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - box.clientWidth / 2, behavior: 'smooth' }); });
+  const t = todayISO(); let start = cards.findIndex(el => el.dataset.date >= t && el.classList.contains('planned')); if (start < 0) start = cards.findIndex(el => el.dataset.date >= t); if (start < 0) start = cards.length - 1;
+  const go = () => { const el = cards[start]; box.scrollLeft = el.offsetLeft + el.offsetWidth / 2 - box.clientWidth / 2; upd(); };
+  go(); requestAnimationFrame(go);
 }
 
 /* ----- Progression ----- */
