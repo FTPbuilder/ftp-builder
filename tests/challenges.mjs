@@ -8,7 +8,7 @@ await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
 await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(() => { const c = FTPB.S.challenges ? FTPB.S.challenges[0] : null; render(); const sq = (FTPB.S.challenges || []).find(x => x.id === 'squats'); sq.entries['2026-10-26'] = 120; sq.entries['2026-10-27'] = 200; FTPB.save(); render(); });
-await pg.click('[data-chadd="squats"][data-v="50"]'); await pg.clock.setFixedTime(new Date('2026-10-28T12:58:00+01:00')); await pg.click('[data-chadd="squats"][data-v="20"]');
+await pg.click('.tile[data-pane=defis]'); await pg.click('[data-chadd="squats"][data-v="50"]'); await pg.clock.setFixedTime(new Date('2026-10-28T12:58:00+01:00')); await pg.click('[data-chadd="squats"][data-v="20"]');
 await pg.locator('.chhead[data-chedit="squats"]').click(); await pg.waitForTimeout(200);
 const txt = (await pg.locator('#dlg').innerText()).replace(/\n+/g, ' | ');
 console.log('DÉTAIL', txt.slice(0, 520));

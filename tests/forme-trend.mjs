@@ -13,7 +13,7 @@ await pg.evaluate(() => { const H = Health.H; H.daily.length = 0; H.sleep.length
   const n = todayISO(), seq = [['awake',10],['core',35],['deep',40],['core',30],['rem',20],['awake',3],['core',45],['deep',25],['core',40],['rem',30],['core',50],['rem',25],['awake',5],['core',30],['rem',22]];
   H.segs = []; let t = Date.parse(addDays(n, -1) + 'T23:40:00'); for (const [st, m] of seq) { H.segs.push({ start_at: new Date(t).toISOString(), end_at: new Date(t + m*60000).toISOString(), stage: st, source: 'Apple Watch de Arnaud' }); t += m*60000; }
   H.segs.push({ start_at: new Date(Date.parse(addDays(n, -1) + 'T23:30:00')).toISOString(), end_at: new Date(t).toISOString(), stage: 'inbed', source: 'iPhone' });
-  render(); });
+  TODAY_PANE = 'forme'; render(); });
 const kpis = await pg.locator('.kpi', { hasText: 'VFC' }).count(); console.log('kpi VFC', kpis);
 await pg.locator('.kpi', { hasText: 'VFC' }).first().click(); await pg.waitForTimeout(200);
 const hrv = await pg.locator('#infoBody').innerText(); await pg.locator('#infoBody').screenshot({ path: out + '/forme-hrv.png' });
