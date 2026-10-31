@@ -285,7 +285,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.16.2';
+const APP_VERSION = '0.16.3';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1158,10 +1158,10 @@ function todayHTML(){
     <div class="tiny muted" style="margin-top:6px">${Math.max(diffDays(t,p.endDate),0)} jours restants · ${S.plan.filter(s=>s.status==='planned'&&mandatory(s)).length} séances clés prévues restantes</div></div>`;
   const sc = Health.score(), ll = lastLoad();
   const show0 = todays.length ? todays : (next ? [next] : []), s0 = show0[0], ms0 = s0 && mainStep(s0.workoutId);
-  const chs = challenges(), chPct = chs.length ? Math.floor(chs.reduce((a,c)=>a+clamp(chTotal(c)/c.target*100,0,100),0)/chs.length) : 0;
+  const chs = challenges().map(c => ({ name:c.name, pct:Math.floor(clamp(chTotal(c)/c.target*100,0,100)) })).sort((x,y)=>y.pct-x.pct), chPct = chs.length ? chs[0].pct : 0;
   const tiles = [
     { k:'prog', l:'Programme', v:done, u:'', sub:`sur ${p.minSessions} séances` },
-    { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length>1?`${chs.length} défis en cours`:(chs[0]?.name||'') },
+    { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length ? [chs[0].name, ...chs.slice(1).map(x=>`${x.name} ${x.pct} %`)].join(' · ') : '' },
     { k:'seance', l:'Séance', v:s0 ? (ms0 ? watts(ms0.p, ftp(), sAdj(s0)) : Math.round(wDur(s0.workoutId)/60)) : '—', u:s0 ? (ms0?'W':'min') : '', sub:s0 ? `${s0.date===t?"Aujourd'hui":fmtShort(s0.date)} · ${WORKOUTS[s0.workoutId].name}` : 'Plan terminé' },
     { k:'forme', l:'Forme', v:sc ? sc.v : ll ? Math.round(ll.tsb) : '—', u:'', sub:sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] + ' · indice /100' : 'TSB (forme de charge)' }
   ];
