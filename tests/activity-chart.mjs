@@ -8,7 +8,7 @@ await pg.addInitScript(() => {
     plan:[{ id:'p1', date:'2026-10-19', week:1, block:'Base', kind:'key', workoutId:'ss_3x10', status:'planned' }], activities:[], ftpHistory:[{date:'2026-10-12',ftp:255,source:'initial'}], settings:{theme:'auto'} }));
 });
 await pg.goto('file:///home/claude/ftp-builder/index.html');
-await pg.evaluate(()=>document.querySelector('button[data-log=""]').click());
+await pg.evaluate(()=>{ TODAY_PANE = 'seance'; render(); document.querySelector('button[data-log=""]').click(); });
 const fc = pg.waitForEvent('filechooser'); await pg.evaluate(()=>document.querySelector('#dropZone').click()); (await fc).setFiles('/home/claude/ftp-builder/tests/2026-10-19_seance.fit');
 await pg.waitForSelector('#lSave'); await pg.evaluate(()=>document.querySelector('#lSave').click()); await pg.waitForTimeout(300);
 // 2e séance (copie décalée) pour la comparaison

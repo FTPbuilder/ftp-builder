@@ -18,7 +18,7 @@ const res = await pg.evaluate(() => {
   const a = { id:'tst', source:'intervals', date:'2026-10-27', startTs: 1793122866, name:'Sweet spot 3 × 12 min', durationS: pwr.length, hasPower:true, np:214, avgPower:202, avgHr:151, feel:null,
     pwSample: pwr.filter((_, i) => i % 12 === 0).map(Math.round), hrSample: hr.filter((_, i) => i % 12 === 0), sampleSecs: pwr.length, _pw: pwr, _hr: hr };
   a.planId = pl.id; pl.status = 'done'; pl.activityId = a.id; a.compliance = compliance(a, pl); delete a._pw; delete a._hr;
-  S.activities.push(a); FTPB.save(); FTPB.render();
+  S.activities.push(a); FTPB.save(); TODAY_PANE = 'seance'; FTPB.render();
   const e = sessionEval(a, pl); return { title: e.title, units: e.units.map(u => Math.round(u.r*100)), comp: a.compliance, persisted: !!a.blocks };
 });
 console.log('AVANT RESSENTI', JSON.stringify(res));
