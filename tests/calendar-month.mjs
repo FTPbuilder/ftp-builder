@@ -13,13 +13,14 @@ await pg.addInitScript(() => {
     { id:'f', date:'2026-10-29', week:2, block:'x', kind:'key', workoutId:'ss_3x10', status:'planned' },
   ];
   const A = (id,date,indoor,hasPower,name) => ({ id, date, name, durationS:3600, indoor, hasPower, tss:60, source:'fit' });
-  const activities = [A('x1','2026-10-06',true,true,'HT'), A('x2','2026-10-11',false,false,'Sortie Longchamp'), A('x3','2026-10-19',true,true,'Prépa test'), A('x4','2026-10-19',false,false,'Vélotaf'), A('x5','2026-10-22',undefined,true,'Saisie manuelle')];
+  const activities = [A('x1','2026-10-06',true,true,'HT'), A('x2','2026-10-11',false,false,'Sortie Longchamp'), A('x3','2026-10-19',true,true,'Prépa test'), {...A('x4','2026-10-19',false,false,'Vélotaf'), distanceKm:5.8, durationS:1100}, A('x5','2026-10-22',undefined,true,'Saisie manuelle')];
   localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:1, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:27, weightKg:81, heightCm:181, ftp:255, hrMax:185, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-01', days, keyPerWeek:2, optionalPerWeek:1, testProtocol:'20min', intensityAdj:1, ctl0:40 }, plan, activities, ftpHistory:[{date:'2026-10-01',ftp:255,source:'initial'}], settings:{theme:'auto'} }));
 });
 await pg.goto('file:///home/claude/ftp-builder/index.html');
 await pg.evaluate(()=>document.querySelector('button[data-tab=cal]').click()); await pg.waitForTimeout(300);
 const card = pg.locator('.card').first(); await card.screenshot({ path:'mcal.png' });
 console.log((await card.innerText()).split('\n').slice(-2).join(' | '));
+console.log('taf dots', await pg.$$eval('.mcal .dots i.taf', d=>d.length), 'ext dots', await pg.$$eval('.mcal .dots i.ext', d=>d.length));
 console.log('miss cells', await pg.$$eval('.mcal .c.miss', c=>c.map(x=>x.dataset.calday)));
 await pg.tap('[data-mnav="1"]'); console.log('next:', await pg.textContent('.mnav b'));
 await pg.tap('[data-mnav="-1"]'); await pg.tap('[data-calday="2026-10-11"]'); await pg.waitForTimeout(200); console.log('dlg:', (await pg.textContent('#dlgBody')).slice(0,60).replace(/\s+/g,' '));

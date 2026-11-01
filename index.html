@@ -159,7 +159,7 @@ nav.tabs button.on{color:var(--text)}
 .mcal .c .sm{font-size:15px;line-height:1;margin-top:1px}
 .mcal .dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:3px}
 .mcal .dots i{width:7px;height:7px;border-radius:50%;display:block}
-.mcal .dots i.in{background:var(--accent)} .mcal .dots i.ext{background:var(--z2)} .mcal .dots i.oth{background:var(--muted);opacity:.7}
+.mcal .dots i.in{background:var(--accent)} .mcal .dots i.ext{background:var(--z2)} .mcal .dots i.oth{background:var(--muted);opacity:.7} .mcal .dots i.taf{background:var(--z4)}
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .mnav b{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em}
 .mnav button{border:1px solid var(--line);background:var(--bg2);border-radius:9px;width:38px;height:34px;cursor:pointer;font-size:18px;color:var(--text)}
@@ -290,7 +290,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.17.1';
+const APP_VERSION = '0.17.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1216,6 +1216,11 @@ function actRow(a){
 /* ----- Calendrier ----- */
 let calMonth = null; // 'YYYY-MM'
 const isIndoor = a => a.indoor === true || (a.indoor == null && !!a.hasPower);
+/* Vélotaf : sortie extérieure de 5 à 9 km (trajet domicile-travail). */
+const VELOTAF_KM = [5, 9];
+const isVelotafKm = km => km != null && +km >= VELOTAF_KM[0] && +km <= VELOTAF_KM[1];
+const isVelotaf = a => !isIndoor(a) && isVelotafKm(a.distanceKm);
+const isVelotafW = w => !Health.bikeIndoor(w) && isVelotafKm(w.distance_km);
 function monthHTML(){
   const t = todayISO();
   if (!calMonth) calMonth = t.slice(0, 7);
@@ -1224,7 +1229,7 @@ function monthHTML(){
   const last = iso(new Date(y, m, 0)); const end = addDays(monday(last), 6);
   const MONTHS_L = ['janvier','février','mars','avril','mai','juin','juillet','août','septembre','octobre','novembre','décembre'];
   let cells = DOW.map(d => `<div class="dh">${d.slice(0,1)}</div>`).join('');
-  let done = 0, missed = 0, indoor = 0, outdoor = 0, others = 0;
+  let done = 0, missed = 0, indoor = 0, outdoor = 0, others = 0, taf = 0;
   const extraByDay = {}; for (const e of Health.extraWorkouts()) (extraByDay[e.date] ||= []).push(e);
   for (let d = start; d <= end; d = addDays(d, 1)) {
     const inMonth = d.slice(0, 7) === calMonth;
@@ -1233,18 +1238,18 @@ function monthHTML(){
     const plan = S.plan.filter(s => s.date === d);
     const miss = d < t && plan.some(s => s.status === 'planned' && mandatory(s)) && !acts.length;
     const planned = d >= t && plan.some(s => s.status === 'planned');
-    if (inMonth) { if (miss) missed++; for (const a of acts) { done++; isIndoor(a) ? indoor++ : outdoor++; } for (const e of extra) { if (e.sport === 'bike') { done++; Health.bikeIndoor(e.w) ? indoor++ : outdoor++; } else others++; } }
-    const dots = [...acts.map(a => isIndoor(a) ? 'in' : 'ext'), ...extra.map(e => e.sport === 'bike' ? (Health.bikeIndoor(e.w) ? 'in' : 'ext') : 'oth')].slice(0, 4).map(c => `<i class="${c}"></i>`).join('');
+    if (inMonth) { if (miss) missed++; for (const a of acts) { if (isVelotaf(a)) { taf++; continue; } done++; isIndoor(a) ? indoor++ : outdoor++; } for (const e of extra) { if (e.sport === 'bike') { if (isVelotafW(e.w)) { taf++; continue; } done++; Health.bikeIndoor(e.w) ? indoor++ : outdoor++; } else others++; } }
+    const dots = [...acts.map(a => isIndoor(a) ? 'in' : isVelotaf(a) ? 'taf' : 'ext'), ...extra.map(e => e.sport === 'bike' ? (Health.bikeIndoor(e.w) ? 'in' : isVelotafW(e.w) ? 'taf' : 'ext') : 'oth')].slice(0, 4).map(c => `<i class="${c}"></i>`).join('');
  const target = (plan[0]?.id || acts.length || extra.length) ? `data-calday="${d}"` : '';
-    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':'Extérieur'} · ${a.name}`), ...extra.map(e => `${e.w.type}${e.w.duration_min ? ' · ' + fmtDur(e.w.duration_min*60) : ''}`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
+    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':isVelotaf(a)?'Vélotaf':'Extérieur'} · ${a.name}`), ...extra.map(e => `${e.w.type}${e.w.duration_min ? ' · ' + fmtDur(e.w.duration_min*60) : ''}`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
     cells += `<div class="c ${inMonth?'':'out'} ${d===t?'today':''} ${miss?'miss':''} ${planned && !miss ? 'planned' : ''} ${dots ? 'hasdots' : ''}" ${target} title="${esc(title)}" aria-label="${fmtDate(d)}${miss?', séance manquée':''}">
       <span>${+d.slice(8)}</span>${miss ? '<span class="sm" aria-hidden="true">😞</span>' : ''}${dots ? `<div class="dots">${dots}</div>` : ''}</div>`;
   }
   return `<div class="card">
     <div class="mnav"><button data-mnav="-1" aria-label="Mois précédent">‹</button><b>${MONTHS_L[m-1]} ${y}</b><button data-mnav="1" aria-label="Mois suivant">›</button></div>
     <div class="mcal">${cells}</div>
-    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="background:var(--muted);opacity:.7"></i>Autre sport</span><span><i style="border:1.5px solid var(--muted);box-sizing:border-box"></i>Prévue</span><span>😞 Manquée</span></div>
-    <div class="tiny muted" style="margin-top:8px">Ce mois-ci : <b style="color:var(--text)">${done}</b> sortie${done>1?'s':''} vélo (${indoor} home trainer, ${outdoor} extérieur)${others ? ` · ${others} autre${others>1?'s':''} sport${others>1?'s':''}` : ''}${missed ? ` · <b style="color:var(--bad)">${missed} manquée${missed>1?'s':''}</b>` : ''}</div>
+    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="background:var(--z4)"></i>Vélotaf</span><span><i style="background:var(--muted);opacity:.7"></i>Autre sport</span><span><i style="border:1.5px solid var(--muted);box-sizing:border-box"></i>Prévue</span><span>😞 Manquée</span></div>
+    <div class="tiny muted" style="margin-top:8px">Ce mois-ci : <b style="color:var(--text)">${done}</b> sortie${done>1?'s':''} vélo (${indoor} home trainer, ${outdoor} extérieur)${taf ? ` · ${taf} vélotaf` : ''}${others ? ` · ${others} autre${others>1?'s':''} sport${others>1?'s':''}` : ''}${missed ? ` · <b style="color:var(--bad)">${missed} manquée${missed>1?'s':''}</b>` : ''}</div>
   </div>`;
 }
 document.addEventListener('click', e => {
