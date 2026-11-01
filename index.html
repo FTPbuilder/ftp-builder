@@ -290,7 +290,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.17.2';
+const APP_VERSION = '0.18.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1164,23 +1164,25 @@ function todayHTML(){
   const sc = Health.score(), ll = lastLoad();
   const show0 = todays.length ? todays : (next ? [next] : []), s0 = show0[0], ms0 = s0 && mainStep(s0.workoutId);
   const chs = challenges().map(c => ({ name:c.name, pct:Math.floor(clamp(chTotal(c)/c.target*100,0,100)) })).sort((x,y)=>y.pct-x.pct), chPct = chs.length ? chs[0].pct : 0;
+  const sh = sportHoursRolling();
   const tiles = [
     { k:'prog', l:'Programme', v:done, u:'', sub:`sur ${p.minSessions} séances` },
+    { k:'forme', l:'Forme', v:sc ? sc.v : ll ? Math.round(ll.tsb) : '—', u:'', sub:sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] + ' · indice /100' : 'TSB (forme de charge)' },
+    { k:'heures', l:'Heures de sport', v:fmtH(sh.cur), u:'h', sub:`${sh.cur>=sh.prev?'+':'−'}${fmtH(Math.abs(sh.cur-sh.prev))} h vs 7 j précédents` },
     { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length ? [chs[0].name, ...chs.slice(1).map(x=>`${x.name} ${x.pct} %`)].join(' · ') : '' },
-    { k:'seance', l:'Séance', v:s0 ? (ms0 ? watts(ms0.p, ftp(), sAdj(s0)) : Math.round(wDur(s0.workoutId)/60)) : '—', u:s0 ? (ms0?'W':'min') : '', sub:s0 ? `${s0.date===t?"Aujourd'hui":fmtShort(s0.date)} · ${WORKOUTS[s0.workoutId].name}` : 'Plan terminé' },
-    { k:'forme', l:'Forme', v:sc ? sc.v : ll ? Math.round(ll.tsb) : '—', u:'', sub:sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] + ' · indice /100' : 'TSB (forme de charge)' }
   ];
   if (!TODAY_PANE) return h + `<div class="tiles tiles-home">${tiles.map((x,i)=>`<button class="tile" data-pane="${x.k}" style="--idl:-${i*2.3}s;--ip:${i*30}%;--tdl:${i*50}ms"><span class="tl">${x.l}</span><span class="tv num">${x.v}${x.u?`<small>${x.u}</small>`:''}</span><span class="ts">${esc(x.sub)}</span></button>`).join('')}</div>`;
   const cur = tiles.find(x => x.k === TODAY_PANE);
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
-  if (TODAY_PANE === 'prog') h += arcsHTML() + progCard;
+  if (TODAY_PANE === 'heures') h += sportHoursHTML();
   if (TODAY_PANE === 'defis') h += challengesHTML();
   if (TODAY_PANE === 'forme') { const lc = loadCardHTML(); h += (Health.todayCard() || (lc ? '' : ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil).</p></div>`)) + lc + Health.progressCards(); }
-  if (TODAY_PANE === 'seance') {
-  for (const n of notes) h += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
+  if (TODAY_PANE === 'prog') {
+  h += arcsHTML(); let pre = '';
+  for (const n of notes) pre += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
   window._coach = notes;
   const toFeel = S.activities.filter(a => (a.planId || a.source==='strava') && !a.feel?.rpe && diffDays(a.date, t) <= 7 && WORKOUTS[S.plan.find(s=>s.id===a.planId)?.workoutId]?.type !== 'test').sort((a,b)=>b.date.localeCompare(a.date));
-  if (toFeel.length) h += `<div class="note">${toFeel.length} séance${toFeel.length>1?'s':''} sans ressenti : ajoute ton RPE pour obtenir le verdict. <button class="btn sm" data-feelact="${toFeel[0].id}" style="margin-left:6px">Ajouter le ressenti</button></div>`;
+  if (toFeel.length) pre += `<div class="note">${toFeel.length} séance${toFeel.length>1?'s':''} sans ressenti : ajoute ton RPE pour obtenir le verdict. <button class="btn sm" data-feelact="${toFeel[0].id}" style="margin-left:6px">Ajouter le ressenti</button></div>`;
   const show = todays.length ? todays : (next ? [next] : []);
   for (const s of show) {
     const W = WORKOUTS[s.workoutId];
@@ -1200,12 +1202,59 @@ function todayHTML(){
     </div>`;
   }
   if (!show.length) h += `<div class="card"><h2>Plan terminé</h2><p class="muted">Plus aucune séance prévue. Régénère un plan depuis le Profil.</p></div>`;
+  h += progCard + pre;
   h += `<div class="card"><h2>Ajouter une activité</h2><p class="muted small" style="margin-top:0">Fichier .fit (Garmin Connect : Exporter l'original · Strava : Exporter l'original) ou saisie manuelle.</p>
     <div class="row"><button class="btn primary" data-log="">Importer / saisir une séance</button></div></div>`;
   const recent = S.activities.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3);
   if (recent.length) h += `<div class="card"><h2>Dernières séances</h2>${recent.map(actRow).join('')}</div>`;
   }
   return h + `</div>`;
+}
+/* ----- Heures de sport (hors vélotaf et marche) ----- */
+const SPORTS3 = { bike:{ l:'Vélo', ic:'🚴' }, swim:{ l:'Natation', ic:'🏊' }, run:{ l:'Course à pied', ic:'🏃' } };
+const fmtH = h => (Math.round(h*10)/10).toFixed(1).replace('.', ',');
+function sportSessions(){
+  const out = [];
+  for (const a of S.activities) { if (isVelotaf(a) || !a.durationS) continue; out.push({ date:a.date, ts:a.startTs || 0, sport:'bike', min:a.durationS/60, km:+a.distanceKm || 0, ext:!isIndoor(a) }); }
+  const hw = Health.extraWorkouts().filter(e => e.sport !== 'walk' && !(e.sport === 'bike' && isVelotafW(e.w)))
+    .map(e => ({ date:e.date, ts:Math.floor(Date.parse(e.w.start_at)/1000), sport:e.sport, min:+e.w.duration_min || 0, km:+e.w.distance_km || 0, ext:e.sport === 'bike' ? !Health.bikeIndoor(e.w) : true }))
+    .filter(x => x.min > 1).sort((x, y) => x.ts - y.ts);
+  // doublons Santé (même sport, séances qui se chevauchent) : on garde la plus longue
+  for (const x of hw) { const o = out.find(y => y.sport === x.sport && y.ts && Math.abs(y.ts - x.ts) < Math.max(y.min, x.min)*60); if (o) { if (x.min > o.min) Object.assign(o, x); } else out.push(x); }
+  return out;
+}
+function sportHoursRolling(){
+  const t = todayISO(), a = addDays(t, -6), b = addDays(t, -13), ss = sportSessions();
+  const sum = (from, to) => ss.filter(x => x.date >= from && x.date <= to).reduce((s, x) => s + x.min, 0)/60;
+  return { cur: sum(a, t), prev: sum(b, addDays(a, -1)) };
+}
+function sportHoursHTML(){
+  const N = 12, w0 = addDays(monday(todayISO()), -7*(N-1)), ss = sportSessions();
+  const weeks = Array.from({ length:N }, (_, i) => addDays(w0, 7*i));
+  const xl = weeks.map((w, i) => [i, i % 3 === 1 ? fmtShort(w).replace(/\.$/, '') : '']).filter(x => x[1]);
+  const COL = { t:'var(--accent)', k:'var(--z2)', p:'var(--z3)' };
+  let h = `<p class="tiny muted" style="margin:0 0 10px">12 dernières semaines · hors vélotaf et marche. Les trois courbes sont à leur propre échelle : seule leur évolution se compare.</p>`;
+  for (const [sp, S3] of Object.entries(SPORTS3)) {
+    const rows = weeks.map(w => { const xs = ss.filter(x => x.sport === sp && x.date >= w && x.date <= addDays(w, 6)); const min = xs.reduce((s, x) => s + x.min, 0), km = xs.reduce((s, x) => s + x.km, 0);
+      const px = sp === 'bike' ? xs.filter(x => x.ext && x.km) : xs.filter(x => x.km); const pm = px.reduce((s, x) => s + x.min, 0), pk = px.reduce((s, x) => s + x.km, 0);
+      const pace = !pk || !pm ? null : sp === 'bike' ? pk/(pm/60) : sp === 'run' ? pm/pk : pm/(pk*10);
+      return { h:min/60, km, pace }; });
+    const tot = rows.reduce((s, r) => s + r.h, 0);
+    if (!tot) { h += `<div class="card"><h2>${S3.ic} ${S3.l}</h2><p class="muted small">Aucune séance sur 12 semaines.</p></div>`; continue; }
+    const norm = (vals, invert) => { const v = vals.filter(x => x != null); const lo = Math.min(...v), hi = Math.max(...v);
+      return vals.map((x, i) => x == null ? null : [i, hi === lo ? 50 : 8 + 84*((invert ? hi - x : x - lo)/(hi - lo))]); };
+    const seg = pts => { const out = []; let cur = []; for (const p of pts) { if (p) cur.push(p); else if (cur.length) { out.push(cur); cur = []; } } if (cur.length) out.push(cur); return out; };
+    const series = [];
+    const add = (vals, color, invert, dash) => { for (const pts of seg(norm(vals, invert))) { series.push({ pts, color, width:2.5, dash }); if (pts.length === 1) series.push({ type:'dots', pts, color, r:3.5 }); } };
+    add(rows.map(r => r.h), COL.t); add(rows.map(r => r.km || null), COL.k); add(rows.map(r => r.pace), COL.p, sp !== 'bike', '5 4');
+    const last = rows[N-1], lastPace = [...rows].reverse().find(r => r.pace != null)?.pace;
+    const fmtPace = v => v == null ? '—' : sp === 'bike' ? `${v.toFixed(1).replace('.', ',')} km/h` : `${Math.floor(v)}'${String(Math.round((v % 1)*60)).padStart(2, '0')} /${sp === 'run' ? 'km' : '100 m'}`;
+    const chart = lineChart({ series, xMin:0, xMax:N-1, yMin:0, yMax:100, h:170, xLabels:xl, yTicks:4 }).replace(/<text x="\d+(\.\d+)?" y="[\d.]+" text-anchor="end">\d+<\/text>/g, '');
+    h += `<div class="card"><div class="row between"><h2>${S3.ic} ${S3.l}</h2><span class="muted small num">${fmtH(tot)} h · ${Math.round(rows.reduce((s, r) => s + r.km, 0))} km</span></div>
+      <div class="mleg" style="margin:0 0 6px"><span><i style="background:${COL.t}"></i>Temps <b class="num" style="color:var(--text)">${fmtH(last.h)} h</b></span><span><i style="background:${COL.k}"></i>Km <b class="num" style="color:var(--text)">${Math.round(last.km)}</b></span><span><i style="background:${COL.p}"></i>Allure <b class="num" style="color:var(--text)">${fmtPace(lastPace)}</b></span></div>
+      ${chart}<p class="tiny muted" style="margin:4px 0 0">Valeurs de la semaine en cours${sp === 'bike' ? ' · vitesse sur les sorties extérieures' : sp === 'run' ? ' · courbe d\'allure : plus haut = plus rapide' : ' · courbe d\'allure : plus haut = plus rapide'}.</p></div>`;
+  }
+  return h;
 }
 function actRow(a){
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
