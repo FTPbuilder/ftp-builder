@@ -290,7 +290,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.17.0';
+const APP_VERSION = '0.17.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1175,7 +1175,7 @@ function todayHTML(){
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
   if (TODAY_PANE === 'prog') h += arcsHTML() + progCard;
   if (TODAY_PANE === 'defis') h += challengesHTML();
-  if (TODAY_PANE === 'forme') h += Health.todayCard() || (ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil).</p></div>`);
+  if (TODAY_PANE === 'forme') { const lc = loadCardHTML(); h += (Health.todayCard() || (lc ? '' : ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil).</p></div>`)) + lc + Health.progressCards(); }
   if (TODAY_PANE === 'seance') {
   for (const n of notes) h += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
   window._coach = notes;
@@ -1311,6 +1311,21 @@ function bindArcs(){
   go(); requestAnimationFrame(go);
 }
 
+/* graphe Forme & fatigue (CTL/ATL/TSB) — affiché dans la rubrique Forme de l'accueil */
+function loadCardHTML(){
+  const L = loadSeries();
+  if (L.length > 2) {
+    const lx0 = parseD(L[0].d).getTime(), lx1 = parseD(L[L.length-1].d).getTime();
+    const vals = L.flatMap(l=>[l.ctl,l.atl,l.tsb]);
+    const xl2 = L.filter((l,i)=>i % Math.ceil(L.length/6) === 0).map(l=>[parseD(l.d).getTime(), fmtShort(l.d)]);
+    const last = L[L.length-1];
+    return `<div class="card"><div class="row between"><h2>Forme & fatigue</h2><span class="muted small num">Forme ${Math.round(last.tsb)}</span></div>
+      <div class="grid3" style="margin-bottom:10px"><div class="kpi"><div class="v num">${Math.round(last.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(last.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(last.tsb)}</div><div class="l">Forme (TSB)</div></div></div>
+      ${lineChart({ series:[ { type:'area', pts:L.map(l=>[parseD(l.d).getTime(), l.ctl]), color:'var(--z2)' }, { pts:L.map(l=>[parseD(l.d).getTime(), l.ctl]), color:'var(--z2)' }, { pts:L.map(l=>[parseD(l.d).getTime(), l.atl]), color:'var(--z5)', width:1.5 }, { pts:L.map(l=>[parseD(l.d).getTime(), l.tsb]), color:'var(--z3)', width:1.5, dash:'4 3' } ], xMin:lx0, xMax:lx1, yMin:Math.floor(Math.min(0,...vals)/10)*10, yMax:Math.ceil(Math.max(20,...vals)/10)*10, xLabels:xl2, h:180 })}
+      <div class="legend"><span><i style="background:var(--z2)"></i>Fitness</span><span><i style="background:var(--z5)"></i>Fatigue</span><span><i style="background:var(--z3)"></i>Forme</span></div></div>`;
+  }
+  return '';
+}
 /* ----- Progression ----- */
 function progHTML(){
   const p = S.profile, t = todayISO();
@@ -1337,19 +1352,6 @@ function progHTML(){
   const todayX = parseD(t).getTime();
   h += `<div class="card"><h2>FTP vs objectif</h2>${lineChart({ series, xMin:x0, xMax:x1, yMin, yMax, xLabels:xl })}
     <div class="legend"><span><i style="background:var(--accent)"></i>Tests FTP</span><span><i style="background:var(--muted)"></i>Trajectoire cible</span><span><i style="background:var(--z2)"></i>95 % du meilleur 20 min de chaque séance</span></div></div>`;
-  // charge
-  const L = loadSeries();
-  if (L.length > 2) {
-    const lx0 = parseD(L[0].d).getTime(), lx1 = parseD(L[L.length-1].d).getTime();
-    const vals = L.flatMap(l=>[l.ctl,l.atl,l.tsb]);
-    const xl2 = L.filter((l,i)=>i % Math.ceil(L.length/6) === 0).map(l=>[parseD(l.d).getTime(), fmtShort(l.d)]);
-    const last = L[L.length-1];
-    h += `<div class="card"><div class="row between"><h2>Forme & fatigue</h2><span class="muted small num">Forme ${Math.round(last.tsb)}</span></div>
-      <div class="grid3" style="margin-bottom:10px"><div class="kpi"><div class="v num">${Math.round(last.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(last.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(last.tsb)}</div><div class="l">Forme (TSB)</div></div></div>
-      ${lineChart({ series:[ { type:'area', pts:L.map(l=>[parseD(l.d).getTime(), l.ctl]), color:'var(--z2)' }, { pts:L.map(l=>[parseD(l.d).getTime(), l.ctl]), color:'var(--z2)' }, { pts:L.map(l=>[parseD(l.d).getTime(), l.atl]), color:'var(--z5)', width:1.5 }, { pts:L.map(l=>[parseD(l.d).getTime(), l.tsb]), color:'var(--z3)', width:1.5, dash:'4 3' } ], xMin:lx0, xMax:lx1, yMin:Math.floor(Math.min(0,...vals)/10)*10, yMax:Math.ceil(Math.max(20,...vals)/10)*10, xLabels:xl2, h:180 })}
-      <div class="legend"><span><i style="background:var(--z2)"></i>Fitness</span><span><i style="background:var(--z5)"></i>Fatigue</span><span><i style="background:var(--z3)"></i>Forme</span></div></div>`;
-  }
-  h += Health.progressCards();
   // records
   // records actuels, ou projetés à la FTP objectif : l'aérobie suit la FTP, le sprint beaucoup moins
   const rGoal = p.goalFtp && ftp() ? p.goalFtp / ftp() : 1, showGoal = recGoal && rGoal > 1;
