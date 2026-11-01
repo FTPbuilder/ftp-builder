@@ -1332,7 +1332,9 @@ function progHTML(){
   const done = countDone();
   const acts = S.activities.slice().sort((a,b)=>a.date.localeCompare(b.date));
   const best = k => Math.max(0, ...acts.map(a => a.best?.[k] || 0)) || null;
-  const f0 = S.ftpHistory[0]?.ftp || ftp();
+  // séance qui détient le record (la plus récente en cas d'égalité)
+  const bestAct = k => { const v = best(k); return v ? acts.filter(a => a.best?.[k] === v).pop() : null; };
+  const f0 =S.ftpHistory[0]?.ftp || ftp();
   const proj = projection();
   let h = '';
   // courbe FTP
@@ -1357,8 +1359,8 @@ function progHTML(){
   const rGoal = p.goalFtp && ftp() ? p.goalFtp / ftp() : 1, showGoal = recGoal && rGoal > 1;
   const projRec = (k, v) => !v ? null : Math.round(v * (1 + (rGoal - 1) * ({ s5: 0.2, m1: 0.5, m5: 0.9, m20: 1 }[k])));
   h += `<div class="card"><div class="row between"><h2>Records de puissance</h2>${p.goalFtp > ftp() ? `<button class="btn sm ${showGoal ? 'primary' : ''}" data-recgoal aria-pressed="${showGoal}">${showGoal ? 'Actuels' : `À ${p.goalFtp} W`}</button>` : ''}</div>
-    <div class="grid4">${[['s5','5 s'],['m1','1 min'],['m5','5 min'],['m20','20 min']].map(([k,l]) => { const v = showGoal ? projRec(k, best(k)) : best(k);
-      return `<div class="kpi"><div class="v num"${showGoal ? ' style="color:var(--accent)"' : ''}>${v ?? '—'}<small>${v ? ' W' : ''}</small></div><div class="l">${l}${v ? ` · ${(v/p.weightKg).toFixed(1)} W/kg` : ''}</div>${showGoal && v ? `<div class="tiny muted" style="margin-top:2px">+${v - best(k)} W</div>` : ''}</div>`; }).join('')}
+    <div class="grid4">${[['s5','5 s'],['m1','1 min'],['m5','5 min'],['m20','20 min']].map(([k,l]) => { const v = showGoal ? projRec(k, best(k)) : best(k), ra = bestAct(k);
+      return `<div class="kpi"${ra ? ` data-act="${ra.id}" role="button" tabindex="0" aria-label="Voir la séance du record ${l}" style="cursor:pointer"` : ''}><div class="v num"${showGoal ? ' style="color:var(--accent)"' : ''}>${v ?? '—'}<small>${v ? ' W' : ''}</small></div><div class="l">${l}${v ? ` · ${(v/p.weightKg).toFixed(1)} W/kg` : ''}</div>${showGoal && v ? `<div class="tiny muted" style="margin-top:2px">+${v - best(k)} W</div>` : ra ? `<div class="tiny muted" style="margin-top:2px">${fmtShort(ra.date)} ›</div>` : ''}</div>`; }).join('')}
     </div>${showGoal ? `<p class="tiny muted" style="margin:10px 0 0">Projection si ta FTP passe de ${ftp()} à ${p.goalFtp} W (+${Math.round((rGoal-1)*100)} %) à poids égal : 20 min et 5 min suivent la FTP, la minute à moitié, le sprint de 5 s à peine (il dépend surtout de la force et de la vitesse de pédalage). Ordres de grandeur, pas une promesse.</p>` : ''}</div>`;
   // ressentis
   const felt = acts.filter(a=>a.feel?.rpe);
@@ -1760,7 +1762,7 @@ function infoKey(label){
 }
 const H2INFO = { 'Forme & fatigue':'loadchart', 'FTP vs objectif':'ftpchart', 'Récupération (6 sem.)':'recov' };
 function decorateInfo(root = document){
-  root.querySelectorAll('.kpi').forEach(k => { const l = k.querySelector('.l'); const key = l && infoKey(l.textContent); if (key) k.dataset.i = key; });
+  root.querySelectorAll('.kpi:not([data-act])').forEach(k => { const l = k.querySelector('.l'); const key = l && infoKey(l.textContent); if (key) k.dataset.i = key; });
   root.querySelectorAll('h2').forEach(h2 => { const key = H2INFO[h2.textContent.trim()]; if (key) h2.dataset.i = key; });
 }
 function showInfo(key){
