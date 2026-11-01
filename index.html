@@ -6,14 +6,14 @@
 <meta name="theme-color" content="#0f1115">
 <title>FTP Builder</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="icon.svg">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
 :root{
   --bg:#0f1115; --bg2:#171a21; --card:#1c2029; --line:#2a2f3b; --text:#eef0f4; --muted:#9aa1b0;
-  --accent:#ff6a2b; --accent2:#ffb02e; --ok:#3ecf8e; --warn:#ffb02e; --bad:#ff4d5e;
+  --accent:#ff8a4c; --accent2:#ffb02e; --ok:#3ecf8e; --warn:#ffb02e; --bad:#ff4d5e;
   --z1:#6b7280; --z2:#3b82f6; --z3:#22c55e; --z4:#facc15; --z5:#f97316; --z6:#ef4444;
   --radius:14px; --shadow:0 1px 0 rgba(255,255,255,.03) inset;
 }
@@ -39,7 +39,7 @@ html,body{max-width:100%;overflow-x:hidden}
 @media (max-width:420px){ .brand h1{font-size:24px} .brand small{display:none} header.top .chip{font-size:11px;padding:3px 8px} }
 .brand{display:flex;align-items:baseline;gap:8px}
 .brand h1{font-size:28px;font-weight:700;text-transform:uppercase}
-.brand h1 b{color:var(--accent)}
+.brand h1 b{color:#ff9a52;-webkit-text-fill-color:#ff9a52}
 .brand small{color:var(--muted);font-size:12px}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--bg2);border:1px solid var(--line);font-size:12px;color:var(--muted);white-space:nowrap}
 .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
@@ -86,7 +86,12 @@ nav.tabs button svg{width:25px;height:25px}
 nav.tabs button .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 nav.tabs button.on{color:var(--text)}
 /* Aujourd'hui : 4 tuiles iridescentes */
-:root{ --iri:linear-gradient(115deg,#6ec8ff 0%,#b79cff 22%,#f39be6 42%,#ffc3a0 60%,#8ff0c6 80%,#6ec8ff 100%); }
+:root{ --iri:linear-gradient(115deg,#7cc3ff 0%,#8f86ff 18%,#ad5cf0 36%,#e05ad0 54%,#ff6f8a 70%,#ff9a52 85%,#7cc3ff 100%);
+  --iri-t:linear-gradient(100deg,#7cc3ff 0%,#a66af2 38%,#e05ad0 66%,#ff9a52 100%); }
+/* textes aux couleurs de l'icône */
+.brand h1,.tiles .tile .tl,.pane-head h2,.arcs-head h2,.card h2,.card .kpi .v{background:var(--iri-t);-webkit-background-clip:text;background-clip:text;color:transparent;width:fit-content}
+.pane-head h2{flex:0 1 auto;margin-right:auto}
+.card .kpi .v small{-webkit-text-fill-color:var(--muted)}
 .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
 .tile{position:relative;aspect-ratio:1/1;border:4px solid transparent;border-radius:22px;padding:14px 14px 12px;display:flex;flex-direction:column;justify-content:space-between;text-align:left;cursor:pointer;overflow:hidden;
   background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;background-size:100% 100%,260% 260%;background-position:0 0,var(--ip,0%) 50%;
@@ -285,7 +290,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.16.4';
+const APP_VERSION = '0.17.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1280,12 +1285,14 @@ function calHTML(){
 }
 
 /* ----- Carrousel d'arches (programme) ----- */
+// couleurs du carrousel = palette de l'icône, du plus facile (bleu) au plus dur (orange)
+const ARC_COL = { 1:'#7cc3ff', 2:'#8f86ff', 3:'#ad5cf0', 4:'#e05ad0', 5:'#ff6f8a', 6:'#ff9a52' };
 function arcsHTML(){
   if (!S.plan.length) return '';
   const t = todayISO(), plan = S.plan.slice().sort((a,b)=>a.date.localeCompare(b.date));
   return `<div class="arcs-wrap"><div class="arcs-head"><h2>Séances</h2><span class="muted small num" id="arcPos"></span></div>
     <div class="arcs" id="arcs">${plan.map(s => { const W = WORKOUTS[s.workoutId]; const ms = mainStep(s.workoutId);
-      const col = ZCOL(zoneOf(ms?.p || (W.steps.length && flat(W.steps)[0].p) || 60));
+      const col = ARC_COL[zoneOf(ms?.p || (W.steps.length && flat(W.steps)[0].p) || 60)] || ARC_COL[2];
       return `<div class="arc ${s.status}" data-arc="${s.id}" data-date="${s.date}" style="--ac:${col}"><span class="ast">${s.status==='done'?'✅':s.status==='skipped'?'⏭️':W.type==='test'?'🎯':''}</span><span class="ad">${s.date===t?"Aujourd'hui":fmtShort(s.date)}</span><span class="an">${esc(W.name)}</span><span class="am num">${fmtDur(wDur(s.workoutId))}${ms?` · ${watts(ms.p)} W`:''}</span></div>`; }).join('')}</div>
     <div class="arcs-hint">Glisse · touche la séance au centre pour l'ouvrir</div></div>`;
 }
