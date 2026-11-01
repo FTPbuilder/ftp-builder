@@ -290,7 +290,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.18.0';
+const APP_VERSION = '0.18.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1163,7 +1163,7 @@ function todayHTML(){
     <div class="tiny muted" style="margin-top:6px">${Math.max(diffDays(t,p.endDate),0)} jours restants · ${S.plan.filter(s=>s.status==='planned'&&mandatory(s)).length} séances clés prévues restantes</div></div>`;
   const sc = Health.score(), ll = lastLoad();
   const show0 = todays.length ? todays : (next ? [next] : []), s0 = show0[0], ms0 = s0 && mainStep(s0.workoutId);
-  const chs = challenges().map(c => ({ name:c.name, pct:Math.floor(clamp(chTotal(c)/c.target*100,0,100)) })).sort((x,y)=>y.pct-x.pct), chPct = chs.length ? chs[0].pct : 0;
+  const chs = activeChallenges().map(c => ({ name:c.name, pct:Math.floor(clamp(chTotal(c)/c.target*100,0,100)) })).sort((x,y)=>y.pct-x.pct), chPct = chs.length ? chs[0].pct : 0;
   const sh = sportHoursRolling();
   const tiles = [
     { k:'prog', l:'Programme', v:done, u:'', sub:`sur ${p.minSessions} séances` },
@@ -1835,16 +1835,27 @@ let recGoal = false; // records de puissance : afficher la projection à la FTP 
 document.addEventListener('click', e => { if (e.target.closest('[data-recgoal]')) { recGoal = !recGoal; render(); } });
 
 /* ============ défis (squats, chaise…) ============ */
+const BULGARES = start => ({ id:'bulgares', name:'Squats bulgares', unit:'reps', target:2500, step:[16,32,64], start, end:'2027-03-15', entries:{} });
 const DEFAULT_CHALLENGES = () => [
-  { id:'squats', name:'Squats', unit:'squats', target:10000, step:[20,50,100], start:'2026-10-21', end:'2027-03-15', entries:{} },
+  BULGARES('2026-10-21'),
   { id:'chaise', name:'Chaise', unit:'min', target:300, step:[1,2,5], start:'2026-10-21', end:'2027-03-15', entries:{} },
 ];
-function challenges(){ if (!S.challenges) S.challenges = DEFAULT_CHALLENGES(); return S.challenges; }
+function challenges(){
+  if (!S.challenges) S.challenges = DEFAULT_CHALLENGES();
+  // nov. 2026 : les squats au poids du corps laissent la place aux squats bulgares lestés ; l'historique des squats est archivé
+  const sq = S.challenges.find(c => c.id === 'squats');
+  if (sq && !sq.archived && !S.challenges.some(c => c.id === 'bulgares')) {
+    const t = todayISO(); sq.archived = t; S.challenges.splice(S.challenges.indexOf(sq), 1, BULGARES(t)); S.challenges.push(sq); save();
+  }
+  return S.challenges;
+}
+const activeChallenges = () => challenges().filter(c => !c.archived);
+const CH_UNIT = { squats:'squats', reps:'répétitions', min:'de chaise' };
 const chTotal = c => Object.values(c.entries).reduce((a,b)=>a+b,0);
 const fmtCh = (c, v) => c.unit === 'min' ? (v >= 60 ? `${Math.floor(v/60)} h ${pad(Math.round(v%60))}` : `${(+v.toFixed(1)).toLocaleString('fr-FR')} min`) : Math.round(v).toLocaleString('fr-FR');
 function challengesHTML(){
   const t = todayISO();
-  return `<div class="card"><div class="row between"><h2>Défis</h2><span class="muted small">jusqu'au ${fmtShort(challenges()[0].end)}</span></div>` + challenges().map(c => {
+  return `<div class="card"><div class="row between"><h2>Défis</h2><span class="muted small">jusqu'au ${fmtShort(activeChallenges()[0]?.end || todayISO())}</span></div>` + activeChallenges().map(c => {
     const done = chTotal(c), pct = clamp(done/c.target*100, 0, 100);
     const totalDays = Math.max(diffDays(c.start, c.end) + 1, 1), elapsed = clamp(diffDays(c.start, t) + 1, 0, totalDays);
     const expected = c.target * elapsed / totalDays, ahead = done - expected;
@@ -1860,13 +1871,18 @@ function challengesHTML(){
         <button class="btn sm primary" data-chadd="${c.id}">Ajouter</button>
         <button class="btn sm ghost" data-chedit="${c.id}">Détail</button></div>
     </div>`;
-  }).join('') + `</div>`;
+  }).join('') + `</div>` + archivedChallengesHTML();
+}
+function archivedChallengesHTML(){
+  const arch = challenges().filter(c => c.archived);
+  if (!arch.length) return '';
+  return `<div class="card"><h2>Défis archivés</h2>${arch.map(c => `<div class="hist" data-chedit="${c.id}" role="button" tabindex="0" style="cursor:pointer"><div style="flex:1"><b>${esc(c.name)}</b><div class="tiny muted">Du ${fmtShort(c.start)} au ${fmtShort(c.archived)} · ${Object.values(c.entries).filter(v => v > 0).length} jours actifs</div></div><span class="chip num">${fmtCh(c, chTotal(c))} ${c.unit === 'min' ? '' : CH_UNIT[c.unit] || ''}</span></div>`).join('')}</div>`;
 }
 function chAdd(id, v){
   const c = challenges().find(x => x.id === id); if (!c || !(v > 0)) return toast('Indique un nombre');
   const t = todayISO(); c.entries[t] = +((c.entries[t] || 0) + v).toFixed(2);
   (c.log ||= []).push({ ts: Date.now(), v }); // journal horodaté : qui voit « +50 à 12:51 »
-  save(); render(); toast(`+${fmtCh(c, v)} ${c.unit==='min'?'de chaise':'squats'} 💪`);
+  save(); render(); toast(`+${fmtCh(c, v)} ${CH_UNIT[c.unit] || c.unit} 💪`);
 }
 // détail d'un défi : chiffres clés, 30 derniers jours, journal jour par jour avec l'heure de chaque ajout, corrections
 function chEditDlg(id){
