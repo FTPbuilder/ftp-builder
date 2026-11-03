@@ -1628,7 +1628,8 @@ function dayItems(d){
   }
   items.sort((x, y) => x.ts - y.ts || x.prio - y.prio);
   // libellés en double (deux vélotafs…) : on ajoute l'heure
-  for (const x of items) if (x.ts && items.filter(y => y.l === x.l).length > 1) { const t = new Date(x.ts*1000); x.l += ` ${t.getHours()}h${pad(t.getMinutes())}`; }
+  const cnt = {}; for (const x of items) cnt[x.l] = (cnt[x.l] || 0) + 1;
+  for (const x of items) if (x.ts && cnt[x.l] > 1) { const t = new Date(x.ts*1000); x.l += ` ${t.getHours()}h${pad(t.getMinutes())}`; }
   return items;
 }
 function dayDlg(d, key){
