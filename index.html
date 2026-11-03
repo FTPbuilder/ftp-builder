@@ -250,6 +250,7 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 .day input{width:100%;min-height:32px;padding:4px 0;text-align:center;font-size:12px;border-radius:7px;min-width:0}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{border:1px solid var(--line);background:var(--bg2);border-radius:9px;padding:7px 11px;cursor:pointer;min-width:38px}
+.daysel button{font-size:13px;padding:6px 10px;white-space:nowrap}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 dialog{border:0;padding:0;background:transparent;max-width:640px;width:calc(100% - 24px);color:var(--text)}
 dialog::backdrop{background:rgba(0,0,0,.55)}
@@ -1607,14 +1608,38 @@ function monthHTML(){
 document.addEventListener('click', e => {
   const nav = e.target.closest('[data-mnav]');
   if (nav) { const [y, m] = calMonth.split('-').map(Number); const d = new Date(y, m - 1 + (+nav.dataset.mnav), 1); calMonth = `${d.getFullYear()}-${pad(d.getMonth()+1)}`; render(); return; }
-  const c = e.target.closest('[data-calday]'); if (!c) return;
-  const d = c.dataset.calday;
-  const acts = S.activities.filter(a => a.date === d), plan = S.plan.filter(s => s.date === d);
-  const pl = plan.find(s => s.status === 'planned') || plan[0];
-  if (pl && (!acts.length || pl.status === 'planned')) sessionDlg(pl.id);
-  else if (acts.length) activityDlg(acts[0].id);
-  else { const ex = Health.extraWorkouts().filter(x => x.date === d); if (ex.length) openDlg(`<h2>${fmtDate(d)}</h2>${ex.map(x => `<div class="hist"><div style="flex:1"><b>${esc(x.w.type)}</b><div class="tiny muted">${x.w.duration_min ? fmtDur(x.w.duration_min*60) : ''}${x.w.distance_km ? ' · ' + (+x.w.distance_km).toFixed(1) + ' km' : ''}${x.w.avg_hr ? ' · ' + Math.round(x.w.avg_hr) + ' bpm' : ''} · ${esc(x.w.source || '')}</div></div><span class="chip num">TSS ~${x.tss}</span></div>`).join('')}<p class="tiny muted">Activités Apple Santé, comptées dans ta forme et ta fatigue.</p>`); }
+  const c = e.target.closest('[data-calday]'); if (c) dayDlg(c.dataset.calday);
 });
+/* Jour du calendrier : toutes les séances du jour, home trainer par défaut, sélecteur pour passer de l'une à l'autre */
+function dayItems(d){
+  const items = [];
+  for (const a of S.activities.filter(a => a.date === d)) {
+    const pl = a.planId ? S.plan.find(s => s.id === a.planId) : null, taf = isVelotaf(a), ind = isIndoor(a);
+    items.push({ key:'a:' + a.id, ts:a.startTs || 0, prio: ind ? 0 : taf ? 5 : 2, ic: ind ? '🏠' : taf ? '🚲' : '🚴', l: ind ? 'Home trainer' : taf ? 'Vélotaf' : (pl ? WORKOUTS[pl.workoutId].name : 'Vélo'), open: () => activityDlg(a.id) });
+  }
+  for (const s of S.plan.filter(s => s.date === d && s.status === 'planned'))
+    items.push({ key:'p:' + s.id, ts:0, prio:1, ic:'○', l: WORKOUTS[s.workoutId].name, open: () => sessionDlg(s.id) });
+  for (const e of Health.extraWorkouts().filter(x => x.date === d)) {
+    const sp = e.sport, ref = 'w:' + e.w.start_at, taf = sp === 'bike' && isVelotafW(e.w);
+    const inSS = sp !== 'walk' && !taf && (+e.w.duration_min || 0) > 1;
+    items.push({ key: ref, ts: Math.floor(Date.parse(e.w.start_at)/1000), prio: sp === 'bike' ? (taf ? 5 : Health.bikeIndoor(e.w) ? 0 : 2) : 3,
+      ic: SPORTS3[sp]?.ic || { strength:'🏋️', walk:'🚶', mobility:'🧘' }[sp] || '⏱️', l: taf ? 'Vélotaf' : e.w.type || 'Séance',
+      open: () => inSS ? sportSessionDlg(ref) : openDlg(`<span class="muted small">${fmtDate(d)} · ${esc(e.w.source || '')}</span><h2 style="margin:6px 0">${esc(e.w.type)}</h2><div class="grid4" style="margin:8px 0">${[['Durée', e.w.duration_min ? fmtDur(e.w.duration_min*60) : '—'], ['Distance', e.w.distance_km ? (+e.w.distance_km).toFixed(1).replace('.', ',') + ' km' : '—'], ['FC moy.', e.w.avg_hr ? Math.round(e.w.avg_hr) + ' bpm' : '—'], ['TSS', '~' + e.tss]].map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div><p class="tiny muted">Activité Apple Santé / Intervals.icu, comptée dans ta forme et ta fatigue.</p>`) });
+  }
+  items.sort((x, y) => x.ts - y.ts || x.prio - y.prio);
+  // libellés en double (deux vélotafs…) : on ajoute l'heure
+  for (const x of items) if (x.ts && items.filter(y => y.l === x.l).length > 1) { const t = new Date(x.ts*1000); x.l += ` ${t.getHours()}h${pad(t.getMinutes())}`; }
+  return items;
+}
+function dayDlg(d, key){
+  const items = dayItems(d); if (!items.length) return;
+  const cur = items.find(x => x.key === key) || items.slice().sort((x, y) => x.prio - y.prio || x.ts - y.ts)[0];
+  cur.open();
+  if (items.length < 2) return;
+  const bar = `<div class="seg daysel" role="tablist" aria-label="Séances du ${fmtDate(d)}" style="margin:0 34px 10px 0">${items.map(x => `<button role="tab" aria-selected="${x === cur}" class="${x === cur ? 'on' : ''}" data-dayitem="${esc(x.key)}" data-day="${d}">${x.ic} ${esc(x.l)}</button>`).join('')}</div>`;
+  const xb = dlgBody.querySelector('.x'); if (xb) xb.insertAdjacentHTML('afterend', bar); else dlgBody.insertAdjacentHTML('afterbegin', bar);
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-dayitem]'); if (b) { e.stopPropagation(); dayDlg(b.dataset.day, b.dataset.dayitem); } });
 function calHTML(){
   const t = todayISO();
   const weeks = {}; for (const s of S.plan) (weeks[monday(s.date)] ||= []).push(s);
