@@ -1,6 +1,6 @@
 // Liaison Intervals.icu (JWT Supabase requis). La clé API reste côté serveur.
 //  { action:"connect", apiKey }            -> vérifie la clé, enregistre le compte
-//  { action:"sync", days? }                -> activités (toutes les sorties vélo -> ext_inbox avec leurs flux ; autres sports -> health_workouts) + tracés GPS (activity_tracks) + wellness
+//  { action:"sync", days? }                -> activités (toutes les sorties vélo -> ext_inbox avec leurs flux ; autres sports -> health_workouts) + tracés GPS (activity_tracks) + intervalles course/natation (workout_laps) + wellness
 //  { action:"push", events:[…], remove:[…] } -> envoie/maj des séances planifiées dans le calendrier Intervals (-> Garmin Connect)
 //  { action:"disconnect" }
 //  Synchro planifiée : POST { action:"cron" } avec l'en-tête x-cron-key = clé de la table privée cron_keys (pg_cron, 9:30 · 14:30 · 21:30 heure de Paris) -> tous les comptes
@@ -23,6 +23,23 @@ const day = (d: Date) => d.toISOString().slice(0, 10);
 const kmh = (v: unknown) => (v != null && Number(v) > 0 ? +(Number(v) * 3.6).toFixed(1) : null);
 const elev = (a: Record<string, unknown>) => { const v = a.total_elevation_gain ?? a.icu_elevation_gain; return v != null && Number(v) >= 0 ? Math.round(Number(v)) : null; };
 const RIDES = /^(Ride|VirtualRide|GravelRide|MountainBikeRide|EBikeRide|TrackRide)$/;
+const LAPS: Record<string, string> = { Run: "run", TrailRun: "run", VirtualRun: "run", Swim: "swim", OpenWaterSwim: "swim" };
+// séance course/natation : intervalles Intervals.icu (d distance m, t temps en mouvement s, e temps écoulé s, hr, w travail/récup)
+// + flux compact temps/distance/FC (≤ 1500 points) : l'app y repère elle-même les arrêts (repos entre les séries)
+function lapsOf(raw: unknown, streams: unknown) {
+  const xs = ((raw as { icu_intervals?: Record<string, unknown>[] })?.icu_intervals ?? []);
+  const n = (v: unknown, k = 0) => (v == null || !isFinite(Number(v)) ? null : +Number(v).toFixed(k));
+  const intervals = xs.map((x) => ({ d: n(x.distance) ?? 0, t: n(x.moving_time) ?? 0, e: n(x.elapsed_time) ?? n(x.moving_time) ?? 0, hr: n(x.average_heartrate), w: x.type === "RECOVERY" ? 0 : 1 })).filter((x) => x.e > 0);
+  const st = streamsOf(streams), t = (st.time ?? []) as number[], d = (st.distance ?? []) as number[], hr = (st.heartrate ?? []) as number[];
+  let s = null;
+  if (t.length > 10 && d.length === t.length) {
+    const k = Math.max(1, Math.ceil(t.length / 1500)), idx: number[] = [];
+    for (let i = 0; i < t.length; i += k) idx.push(i);
+    if (idx[idx.length - 1] !== t.length - 1) idx.push(t.length - 1);
+    s = { t: idx.map((i) => t[i]), d: idx.map((i) => n(d[i], 1)), hr: hr.length === t.length ? idx.map((i) => hr[i] ?? null) : null };
+  }
+  return { v: 2, intervals, s };
+}
 const TYPES: Record<string, string> = { Ride: "Vélo", VirtualRide: "Vélo (home trainer)", GravelRide: "Gravel", MountainBikeRide: "VTT", Run: "Course à pied", TrailRun: "Trail", VirtualRun: "Course (tapis)", Swim: "Natation", OpenWaterSwim: "Natation eau libre", Walk: "Marche", Hike: "Randonnée", WeightTraining: "Renforcement musculaire", Workout: "Séance", Yoga: "Yoga", Rowing: "Aviron", Tennis: "Tennis", Soccer: "Football", Crossfit: "Crossfit", Elliptical: "Elliptique" };
 
 // tracé GPS compact (≤ 800 points) pour la vue 3D : lat/lon, altitude (m), distance (km), temps (s), vitesse (km/h), FC
@@ -60,6 +77,9 @@ async function syncUser(user: { id: string }, key: string, days: number) {
   let rides = 0, others = 0, skipped = 0, tracks = 0;
   const { data: haveT } = await db.from("activity_tracks").select("start_ts").eq("user_id", user.id).gte("start_ts", Math.floor(Date.now() / 1000) - days * 86400 - 86400);
   const haveTrack = new Set((haveT ?? []).map((x) => Number(x.start_ts)));
+  const { data: haveL } = await db.from("workout_laps").select("icu_id, v:laps->v").eq("user_id", user.id);
+  const haveLaps = new Set((haveL ?? []).filter((x) => Number(x.v) >= 2).map((x) => String(x.icu_id))); // format v2 : intervalles + flux
+  let laps = 0;
   for (const a of acts) {
     const id = String(a.id); const type = String(a.type ?? "");
     const start = String(a.start_date ?? a.start_date_local ?? "");
@@ -95,6 +115,15 @@ async function syncUser(user: { id: string }, key: string, days: number) {
       const { data: near } = await db.from("health_workouts").select("*").eq("user_id", user.id).gte("start_at", new Date(s.getTime() - 300000).toISOString()).lte("start_at", new Date(s.getTime() + 300000).toISOString());
       if (near && near.length) { const o = near[0]; const patch: Record<string, unknown> = {}; for (const k of ["duration_min", "distance_km", "energy_kcal", "avg_hr", "indoor", "elevation_m", "avg_speed_kmh", "max_speed_kmh"]) if (o[k] == null && (row as Record<string, unknown>)[k] != null) patch[k] = (row as Record<string, unknown>)[k]; if (Object.keys(patch).length) await db.from("health_workouts").update(patch).eq("user_id", user.id).eq("start_at", o.start_at); }
       else await db.from("health_workouts").upsert(row);
+      // intervalles des séances course/natation (une seule fois par séance) : recomposition bloc par bloc dans l'app
+      if (LAPS[type] && !haveLaps.has(id)) {
+        try {
+          let iv = null; try { iv = await icu(key, `/activity/${id}/intervals`); } catch { /* sans intervalles */ }
+          let st = null; try { st = await icu(key, `/activity/${id}/streams.json?types=time,distance,heartrate`); } catch { /* sans flux */ }
+          const lp = lapsOf(iv, st);
+          if (lp.s || lp.intervals.length) { await db.from("workout_laps").upsert({ user_id: user.id, icu_id: id, start_at: s.toISOString(), sport: LAPS[type], laps: lp, updated_at: new Date().toISOString() }); haveLaps.add(id); laps++; }
+        } catch { /* pas d'intervalles */ }
+      }
       others++;
     }
   }
@@ -109,7 +138,7 @@ async function syncUser(user: { id: string }, key: string, days: number) {
     for (const d of w) if (d.sleepSecs && Number(d.sleepSecs) > 3600) await db.from("health_sleep").upsert({ user_id: user.id, night: String(d.id).slice(0, 10), source: "Intervals.icu", asleep_min: Math.round(Number(d.sleepSecs) / 60), updated_at: new Date().toISOString() }, { onConflict: "user_id,night", ignoreDuplicates: true });
   } catch { /* wellness facultatif */ }
   await db.from("intervals_accounts").update({ last_sync_at: new Date().toISOString() }).eq("user_id", user.id);
-  return { rides, others, skipped, tracks, wellness: wcount, total: acts.length };
+  return { rides, others, skipped, tracks, laps, wellness: wcount, total: acts.length };
 }
 
 Deno.serve(async (req) => {

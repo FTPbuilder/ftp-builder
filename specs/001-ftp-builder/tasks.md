@@ -35,4 +35,4 @@
 - [x] T026 Reporter (créneau libre ≤ 3 j, règle des 48 h) et remplacer par une récup
 - [x] T027 Suggestion du jour selon l'indice de forme (alléger / reporter / monter d'un cran)
 - [x] T028 Heures de sport : 5 dernières séances par sport (≥ 10 min), cliquables ; fiche de progression (allure, FC, efficacité m/battement vs médiane des séances de distance proche, courbe sur 12 séances)
-- [ ] T029 Recomposition de séance (natation, course) : texte libre → blocs typés, alignés sur les intervalles Intervals.icu, comparaison bloc par bloc
+- [x] T029 Recomposition de séance (natation, course) : texte libre → blocs typés (séries, alternances, morceaux enchaînés, récup, séries en temps), calés sur les arrêts du flux distance/FC Intervals.icu (table `workout_laps`), comparaison bloc par bloc et « Progression par bloc »

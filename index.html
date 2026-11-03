@@ -1256,6 +1256,243 @@ function sportHoursHTML(){
   }
   return h;
 }
+/* ===== RECOMP ===== Recomposition de séance (natation, course) : texte libre -> blocs typés -> alignés sur le flux distance/FC Intervals.icu */
+const Recomp = (() => {
+  const norm = s => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+  // intensités (la première trouvée l'emporte) et accessoires / nages
+  const INT = [
+    ['max', /\b(a fonds?|fonds?|max|sprint|tout droit)\b/], ['rapide', /\b(rapide|vite|tempo|seuil|fort|soutenu|race)\b/],
+    ['amplitude', /\b(amplitude|ampli|allonge|glisse)\b/], ['educ', /\b(edu|educ|educatifs?|technique)\b/],
+    ['echauff', /\b(echauffement|echauff|echauf)\b/], ['calme', /\b(calme|souple|facile|recup|recuperation|cool|lent|tranquille|ral)\b/],
+  ];
+  const TAGS = [['pull', /\bpull\b/], ['plaquettes', /\bplaquettes?\b/], ['palmes', /\bpalmes?\b/], ['tuba', /\btuba\b/], ['jambes', /\b(jambes|battements|planche)\b/],
+    ['brasse', /\bbrasse\b/], ['dos', /\bdos\b/], ['pap', /\b(pap|papillon)\b/], ['4n', /\b4\s*n(ages)?\b/]];
+  const INT_L = { max:'à fond', rapide:'rapide', amplitude:'amplitude', educ:'éducatifs', echauff:'échauffement', calme:'calme', moyen:'' };
+  const intOf = t => { for (const [k, re] of INT) if (re.test(t)) return k; return null; };
+  const tagsOf = t => TAGS.filter(([, re]) => re.test(t)).map(([k]) => k);
+  // repos : « 10 sec », « 10s », « 10'' », « 10' » (≥ 6 = secondes, notation bassin), « 1 min », « 1'30 »
+  const REST = /(\d+)\s*(?:(?:'|’|´|′)\s*(\d{1,2})|(min|mn)|(s|sec|secs|secondes?|''|"|″|’’|´´)|('|’|´|′))(?![a-z0-9])\s*(?:de\s+)?(?:r[ée]cup\w*|repos|rest)?/gi;
+  function restSec(m){ const a = +m[1]; if (m[2] != null) return a*60 + +m[2]; if (m[3]) return a*60; if (m[4]) return a; return a <= 5 ? a*60 : a; }
+
+  // une ligne -> liste d'items (un item = ce qui se nage d'une traite, avec ses morceaux et le repos qui suit)
+  function parseLine(raw, sport){
+    let t = norm(raw).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (!t) return [];
+    t = t.replace(/\ba\s*\d+\s*['’´′]\s*\d{2}\b(\s*\/\s*km)?/g, ' '); // allure cible « à 4'05 » : ignorée
+    // séries en temps (course) : « 3x10 min seuil », « 15 min échauffement »
+    const tm = t.match(/^(?:(\d+)\s*[x×*]\s*)?(\d+)\s*(?:min|mn|['’´′])(?:\s*(\d{1,2}))?(?![a-z0-9])/);
+    let timed = null;
+    if (tm && (sport === 'run' || tm[1])) { timed = { n: +(tm[1] || 1), dur: +tm[2]*60 + +(tm[3] || 0) }; t = t.slice(tm[0].length); }
+    let rest = null; t = t.replace(REST, (...m) => { rest = restSec(m); return ' '; }).replace(/\s+/g, ' ').trim();
+    if (rest != null) t = t.replace(/\b(r(e)?cup\w*|repos|rest)\b/g, ' ').replace(/\s+/g, ' ').trim();
+    const twice = /(repete|repeter|refai[st]|une deuxieme fois|2 fois|x ?2 ?$|bis\b)/.test(t);
+    t = t.replace(/\b(et )?(on )?(le )?(repete|repeter|refait|refais)( une)?( deuxieme fois| 2 fois)?\b/g, ' ').replace(/\s+/g, ' ').trim();
+    const lineInt = intOf(t), mixed = /\bcrawl\b/.test(t) || lineInt === 'echauff' || lineInt === 'educ';
+    const lineTags = tagsOf(t).filter(k => !(mixed && ['brasse','dos','pap','4n'].includes(k)));
+    const unit = sport === 'run' ? 'km' : 'm';
+    const toM = (n, u) => u === 'km' || (sport === 'run' && n < 50 && /[.,]/.test(String(n))) ? Math.round(parseFloat(String(n).replace(',', '.'))*1000) : Math.round(+n);
+    if (timed) {
+      const intv = lineInt || 'moyen'; let n = timed.n; if (twice) n *= 2;
+      return Array.from({ length:n }, (_, i) => ({ label: raw.trim(), rep: n > 1 ? `${i+1}/${n}` : '', pieces: [{ d: 0, dur: timed.dur, int: intv, tags: lineTags }], rest }));
+    }
+    // « 4x200 … »
+    let m = t.match(/^(\d+)\s*[x×*]\s*(\d+(?:[.,]\d+)?)\s*(km|m)?\b/);
+    if (m) {
+      let n = +m[1]; const d = toM(m[2], m[3]); const after = t.slice(m[0].length);
+      // alternance « 1 200 amplitude 2e rapide » / « 1 sur 2 rapide »
+      const alt = [];
+      const am = after.match(/\b1\s*(?:er|re|ere)?\b(.*?)\b2\s*(?:e|eme|nd|nde)\b(.*)$/);
+      if (am) { const a = intOf(am[1]), b = intOf(am[2]); if (a && b) alt.push(a, b); }
+      const sur = after.match(/\b1\s*sur\s*(\d)\b\s*([a-z ]+)/); if (!alt.length && sur) { const k = +sur[1] || 2, x = intOf(sur[2]) || 'rapide'; for (let j = 0; j < k; j++) alt.push(j === 0 ? x : (lineInt && lineInt !== x ? lineInt : 'moyen')); }
+      if (twice && !(alt.length && n % (2*alt.length) === 0)) n *= 2;
+      const base = intOf(after.replace(am ? am[0] : '', '').replace(/\b1\s*sur\s*\d\b\s*[a-z]+/, '')) || lineInt;
+      return Array.from({ length:n }, (_, i) => ({ label: raw.trim(), rep: `${i+1}/${n}`, pieces: [{ d, int: alt.length ? alt[i % alt.length] : base || 'moyen', tags: lineTags }], rest }));
+    }
+    // morceaux « 75 à fond 25 calme »
+    const parts = []; const re = /(\d+(?:[.,]\d+)?)\s*(km|m)?\b([^0-9]*)/g; let p;
+    while ((p = re.exec(t))) parts.push({ d: toM(p[1], p[2]), txt: p[3].trim() });
+    if (!parts.length) return [];
+    const head = parts[0], subs = parts.slice(1).filter(x => x.d >= 10);
+    const subSum = subs.reduce((s, x) => s + x.d, 0);
+    let pieces;
+    const hI = intOf(head.txt);
+    if (subs.length && subSum < head.d && head.d % subSum === 0 && (!hI || hI === 'educ' || hI === 'echauff')) {
+      // « 300 edu 25 chien 50 rattrapé » -> motif répété jusqu'à 300 m
+      const hInt = intOf(head.txt) || lineInt;
+      pieces = [{ d: head.d, int: hInt || 'educ', tags: lineTags, detail: subs.map(x => `${x.d} ${x.txt}`).join(' + ') }];
+    } else if (subs.length) {
+      pieces = parts.filter(x => x.d >= 10).map(x => ({ d: x.d, int: intOf(x.txt) || lineInt || 'moyen', tags: [...new Set([...lineTags, ...tagsOf(x.txt)])] }));
+    } else pieces = [{ d: head.d, int: intOf(head.txt) || lineInt || 'moyen', tags: lineTags }];
+    const items = [{ label: raw.trim(), pieces, rest }];
+    return twice ? [...items, ...items.map(x => ({ ...x }))] : items;
+  }
+  function parse(text, sport){
+    const items = [];
+    for (const line of String(text || '').split(/\n|;/)) items.push(...parseLine(line, sport));
+    return items.map((x, i) => ({ ...x, i, d: x.pieces.reduce((s, p) => s + p.d, 0), dur: x.pieces.reduce((s, p) => s + (p.dur || 0), 0) }));
+  }
+
+  // flux -> instants de repos (paliers de distance) et interpolation
+  function stream(laps){
+    const s = laps?.s; if (!s?.t?.length || !s?.d?.length) return null;
+    const t = s.t, d = s.d.map(x => x ?? 0), hr = s.hr || null;
+    const dt = t.length > 1 ? (t[t.length-1] - t[0])/(t.length-1) : 1;
+    const plateaus = []; // { d, t0, t1 }
+    let i = 0;
+    while (i < d.length) { let j = i; while (j+1 < d.length && d[j+1] - d[i] < 3) j++; if (t[j] - t[i] >= 7 && j > i) plateaus.push({ d: d[i], t0: t[i], t1: t[j] }); i = j + 1; }
+    const timeAt = x => { for (let k = 1; k < d.length; k++) if (d[k] >= x) { const f = d[k] === d[k-1] ? 0 : (x - d[k-1])/(d[k] - d[k-1]); return t[k-1] + f*(t[k] - t[k-1]); } return t[t.length-1]; };
+    const hrBetween = (a, b) => { if (!hr) return null; let s = 0, n = 0, mx = 0; for (let k = 0; k < t.length; k++) if (t[k] >= a && t[k] <= b && hr[k]) { s += hr[k]; n++; mx = Math.max(mx, hr[k]); } return n ? { avg: Math.round(s/n), max: mx } : null; };
+    return { t, d, dt, total: d[d.length-1], plateaus, timeAt, hrBetween, lapTol: 30 };
+  }
+
+  // aligne les items sur le flux : chaque frontière se cale sur le palier (repos) le plus proche, sinon coupe à la distance (ou au temps)
+  function align(items, laps){
+    const S = stream(laps); if (!S || !items.length) return null;
+    const planned = items.reduce((s, x) => s + x.d, 0), allDist = items.every(x => x.d > 0);
+    const r = allDist && planned ? S.total/planned : 1; // compteur de longueurs qui sur/sous-compte : on répartit l'écart
+    const distAt = tt => { const t = S.t, d = S.d; for (let k = 1; k < t.length; k++) if (t[k] >= tt) { const f = (tt - t[k-1])/((t[k] - t[k-1]) || 1); return d[k-1] + f*(d[k] - d[k-1]); } return S.total; };
+    let pos = 0; const out = [];
+    items.forEach((it, k) => {
+      const last = k === items.length - 1;
+      const pl0 = S.plateaus.find(p => Math.abs(p.d - pos) < 1);
+      const t0 = pl0 ? pl0.t1 : S.timeAt(pos + 0.5);
+      let end, snapped = null;
+      if (last) end = S.total;
+      else if (it.dur && !it.d) {
+        // série en temps : coupe à t0 + durée, calée sur un arrêt proche s'il y en a un
+        const te = t0 + it.dur, tol = Math.max(20, 0.1*it.dur);
+        let best = null; for (const p of S.plateaus) { if (p.d <= pos + 1) continue; const e = Math.abs(p.t0 - te); if (e <= tol && (!best || e < best.e)) best = { p, e }; }
+        if (best) { end = best.p.d; snapped = best.p; } else end = distAt(te);
+      } else {
+        end = pos + it.d*r;
+        const tol = Math.max(S.lapTol, 0.2*it.d*r);
+        let best = null; for (const p of S.plateaus) { if (p.d <= pos + 1) continue; const e = Math.abs(p.d - end); if (e <= tol && (!best || e < best.e)) best = { p, e }; }
+        if (best) { end = best.p.d; snapped = best.p; }
+      }
+      end = Math.min(Math.max(end, pos), S.total);
+      const t1 = S.timeAt(end - 0.5), md = end - pos;
+      // morceaux enchaînés : découpe proportionnelle (distance prévue, ou durée prévue)
+      const w = it.pieces.map(pc => pc.d || pc.dur || 1), W = w.reduce((a, x) => a + x, 0);
+      let cur = pos; const pcs = it.pieces.map((pc, j) => { const a = cur, b = j === it.pieces.length - 1 ? end : cur + md*w[j]/W; cur = b;
+        const ta = j === 0 ? t0 : S.timeAt(a), tb = S.timeAt(b - 0.5); const h = S.hrBetween(ta, tb);
+        return { ...pc, md: Math.round(b - a), sec: Math.max(0, Math.round(tb - ta)), hr: h?.avg ?? null, hrMax: h?.max ?? null }; });
+      const h = S.hrBetween(t0, t1);
+      out.push({ ...it, md: Math.round(md), sec: Math.max(0, Math.round(t1 - t0)), hr: h?.avg ?? null, hrMax: h?.max ?? null, restSec: snapped ? Math.round(snapped.t1 - snapped.t0) : null, snapped: !!snapped, pieces: pcs });
+      pos = end;
+      // récup active (footing, nage lente) sans arrêt détecté : on saute la durée de récup prévue
+      if (!last && !snapped && it.rest) pos = Math.min(S.total, Math.max(pos, distAt(t1 + it.rest)));
+      out[out.length-1].restSec ??= it.rest && !snapped ? it.rest : null;
+    });
+    return { items: out, planned, measured: Math.round(S.total), ratio: r, allDist };
+  }
+
+  // clé de comparaison d'un morceau : sport · distance · intensité · accessoires
+  const keyOf = (sport, pc) => [sport, pc.d || `${pc.dur}s`, pc.int, ...(pc.tags || []).slice().sort()].join('|');
+  const pieceLabel = pc => [pc.dur && !pc.d ? fmtSec(pc.dur) : `${pc.d >= 1000 && pc.d % 100 === 0 ? (pc.d/1000).toString().replace('.', ',') + ' km' : pc.d + ' m'}`, INT_L[pc.int] || '', ...(pc.tags || [])].filter(Boolean).join(' · ');
+  // résumé à garder : allure par morceau (s/100 m ou s/km)
+  function summarize(sport, res){
+    const per = sport === 'run' ? 1000 : 100, out = [];
+    for (const it of res.items) for (const pc of it.pieces) if (pc.md > 0 && pc.sec > 0) out.push({ k: keyOf(sport, pc), d: pc.d, dur: pc.dur || null, int: pc.int, tags: pc.tags || [], pace: Math.round(pc.sec/pc.md*per*10)/10, hr: pc.hr });
+    return out;
+  }
+  function fmtSec(x){ x = Math.round(x); const m = Math.floor(x/60), r = x % 60; return m ? (r ? `${m}'${String(r).padStart(2, '0')}` : `${m} min`) : `${r} s`; }
+  return { fmtSec, parse, align, summarize, keyOf, pieceLabel, INT_L, stream };
+})();
+/* ===== /RECOMP ===== */
+/* ----- Recomposition : écran, enregistrement, suivi par bloc ----- */
+const RC_EX = { swim:"400 échauffement crawl brasse\n300 edu 25 chien 50 rattrapé\n4x200 pull plaquettes 1 amplitude 2e rapide\n100 à fond 10'' récup\n75 à fond 25 calme 10'' récup\n100 calme", run:"15 min échauffement\n6x400 rapide 1'30 récup\n10 min calme" };
+const _lapsCache = {};
+async function lapsFor(x){
+  if (x.ref in _lapsCache) return _lapsCache[x.ref];
+  const sb = Cloud.sb, u = Cloud.user; if (!sb || !u) return null;
+  const t = Date.parse(x.ref.slice(2));
+  try {
+    const { data } = await sb.from('workout_laps').select('laps, start_at').gte('start_at', new Date(t - 300000).toISOString()).lte('start_at', new Date(t + 300000).toISOString()).limit(1);
+    return (_lapsCache[x.ref] = data?.[0]?.laps || null);
+  } catch (e) { console.warn('laps', e); return null; }
+}
+const rcPer = sp => sp === 'run' ? 1000 : 100;
+const fmtRcPace = (sp, s100) => s100 == null ? '—' : `${Math.floor(s100/60)}'${String(Math.round(s100 % 60) % 60).padStart(2, '0')}`;
+// historique des morceaux : toutes les recompositions enregistrées, triées par date
+function rcHistory(sp){
+  const out = [];
+  for (const [ref, r] of Object.entries(S.recomp || {})) if (r.sport === sp) for (const p of r.sum || []) out.push({ ...p, ref, date: r.date, ts: r.ts || 0 });
+  return out.sort((a, b) => a.ts - b.ts);
+}
+// tendance d'un morceau vs médiane des mêmes blocs avant cette séance (+ = plus rapide)
+function rcTrend(sp, p, ts, hist = rcHistory(sp)){
+  const prev = hist.filter(h => h.k === p.k && h.ts < ts).map(h => h.pace); const m = med(prev);
+  return m == null || p.pace == null ? null : { d: (m - p.pace)/m, n: prev.length, m };
+}
+function rcRowsHTML(sp, rows, ts){
+  const hist = rcHistory(sp), per = sp === 'run' ? '/km' : '/100 m';
+  return `<div class="rc-rows">${rows.map(r => `<div class="hist" style="align-items:flex-start"><div style="flex:1;min-width:0"><b>${esc(r.lab)}</b>${r.rep ? ` <span class="tiny muted">${esc(r.rep)}</span>` : ''}
+      <div class="tiny muted">${r.md} m · ${fmtDur(r.sec)}${r.hr ? ` · ${r.hr} bpm` : ''}${r.rest ? ` · récup ${Recomp.fmtSec(r.rest)}` : ''}</div>
+      ${r.parts.length > 1 ? `<div class="tiny muted">${r.parts.map(p => `${esc(p.lab)} <b class="num" style="color:var(--text)">${fmtRcPace(sp, p.pace)}</b>`).join(' · ')}</div>` : ''}</div>
+      <div style="text-align:right"><div class="num"><b>${fmtRcPace(sp, r.parts.length > 1 ? (r.sec/r.md*rcPer(sp)) : r.parts[0]?.pace)}</b><span class="tiny muted"> ${per}</span></div>
+      ${r.parts.length === 1 && r.parts[0].k ? (t => t ? trendChip(t.d) : '')(rcTrend(sp, r.parts[0], ts, hist)) : ''}</div></div>`).join('')}</div>`;
+}
+// résultat d'alignement -> lignes compactes (gardées avec la séance : affichables sans les données Intervals)
+function rcRows(sp, res){
+  const per = rcPer(sp);
+  return res.items.map(it => ({ lab: it.pieces.map(Recomp.pieceLabel).join(' + '), rep: it.rep || '', md: it.md, sec: it.sec, hr: it.hr, rest: it.restSec,
+    parts: it.pieces.map(pc => ({ lab: Recomp.pieceLabel(pc), k: pc.md > 0 && pc.sec > 0 ? Recomp.keyOf(sp, pc) : null, pace: pc.md > 0 && pc.sec > 0 ? Math.round(pc.sec/pc.md*per*10)/10 : null })) }));
+}
+function recompSavedHTML(x){
+  const r = S.recomp?.[x.ref]; if (!r) return '';
+  const intense = r.sum.filter(p => ['max', 'rapide'].includes(p.int));
+  return `<h3 style="margin:14px 0 2px;font-size:14px">🧩 Séance recomposée</h3>
+    <p class="tiny muted" style="margin:0 0 4px">${r.measured} m mesurés pour ${r.planned} m prévus${Math.abs(r.measured - r.planned) > 0.1*r.planned ? ' · écart important : vérifie la saisie ou le comptage de longueurs' : ''}. Pastilles : allure vs tes blocs identiques précédents.</p>
+    ${rcRowsHTML(x.sport, r.rows, r.ts)}
+    ${intense.length ? `<div class="note" style="margin-top:10px">Travail intense : ${intense.reduce((s, p) => s + p.d, 0)} m${intense.some(p => p.hr) ? ` · FC moy. ${Math.round(med(intense.map(p => p.hr)))} bpm` : ''}</div>` : ''}
+    <div class="row" style="margin-top:8px"><button class="btn sm" data-recomp="${esc(x.ref)}">Modifier la recomposition</button></div>`;
+}
+async function recompDlg(ref){
+  const x = sportSessions().find(y => y.ref === ref); if (!x) return;
+  const sp = x.sport, saved = S.recomp?.[ref];
+  openDlg(`<span class="muted small">${fmtDate(x.date)} · ${x.km ? (sp === 'swim' ? Math.round(x.km*1000) + ' m' : x.km.toFixed(1).replace('.', ',') + ' km') : ''} · ${fmtDur(x.min*60)}</span>
+    <h2 style="margin:6px 0">🧩 Recomposer la séance</h2>
+    <p class="tiny muted" style="margin:0 0 8px">Une ligne par bloc, comme sur ton carnet : « 4x200 pull plaquettes 1 amplitude 2e rapide », « 75 à fond 25 calme 10'' récup »${sp === 'run' ? ", « 3x10 min seuil 2 min récup »" : ''}. L'app découpe ta séance aux arrêts enregistrés par la montre.</p>
+    <textarea id="rcText" rows="9" placeholder="${esc(RC_EX[sp] || RC_EX.swim)}" style="font-size:15px">${esc(saved?.text || '')}</textarea>
+    <div class="row" style="margin-top:8px"><button class="btn primary" id="rcGo">Analyser</button>${saved ? `<button class="btn ghost" id="rcDel">Supprimer</button>` : ''}</div>
+    <div id="rcOut" style="margin-top:10px"></div>`);
+  const out = $('#rcOut');
+  const laps = await lapsFor(x);
+  if (!laps?.s) out.innerHTML = `<div class="note warn">${Cloud.user ? "Pas encore de détail longueur par longueur pour cette séance : il arrive avec la prochaine synchro Intervals.icu (Profil › Synchroniser)." : "Connecte-toi (Profil) pour récupérer le détail de la séance depuis Intervals.icu."}</div>`;
+  let last = null;
+  $('#rcGo').onclick = () => {
+    const text = $('#rcText').value.trim(); if (!text) { out.innerHTML = `<div class="note warn">Écris ta séance, une ligne par bloc.</div>`; return; }
+    const items = Recomp.parse(text, sp);
+    if (!items.length) { out.innerHTML = `<div class="note warn">Je n'ai reconnu aucun bloc : commence chaque ligne par une distance (« 200 ») ou une série (« 4x100 »).</div>`; return; }
+    const res = laps?.s ? Recomp.align(items, laps) : null;
+    const ts = Math.floor(Date.parse(ref.slice(2))/1000);
+    if (!res) { out.innerHTML = `<p class="small">${items.length} bloc${items.length > 1 ? 's' : ''} reconnu${items.length > 1 ? 's' : ''} · ${items.reduce((s, i) => s + i.d, 0)} m prévus</p>` + items.map(i => `<div class="hist"><div style="flex:1">${esc(i.pieces.map(Recomp.pieceLabel).join(' + '))} <span class="tiny muted">${esc(i.rep || '')}</span></div></div>`).join(''); return; }
+    last = { sport: sp, date: x.date, ts, text, planned: res.planned, measured: res.measured, rows: rcRows(sp, res), sum: Recomp.summarize(sp, res), at: Date.now() };
+    const gap = res.allDist ? res.measured - res.planned : 0;
+    out.innerHTML = `<p class="small" style="margin:0 0 4px"><b>${items.length} blocs</b> · ${res.planned} m prévus · ${res.measured} m mesurés${res.allDist && Math.abs(gap) > 0.05*res.planned ? ` <span class="muted">(écart ${gap > 0 ? '+' : ''}${gap} m réparti sur les blocs)</span>` : ''}</p>
+      ${rcRowsHTML(sp, last.rows, ts)}
+      <div class="row" style="margin-top:10px"><button class="btn primary" id="rcSave">Enregistrer</button></div>`;
+    $('#rcSave').onclick = () => { (S.recomp ||= {})[ref] = last; save(); render(); toast('Séance recomposée enregistrée'); sportSessionDlg(ref); };
+  };
+  if ($('#rcDel')) $('#rcDel').onclick = () => { delete S.recomp[ref]; save(); render(); toast('Recomposition supprimée'); sportSessionDlg(ref); };
+  if (saved && laps?.s) $('#rcGo').click();
+}
+// suivi par bloc : les blocs identiques nagés/courus au moins deux fois
+function rcTrackedHTML(sp){
+  const hist = rcHistory(sp); if (!hist.length) return '';
+  // un point par séance (médiane des répétitions du même bloc dans la séance)
+  const g = {}; for (const h of hist) (g[h.k + '§' + h.ref] ||= []).push(h);
+  const by = {}; for (const xs of Object.values(g)) { const h = xs[0]; (by[h.k] ||= []).push({ ...h, pace: med(xs.map(x => x.pace)), reps: xs.length }); }
+  for (const v of Object.values(by)) v.sort((a, b) => a.ts - b.ts);
+  const keys = Object.entries(by).filter(([, v]) => v.length >= 2).sort((a, b) => b[1].length - a[1].length || b[1][b[1].length-1].ts - a[1][a[1].length-1].ts).slice(0, 6);
+  if (!keys.length) return `<p class="tiny muted" style="margin:10px 0 0">🧩 Recompose tes séances (touche une séance › Recomposer) : dès qu'un bloc revient, sa progression s'affiche ici.</p>`;
+  const per = sp === 'run' ? '/km' : '/100 m';
+  return `<h3 style="margin:14px 0 2px;font-size:14px">🧩 Progression par bloc</h3>${keys.map(([k, v]) => { const lastS = v[v.length-1], prevByRef = {}; for (const h of v.slice(0, -1)) (prevByRef[h.ref] ||= []).push(h.pace);
+    const best = Math.min(...v.map(h => h.pace)), t = rcTrend(sp, lastS, lastS.ts, v);
+    const lab = Recomp.pieceLabel({ d: lastS.d, dur: lastS.dur, int: lastS.int, tags: lastS.tags });
+    return `<div class="hist"><div style="flex:1;min-width:0"><b>${esc(lab)}</b><div class="tiny muted">${v.length} séances · meilleur ${fmtRcPace(sp, best)}${per} · dernier ${fmtShort(lastS.date)}</div></div><span class="num"><b>${fmtRcPace(sp, lastS.pace)}</b></span>${t ? trendChip(t.d) : ''}</div>`; }).join('')}`;
+}
+document.addEventListener('click', e => { const r = e.target.closest('[data-recomp]'); if (r) recompDlg(r.dataset.recomp); });
 /* ----- Dernières séances par sport + progression séance par séance ----- */
 // « vraie » séance : ≥ 10 min (hors vélotaf et marche, déjà exclus de sportSessions)
 const realSessions = (sp, ss = sportSessions()) => ss.filter(x => x.sport === sp && x.min >= 10).sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.date.localeCompare(a.date));
@@ -1280,7 +1517,7 @@ function lastSessionsHTML(sp, ss){
   const all = realSessions(sp, ss), xs = all.slice(0, 5);
   if (!xs.length) return '';
   return `<h3 style="margin:14px 0 2px;font-size:14px">Dernières séances</h3>${xs.map(x => { const p = sPace(x);
-    return `<div class="hist" data-ssess="${esc(x.ref)}" role="button" tabindex="0" style="cursor:pointer"><div style="flex:1;min-width:0"><b>${fmtDate(x.date)}</b><div class="tiny muted">${fmtDur(x.min*60)}${x.km ? ` · ${sp === 'swim' ? Math.round(x.km*1000) + ' m' : x.km.toFixed(1).replace('.', ',') + ' km'}` : ''}${p != null ? ` · ${fmtSPace(sp, p)}${paceUnit(sp)}` : ''}${x.hr ? ` · ${x.hr} bpm` : ''}</div></div>${trendChip(paceTrend(x, all))}<span class="muted" aria-hidden="true">›</span></div>`; }).join('')}`;
+    return `<div class="hist" data-ssess="${esc(x.ref)}" role="button" tabindex="0" style="cursor:pointer"><div style="flex:1;min-width:0"><b>${fmtDate(x.date)}</b>${S.recomp?.[x.ref] ? ' <span title="Séance recomposée">🧩</span>' : ''}<div class="tiny muted">${fmtDur(x.min*60)}${x.km ? ` · ${sp === 'swim' ? Math.round(x.km*1000) + ' m' : x.km.toFixed(1).replace('.', ',') + ' km'}` : ''}${p != null ? ` · ${fmtSPace(sp, p)}${paceUnit(sp)}` : ''}${x.hr ? ` · ${x.hr} bpm` : ''}</div></div>${trendChip(paceTrend(x, all))}<span class="muted" aria-hidden="true">›</span></div>`; }).join('')}${sp === 'swim' || sp === 'run' ? rcTrackedHTML(sp) : ''}`;
 }
 function sportSessionDlg(ref){
   if (ref.startsWith('a:')) return activityDlg(ref.slice(2));
@@ -1317,6 +1554,7 @@ function sportSessionDlg(ref){
     <div class="grid4" style="margin:8px 0">${kpis.map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
     ${chart ? `<h3 style="margin:12px 0 2px;font-size:14px">Allure sur tes ${hist.length} dernières séances</h3><p class="tiny muted" style="margin:0">Plus haut = plus rapide · point orange : cette séance.</p>${chart}` : ''}
     ${cmp}
+    ${sp === 'swim' || sp === 'run' ? (recompSavedHTML(x) || `<div class="row" style="margin-top:12px"><button class="btn" data-recomp="${esc(x.ref)}">🧩 Recomposer la séance</button><span class="tiny muted">bloc par bloc : séries, sprints, récup</span></div>`) : ''}
     <p class="tiny muted" style="margin-top:10px">Efficacité = mètres parcourus par battement cardiaque : à allure égale, elle monte quand tu progresses.</p>`);
 }
 document.addEventListener('click', e => { const r = e.target.closest('[data-ssess]'); if (r) sportSessionDlg(r.dataset.ssess); });
