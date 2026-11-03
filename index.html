@@ -1215,9 +1215,9 @@ const SPORTS3 = { bike:{ l:'Vélo', ic:'🚴' }, swim:{ l:'Natation', ic:'🏊' 
 const fmtH = h => (Math.round(h*10)/10).toFixed(1).replace('.', ',');
 function sportSessions(){
   const out = [];
-  for (const a of S.activities) { if (isVelotaf(a) || !a.durationS) continue; out.push({ date:a.date, ts:a.startTs || 0, sport:'bike', min:a.durationS/60, km:+a.distanceKm || 0, ext:!isIndoor(a) }); }
+  for (const a of S.activities) { if (isVelotaf(a) || !a.durationS) continue; out.push({ ref:'a:'+a.id, name:a.name, date:a.date, ts:a.startTs || 0, sport:'bike', min:a.durationS/60, km:+a.distanceKm || 0, ext:!isIndoor(a), hr:a.avgHr || null }); }
   const hw = Health.extraWorkouts().filter(e => e.sport !== 'walk' && !(e.sport === 'bike' && isVelotafW(e.w)))
-    .map(e => ({ date:e.date, ts:Math.floor(Date.parse(e.w.start_at)/1000), sport:e.sport, min:+e.w.duration_min || 0, km:+e.w.distance_km || 0, ext:e.sport === 'bike' ? !Health.bikeIndoor(e.w) : true }))
+    .map(e => ({ ref:'w:'+e.w.start_at, name:e.w.type, src:e.w.source, date:e.date, ts:Math.floor(Date.parse(e.w.start_at)/1000), sport:e.sport, min:+e.w.duration_min || 0, km:+e.w.distance_km || 0, ext:e.sport === 'bike' ? !Health.bikeIndoor(e.w) : true, hr:e.w.avg_hr ? Math.round(e.w.avg_hr) : null }))
     .filter(x => x.min > 1).sort((x, y) => x.ts - y.ts);
   // doublons Santé (même sport, séances qui se chevauchent) : on garde la plus longue
   for (const x of hw) { const o = out.find(y => y.sport === x.sport && y.ts && Math.abs(y.ts - x.ts) < Math.max(y.min, x.min)*60); if (o) { if (x.min > o.min) Object.assign(o, x); } else out.push(x); }
@@ -1252,10 +1252,75 @@ function sportHoursHTML(){
     const chart = lineChart({ series, xMin:0, xMax:N-1, yMin:0, yMax:100, h:170, xLabels:xl, yTicks:4 }).replace(/<text x="\d+(\.\d+)?" y="[\d.]+" text-anchor="end">\d+<\/text>/g, '');
     h += `<div class="card"><div class="row between"><h2>${S3.ic} ${S3.l}</h2><span class="muted small num">${fmtH(tot)} h · ${Math.round(rows.reduce((s, r) => s + r.km, 0))} km</span></div>
       <div class="mleg" style="margin:0 0 6px"><span><i style="background:${COL.t}"></i>Temps <b class="num" style="color:var(--text)">${fmtH(last.h)} h</b></span><span><i style="background:${COL.k}"></i>Km <b class="num" style="color:var(--text)">${Math.round(last.km)}</b></span><span><i style="background:${COL.p}"></i>Allure <b class="num" style="color:var(--text)">${fmtPace(lastPace)}</b></span></div>
-      ${chart}<p class="tiny muted" style="margin:4px 0 0">Valeurs de la semaine en cours${sp === 'bike' ? ' · vitesse sur les sorties extérieures' : sp === 'run' ? ' · courbe d\'allure : plus haut = plus rapide' : ' · courbe d\'allure : plus haut = plus rapide'}.</p></div>`;
+      ${chart}<p class="tiny muted" style="margin:4px 0 0">Valeurs de la semaine en cours${sp === 'bike' ? ' · vitesse sur les sorties extérieures' : sp === 'run' ? ' · courbe d\'allure : plus haut = plus rapide' : ' · courbe d\'allure : plus haut = plus rapide'}.</p>${lastSessionsHTML(sp, ss)}</div>`;
   }
   return h;
 }
+/* ----- Dernières séances par sport + progression séance par séance ----- */
+// « vraie » séance : ≥ 10 min (hors vélotaf et marche, déjà exclus de sportSessions)
+const realSessions = (sp, ss = sportSessions()) => ss.filter(x => x.sport === sp && x.min >= 10).sort((a, b) => (b.ts || 0) - (a.ts || 0) || b.date.localeCompare(a.date));
+// allure : vélo km/h (extérieur), course min/km, natation min/100 m ; efficacité = mètres par battement
+const sPace = x => !x.km || !x.min ? null : x.sport === 'bike' ? (x.ext ? x.km/(x.min/60) : null) : x.sport === 'run' ? x.min/x.km : x.min/(x.km*10);
+const sEff = x => { const p = sPace(x); if (!p || !x.hr) return null; const mpm = x.sport === 'bike' ? p*1000/60 : x.sport === 'run' ? 1000/p : 100/p; return mpm / x.hr; };
+const fmtSPace = (sp, v) => v == null ? '—' : sp === 'bike' ? `${v.toFixed(1).replace('.', ',')} km/h` : `${Math.floor(v)}'${String(Math.round((v % 1)*60) % 60).padStart(2, '0')}`;
+const paceUnit = sp => sp === 'bike' ? '' : sp === 'run' ? ' /km' : ' /100 m';
+const med = v => { const a = v.filter(x => x != null).sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[(a.length-1)/2] : (a[a.length/2-1] + a[a.length/2])/2) : null; };
+// séances comparables : même sport, distance à ±30 % (ou durée à ±30 % sans distance), antérieures
+function similarBefore(x, all){
+  return all.filter(y => y !== x && y.sport === x.sport && (y.ts || 0) < (x.ts || 0) && (x.km && y.km ? Math.abs(y.km - x.km) <= 0.3*x.km : Math.abs(y.min - x.min) <= 0.3*x.min)).slice(0, 8);
+}
+// tendance d'allure vs médiane des séances comparables (+ = plus rapide)
+function paceTrend(x, all){
+  const p = sPace(x); if (p == null) return null;
+  const m = med(similarBefore(x, all).map(sPace)); if (m == null) return null;
+  return x.sport === 'bike' ? (p - m)/m : (m - p)/m;
+}
+const trendChip = d => d == null ? '' : Math.abs(d) < 0.01 ? `<span class="chip num" title="Allure stable vs tes séances comparables">＝</span>` : `<span class="chip num" style="color:${d > 0 ? 'var(--ok)' : 'var(--bad)'}" title="Allure vs médiane de tes séances comparables">${d > 0 ? '▲' : '▼'} ${Math.round(Math.abs(d)*100)} %</span>`;
+function lastSessionsHTML(sp, ss){
+  const all = realSessions(sp, ss), xs = all.slice(0, 5);
+  if (!xs.length) return '';
+  return `<h3 style="margin:14px 0 2px;font-size:14px">Dernières séances</h3>${xs.map(x => { const p = sPace(x);
+    return `<div class="hist" data-ssess="${esc(x.ref)}" role="button" tabindex="0" style="cursor:pointer"><div style="flex:1;min-width:0"><b>${fmtDate(x.date)}</b><div class="tiny muted">${fmtDur(x.min*60)}${x.km ? ` · ${sp === 'swim' ? Math.round(x.km*1000) + ' m' : x.km.toFixed(1).replace('.', ',') + ' km'}` : ''}${p != null ? ` · ${fmtSPace(sp, p)}${paceUnit(sp)}` : ''}${x.hr ? ` · ${x.hr} bpm` : ''}</div></div>${trendChip(paceTrend(x, all))}<span class="muted" aria-hidden="true">›</span></div>`; }).join('')}`;
+}
+function sportSessionDlg(ref){
+  if (ref.startsWith('a:')) return activityDlg(ref.slice(2));
+  const ss = sportSessions(), x = ss.find(y => y.ref === ref); if (!x) return;
+  const sp = x.sport, all = realSessions(sp, ss), S3 = SPORTS3[sp], p = sPace(x), e = sEff(x);
+  const sim = similarBefore(x, all), mp = med(sim.map(sPace)), me = med(sim.map(sEff)), mh = med(sim.map(y => y.hr));
+  const d = paceTrend(x, all);
+  const kpis = [['Durée', fmtDur(x.min*60)], ['Distance', x.km ? (sp === 'swim' ? `${Math.round(x.km*1000)} m` : `${x.km.toFixed(1).replace('.', ',')} km`) : '—'], [`Allure${paceUnit(sp)}`, fmtSPace(sp, p)], ['FC moy.', x.hr ? `${x.hr} bpm` : '—']];
+  // historique : 12 dernières séances du sport, la séance ouverte en surbrillance
+  const hist = all.slice(0, 12).reverse(), iCur = hist.indexOf(x);
+  let chart = '';
+  const pv = hist.map(sPace);
+  if (pv.filter(v => v != null).length >= 2) {
+    const v = pv.filter(v => v != null), lo = Math.min(...v), hi = Math.max(...v), pad = (hi - lo)*0.15 || lo*0.05;
+    // l'axe va vers le haut quand c'est plus rapide
+    const yv = val => sp === 'bike' ? val : (lo + hi) - val;
+    const pts = pv.map((val, i) => val == null ? null : [i, yv(val)]).filter(Boolean);
+    const series = [{ pts, color:'var(--z3)', width:2.5 }, { type:'dots', pts, color:'var(--z3)', r:3.5 }];
+    if (iCur >= 0 && pv[iCur] != null) series.push({ type:'dots', pts:[[iCur, yv(pv[iCur])]], color:'var(--accent)', r:6 });
+    chart = lineChart({ series, xMin:0, xMax:Math.max(hist.length-1, 1), yMin:lo - pad, yMax:hi + pad, h:150, xLabels:hist.map((y, i) => [i, i === 0 || i === hist.length-1 || i === iCur ? `${+y.date.slice(8)}/${+y.date.slice(5, 7)}` : '']).filter(z => z[1]), yTicks:3 })
+      .replace(/<text x="\d+(\.\d+)?" y="[\d.]+" text-anchor="end">-?\d+<\/text>/g, '');
+  }
+  const pct = (a, b, inv) => a == null || b == null ? null : (inv ? (b - a)/b : (a - b)/b);
+  const line = (l, cur, ref, fmt, better) => cur == null || ref == null ? '' : `<div class="hist"><div style="flex:1">${l}</div><span class="num" style="white-space:nowrap">${fmt(cur)}</span><span class="tiny muted num" style="white-space:nowrap;min-width:64px;text-align:right">méd. ${fmt(ref)}</span>${trendChip(better)}</div>`;
+  const cmp = sim.length ? `<h3 style="margin:14px 0 2px;font-size:14px">Vs tes ${sim.length} séance${sim.length > 1 ? 's' : ''} comparable${sim.length > 1 ? 's' : ''}</h3>
+      <p class="tiny muted" style="margin:0 0 4px">${sp === 'swim' ? 'Natation' : S3.l} de distance proche (±30 %), avant celle-ci.</p>
+      ${line(`Allure${paceUnit(sp)}`, p, mp, v => fmtSPace(sp, v), sp === 'bike' ? pct(p, mp) : pct(p, mp, true))}
+      ${line('FC moy. <span class="tiny muted">bpm</span>', x.hr, mh, v => Math.round(v), pct(x.hr, mh, true))}
+      ${line('Efficacité <span class="tiny muted">m/batt.</span>', e, me, v => v.toFixed(2).replace('.', ','), pct(e, me))}
+      ${d != null ? `<div class="note ${d >= 0.01 ? 'ok' : d <= -0.01 ? 'warn' : ''}" style="margin-top:10px">${d >= 0.01 ? `Plus rapide que d'habitude sur ce format (+${Math.round(d*100)} %)` : d <= -0.01 ? `Plus lent que d'habitude sur ce format (−${Math.round(-d*100)} %)` : 'Allure dans ta moyenne sur ce format'}${e != null && me != null ? (e > me*1.01 ? ', avec un meilleur rendement cardio.' : e < me*0.99 ? ', pour un rendement cardio en retrait.' : ', rendement cardio stable.') : '.'}</div>` : ''}`
+    : `<p class="tiny muted" style="margin-top:12px">Pas encore de séance comparable (distance proche) pour situer celle-ci.</p>`;
+  openDlg(`<span class="muted small">${fmtDate(x.date)}${x.src ? ' · ' + esc(x.src) : ''}</span>
+    <h2 style="margin:6px 0">${S3.ic} ${esc(x.name || S3.l)}</h2>
+    <div class="grid4" style="margin:8px 0">${kpis.map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
+    ${chart ? `<h3 style="margin:12px 0 2px;font-size:14px">Allure sur tes ${hist.length} dernières séances</h3><p class="tiny muted" style="margin:0">Plus haut = plus rapide · point orange : cette séance.</p>${chart}` : ''}
+    ${cmp}
+    <p class="tiny muted" style="margin-top:10px">Efficacité = mètres parcourus par battement cardiaque : à allure égale, elle monte quand tu progresses.</p>`);
+}
+document.addEventListener('click', e => { const r = e.target.closest('[data-ssess]'); if (r) sportSessionDlg(r.dataset.ssess); });
+document.addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; const r = e.target.closest?.('[data-ssess]'); if (r) { e.preventDefault(); sportSessionDlg(r.dataset.ssess); } });
 function actRow(a){
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
   const ev = pl ? sessionEval(a, pl) : null;

@@ -34,3 +34,5 @@
 - [x] T025 Intensité par séance (−5 % à +5 %) appliquée aux watts, à l'export .fit, à Intervals et au contrôle des cibles
 - [x] T026 Reporter (créneau libre ≤ 3 j, règle des 48 h) et remplacer par une récup
 - [x] T027 Suggestion du jour selon l'indice de forme (alléger / reporter / monter d'un cran)
+- [x] T028 Heures de sport : 5 dernières séances par sport (≥ 10 min), cliquables ; fiche de progression (allure, FC, efficacité m/battement vs médiane des séances de distance proche, courbe sur 12 séances)
+- [ ] T029 Recomposition de séance (natation, course) : texte libre → blocs typés, alignés sur les intervalles Intervals.icu, comparaison bloc par bloc
