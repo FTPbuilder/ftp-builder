@@ -102,19 +102,24 @@ th{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--mute
   </ul></li>
 </ol>
 
-<h3>Partie B · Le sommeil</h3>
+<h3>Partie B · La nuit (phases, fréquence cardiaque, respiration)</h3>
+<p class="small">Une seule requête pour toute la nuit, sans boucle : c'est plus rapide et plus fiable. Si tu avais déjà une partie B avec « Répéter avec chacun », supprime-la et remplace-la par celle-ci.</p>
 <ol class="small">
-<li><span class="a">Rechercher des échantillons de santé</span> → Type <b>Analyse du sommeil</b>, Date de début <b>dans les 2 derniers jours</b>, sans limite. <span class="muted">(Une nuit commence la veille au soir : avec « 1 jour », iOS la laisse de côté. Les nuits déjà reçues ne sont pas dupliquées.)</span></li>
-<li><span class="a">Répéter avec chacun</span> (sur ces échantillons).</li>
-<li>À l'intérieur : <b>appui long</b> sur l'action d'envoi de la partie A › <b>Dupliquer</b>, puis glisse la copie dans la boucle (l'URL et la clé sont déjà remplies). Remplace les champs du corps par :
+<li><span class="a">Rechercher des échantillons de santé</span> → Type <b>Analyse du sommeil</b>, Date de début <b>dans les 2 derniers jours</b>, sans limite. Renomme le résultat <code>Nuit</code>. <span class="muted">(Une nuit commence la veille au soir : avec « 1 jour », iOS la laisse de côté. Les nuits déjà reçues ne sont pas dupliquées.)</span></li>
+<li><span class="a">Rechercher des échantillons de santé</span> → Type <b>Fréquence cardiaque</b>, Date de début <b>dans les 1 derniers jours</b>, sans limite. Renomme le résultat <code>FC</code>.</li>
+<li><span class="a">Rechercher des échantillons de santé</span> → Type <b>Fréquence respiratoire</b>, Date de début <b>dans les 1 derniers jours</b>, sans limite. Renomme le résultat <code>Respiration</code>.</li>
+<li><b>Appui long</b> sur l'action d'envoi de la partie A › <b>Dupliquer</b>, et place la copie après ces 3 recherches (l'URL et la clé sont déjà remplies). Remplace les champs du corps par ces champs <b>Texte</b>. Pour chacun : insère la variable, <b>touche-la</b> et choisis la propriété indiquée. Raccourcis écrit alors toute la liste, une valeur par ligne : c'est voulu.
   <ul>
-  <li><code>kind</code> = <code>sleep</code></li>
-  <li><code>start</code> = <b>Élément répété</b> › touche-le › <b>Date de début</b> › Format de date <b>ISO 8601</b>, inclure l'heure.</li>
-  <li><code>end</code> = Élément répété › <b>Date de fin</b> (ISO 8601, avec l'heure).</li>
-  <li><code>stage</code> = Élément répété › <b>Valeur</b> (Au lit, Essentiel, Profond, Paradoxal, Éveillé…).</li>
-  <li><code>source</code> = Élément répété › <b>Source</b>.</li>
+  <li><code>kind</code> = <code>night</code></li>
+  <li><code>sleep_start</code> = <b>Nuit</b> › <b>Date de début</b> › Format de date <b>ISO 8601</b>, inclure l'heure.</li>
+  <li><code>sleep_end</code> = <b>Nuit</b> › <b>Date de fin</b> (ISO 8601, avec l'heure).</li>
+  <li><code>sleep_stage</code> = <b>Nuit</b> › <b>Valeur</b> (Au lit, Essentiel, Profond, Paradoxal, Éveillé…).</li>
+  <li><code>sleep_source</code> = <b>Nuit</b> › <b>Source</b>.</li>
+  <li><code>hr_time</code> = <b>FC</b> › <b>Date de début</b> (ISO 8601, avec l'heure) ; <code>hr_value</code> = <b>FC</b> › <b>Valeur</b>.</li>
+  <li><code>resp_time</code> = <b>Respiration</b> › <b>Date de début</b> (ISO 8601, avec l'heure) ; <code>resp_value</code> = <b>Respiration</b> › <b>Valeur</b>.</li>
   </ul></li>
 </ol>
+<p class="small muted">Seules les mesures prises pendant ton sommeil sont gardées : la FC de la journée (séances comprises) est ignorée. La montre mesure la FC toutes les quelques minutes la nuit et la respiration seulement quand tu dors : compte une centaine de points de FC et une trentaine de respiration par nuit. Réponse attendue : <code>{"ok":true,"sleep":32,"samples":140,…}</code>.</p>
 <p class="small muted">Si plusieurs apps enregistrent ta nuit (montre, Withings, Bevel…), FTP Builder garde la plus complète, en priorité l'Apple Watch.</p>
 
 <h3>Partie C · Les entraînements (montre, Strava, Garmin Connect…)</h3>

@@ -4,6 +4,11 @@
 //   { "kind":"daily",   "date":"2026-10-20", "hrv":52, "rhr":"48", "weight":"81,2 kg", ... }
 //   { "kind":"sleep",   "start":"…", "end":"…", "stage":"Profond", "source":"Apple Watch" }
 //   { "kind":"workout", "start":"…", "end":"…", "type":"Course à pied", "distance":"10,2 km", "energy":"650 kcal", "avg_hr":152, "source":"Strava" }
+//   { "kind":"night", ... } : toute la nuit en une requête. Chaque champ est une LISTE (une valeur par ligne, comme Raccourcis l'écrit) :
+//      sleep_start / sleep_end / sleep_stage / sleep_source  -> phases (Analyse du sommeil)
+//      hr_time / hr_value       -> fréquence cardiaque     resp_time / resp_value -> fréquence respiratoire
+//      hrv_time / hrv_value     -> VFC (facultatif)        spo2_time / spo2_value -> oxygène (facultatif)
+//   Les échantillons ne sont gardés que pendant le sommeil (entre la première et la dernière phase reçue, ±30 min).
 // Les valeurs peuvent être des nombres ou du texte français ("42,5 ms") : on extrait le nombre.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -109,6 +114,49 @@ async function rebuildNight(user_id: string, night: string) {
   await db.from("health_sleep").upsert({ user_id, night, ...best, updated_at: new Date().toISOString() });
 }
 
+// listes Raccourcis : texte multi-lignes, tableau JSON ou valeur seule
+const lines = (v: unknown): string[] => v == null ? [] : Array.isArray(v) ? v.map((x) => String(x)) : String(v).split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+const SAMPLE_KEYS: [string, string][] = [["hr", "hr"], ["resp", "resp"], ["hrv", "hrv"], ["spo2", "spo2"]];
+async function ingestNight(user_id: string, it: Record<string, unknown>, nights: Set<string>, res: Record<string, number>) {
+  const st = lines(it.sleep_start), en = lines(it.sleep_end), sg = lines(it.sleep_stage), so = lines(it.sleep_source);
+  const segs: { user_id: string; start_at: string; end_at: string; stage: string; source: string }[] = [];
+  for (let i = 0; i < Math.min(st.length, en.length); i++) {
+    const s = date(st[i]), e = date(en[i]); if (!s || !e || e <= s) { res.skipped++; continue; }
+    segs.push({ user_id, start_at: s.toISOString(), end_at: e.toISOString(), stage: stageOf(sg[i] ?? ""), source: (so[i] ?? so[0] ?? "").slice(0, 60) });
+    nights.add(parisDay(e));
+  }
+  // dédoublonnage dans la requête (même clé primaire) puis envoi groupé
+  const uniq = [...new Map(segs.map((x) => [`${x.start_at}|${x.stage}|${x.source}`, x])).values()];
+  for (let i = 0; i < uniq.length; i += 500) await db.from("health_sleep_seg").upsert(uniq.slice(i, i + 500));
+  res.sleep += uniq.length;
+  // fenêtres de sommeil : celles reçues ici, sinon celles déjà en base sur 36 h
+  // une fenêtre par nuit : les phases séparées de plus de 3 h appartiennent à des nuits différentes
+  const clusters = (list: { start_at: string; end_at: string }[]) => {
+    const iv = list.map((x) => [Date.parse(x.start_at), Date.parse(x.end_at)] as [number, number]).sort((a, b) => a[0] - b[0]), out: [number, number][] = [];
+    for (const [a, b] of iv) { const l = out[out.length - 1]; if (l && a - l[1] < 3 * 3600000) l[1] = Math.max(l[1], b); else out.push([a, b]); }
+    return out.map(([a, b]) => [a - 1800000, b + 1800000] as [number, number]);
+  };
+  let win = clusters(uniq.filter((x) => x.stage !== "inbed"));
+  if (!win.length) {
+    const { data } = await db.from("health_sleep_seg").select("start_at, end_at").eq("user_id", user_id).neq("stage", "inbed").gte("end_at", new Date(Date.now() - 48 * 3600000).toISOString());
+    win = clusters(data ?? []);
+  }
+  if (!win.length) { res.skipped++; return; } // sans phases, on ne sait pas quand tu dormais
+  const rows: { user_id: string; metric: string; at: string; value: number }[] = [];
+  for (const [k, metric] of SAMPLE_KEYS) {
+    const tt = lines(it[`${k}_time`]), vv = lines(it[`${k}_value`]);
+    for (let i = 0; i < Math.min(tt.length, vv.length); i++) {
+      const d = date(tt[i]); let v = num(vv[i]); if (!d || v == null || v <= 0) continue;
+      if (metric === "spo2" && v <= 1) v *= 100;
+      const t = d.getTime(); if (!win.some(([a, b]) => t >= a && t <= b)) continue;
+      rows.push({ user_id, metric, at: d.toISOString(), value: v });
+    }
+  }
+  const ur = [...new Map(rows.map((x) => [`${x.metric}|${x.at}`, x])).values()];
+  for (let i = 0; i < ur.length; i += 500) await db.from("health_samples").upsert(ur.slice(i, i + 500));
+  res.samples = (res.samples ?? 0) + ur.length;
+}
+
 const PRIORITY = (src: string) => /garmin|connect/i.test(src) ? 3 : /watch|apple|forme|fitness/i.test(src) ? 2 : /strava/i.test(src) ? 1 : 0;
 
 Deno.serve(async (req) => {
@@ -121,7 +169,7 @@ Deno.serve(async (req) => {
   let body: Record<string, unknown>;
   try { body = await req.json(); } catch { return out({ error: "JSON invalide" }, 400); }
   const items = Array.isArray(body) ? body : Array.isArray(body.items) ? body.items as Record<string, unknown>[] : [body];
-  const res = { daily: 0, sleep: 0, workout: 0, skipped: 0 };
+  const res: Record<string, number> = { daily: 0, sleep: 0, workout: 0, samples: 0, skipped: 0 };
   const nights = new Set<string>();
 
   for (const it of items) {
@@ -139,6 +187,11 @@ Deno.serve(async (req) => {
         rows.push({ user_id, day, metric: key, value: n, updated_at: new Date().toISOString() });
       }
       if (rows.length) { await db.from("health_daily").upsert(rows); res.daily += rows.length; }
+    } else if (kind === "night") {
+      await ingestNight(user_id, it, nights, res);
+    } else if (kind === "hr" || kind === "resp") { // échantillon isolé
+      const d = date(it.time ?? it.start), v = num(it.value);
+      if (d && v != null && v > 0) { await db.from("health_samples").upsert({ user_id, metric: kind, at: d.toISOString(), value: v }); res.samples++; } else res.skipped++;
     } else if (kind === "sleep") {
       const s = date(it.start), e = date(it.end);
       if (!s || !e || e <= s) { res.skipped++; continue; }

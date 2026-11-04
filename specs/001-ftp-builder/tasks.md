@@ -38,3 +38,4 @@
 - [x] T029 Recomposition de séance (natation, course) : texte libre → blocs typés (séries, alternances, morceaux enchaînés, récup, séries en temps), calés sur les arrêts du flux distance/FC Intervals.icu (table `workout_laps`), comparaison bloc par bloc et « Progression par bloc »
 - [x] T030 Calendrier : jour à plusieurs séances → home trainer ouvert par défaut, sélecteur pour passer aux autres (vélotaf, natation, course, séance prévue)
 - [x] T031 Forme du jour : batterie qui se vide (vert ≥ 60, jaune 35–59, rouge < 35) à la place de l'arc
+- [x] T032 Nuit détaillée : Raccourci partie B en une requête (phases + FC + respiration, table `health_samples`), analyse par phase (durée, %, FC, resp.) et par cycle, courbe FC/respiration, efficacité, réveils, endormissement, FC min et son heure, écarts vs 14 nuits
