@@ -250,6 +250,9 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 .day input{width:100%;min-height:32px;padding:4px 0;text-align:center;font-size:12px;border-radius:7px;min-width:0}
 .seg{display:flex;gap:6px;flex-wrap:wrap}
 .seg button{border:1px solid var(--line);background:var(--bg2);border-radius:9px;padding:7px 11px;cursor:pointer;min-width:38px}
+.batt-fill{transform-box:fill-box;transform-origin:left center;animation:battIn .7s cubic-bezier(.2,.8,.2,1) both}
+@keyframes battIn{from{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.batt-fill{animation:none}}
 .daysel button{font-size:13px;padding:6px 10px;white-space:nowrap}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 dialog{border:0;padding:0;background:transparent;max-width:640px;width:calc(100% - 24px);color:var(--text)}
@@ -1210,6 +1213,20 @@ function todayHTML(){
   if (recent.length) h += `<div class="card"><h2>Dernières séances</h2>${recent.map(actRow).join('')}</div>`;
   }
   return h + `</div>`;
+}
+/* Batterie de forme : se vide de vert (≥ 60) à jaune (35–59) puis rouge (< 35) */
+const battCol = v => v >= 60 ? 'var(--ok)' : v >= 35 ? 'var(--warn)' : 'var(--bad)';
+function batterySVG(v, w = 132){
+  v = clamp(Math.round(v), 0, 100);
+  const col = battCol(v), X = 4, Y = 6, W = 104, H = 52, P = 5, iw = W - 2*P, fw = Math.max(v ? 6 : 0, iw*v/100);
+  // 5 segments : repères de charge
+  const seps = [1, 2, 3, 4].map(k => { const x = X + P + iw*k/5; return x < X + P + fw ? `<line x1="${x}" y1="${Y + P}" x2="${x}" y2="${Y + H - P}" stroke="var(--card)" stroke-width="2.5" opacity=".55"/>` : ''; }).join('');
+  return `<svg viewBox="0 0 120 64" width="${w}" height="${Math.round(w*64/120)}" role="img" aria-label="Batterie de forme ${v} sur 100">
+    <rect x="${X}" y="${Y}" width="${W}" height="${H}" rx="11" fill="var(--bg2)" stroke="${col}" stroke-width="3"/>
+    <rect x="${X + W + 2}" y="${Y + H/2 - 10}" width="7" height="20" rx="3" fill="${col}"/>
+    <rect class="batt-fill" x="${X + P}" y="${Y + P}" width="${fw}" height="${H - 2*P}" rx="6" fill="${col}"/>${seps}
+    <text x="${X + W/2}" y="${Y + H/2 + 11}" text-anchor="middle" style="font:700 32px 'Barlow Condensed','Arial Narrow',sans-serif;fill:var(--text);paint-order:stroke;stroke:var(--bg2);stroke-width:5px;stroke-linejoin:round">${v}</text>
+  </svg>`;
 }
 /* ----- Heures de sport (hors vélotaf et marche) ----- */
 const SPORTS3 = { bike:{ l:'Vélo', ic:'🚴' }, swim:{ l:'Natation', ic:'🏊' }, run:{ l:'Course à pied', ic:'🏃' } };
@@ -3829,10 +3846,10 @@ const Health = (() => {
     const p = S.profile; const wt = latest('weight');
     const wNote = wt && p && Math.abs(wt[1] - p.weightKg) >= 0.5 ? `<div class="row" style="margin-top:10px"><span class="small muted">Ton poids Santé (${wt[1].toFixed(1)} kg) diffère de ton profil (${p.weightKg} kg).</span><button class="btn sm" data-hweight="${wt[1].toFixed(1)}">Mettre à jour</button></div>` : '';
     const sc = score();
-    const scCol = sc ? { ok:'var(--ok)', mid:'var(--z2)', warn:'var(--warn)', bad:'var(--bad)' }[sc.level] : 'var(--muted)';
+    const scCol = sc ? battCol(sc.v) : 'var(--muted)';
     const scTxt = sc ? { ok:"Fais la séance comme prévue, c'est un bon jour pour pousser.", mid:"Séance prévue, sans chercher à dépasser les cibles.", warn:"Garde la séance mais baisse les cibles de 3 à 5 %, ou raccourcis le bloc principal.", bad:"Remplace la séance clé par de l'endurance ou décale-la de 24 h." }[sc.level] : msg;
     const gauge = sc ? `<div class="row" style="gap:16px;margin-bottom:12px;cursor:pointer" data-i="score">
-        <svg viewBox="0 0 120 70" width="132" height="77" aria-label="Indice de forme ${sc.v} sur 100"><path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="var(--bg2)" stroke-width="12" stroke-linecap="round"/><path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="${scCol}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${Math.PI*50*sc.v/100} 999"/><text x="60" y="58" text-anchor="middle" style="font:700 30px 'Barlow Condensed','Arial Narrow',sans-serif;fill:var(--text)">${sc.v}</text></svg>
+        ${batterySVG(sc.v)}
         <div style="flex:1;min-width:150px"><div class="disp" style="font-size:22px;font-weight:700;color:${scCol};text-transform:uppercase">${ {ok:'Prêt',mid:'Correct',warn:'Prudence',bad:'Récupère'}[sc.level] } <span class="tiny muted" style="text-transform:none;font-family:Inter,sans-serif;font-weight:500">· détail ⓘ</span></div><div class="small">${scTxt}</div></div></div>` : '';
     return `<div class="card"><div class="row between"><h2>Forme du jour</h2><span class="chip" style="color:${col[r.level==='none'?'':r.level]}">● ${ {ok:'Récupéré',warn:'Moyen',bad:'Fatigué',none:'Apple Santé'}[r.level] }</span></div>
       ${gauge}<div class="grid4">${r.items.map(i=>`<div class="kpi"><div class="v num" style="font-size:24px;color:${i.st?col[i.st]:'var(--text)'}">${i.v}</div><div class="l">${i.l}</div><div class="tiny muted" style="margin-top:2px">${i.sub}</div></div>`).join('')}</div>

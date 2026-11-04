@@ -37,3 +37,4 @@
 - [x] T028 Heures de sport : 5 dernières séances par sport (≥ 10 min), cliquables ; fiche de progression (allure, FC, efficacité m/battement vs médiane des séances de distance proche, courbe sur 12 séances)
 - [x] T029 Recomposition de séance (natation, course) : texte libre → blocs typés (séries, alternances, morceaux enchaînés, récup, séries en temps), calés sur les arrêts du flux distance/FC Intervals.icu (table `workout_laps`), comparaison bloc par bloc et « Progression par bloc »
 - [x] T030 Calendrier : jour à plusieurs séances → home trainer ouvert par défaut, sélecteur pour passer aux autres (vélotaf, natation, course, séance prévue)
+- [x] T031 Forme du jour : batterie qui se vide (vert ≥ 60, jaune 35–59, rouge < 35) à la place de l'arc
