@@ -167,6 +167,14 @@ nav.tabs .in{background:color-mix(in srgb,var(--card) 84%,transparent)}
 .tgoal thead th{font:italic 800 13px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .tgoal tr.tot th,.tgoal tr.tot td{border-bottom:0;font-weight:700;color:var(--text)}
 .tgoal .ok{color:var(--ok);font-size:12px} .tgoal .bad{color:var(--bad);font-size:12px}
+.tgin{display:flex;flex-direction:column;gap:8px}
+.tgrow{display:grid;grid-template-columns:1fr 64px 64px 64px;gap:6px;align-items:center}
+.tgrow .tgl{font-weight:500}
+.tgrow label{position:relative;display:block}
+.tgrow input{text-align:center;padding:10px 4px 16px;min-height:48px;font-family:"JetBrains Mono",ui-monospace,monospace}
+.tgrow label span{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:10px;color:var(--muted);pointer-events:none}
+.tbench{margin-top:10px}.tbench summary{cursor:pointer;font-weight:600;font-size:14px;padding:8px 0;list-style:none}
+.tbench summary::before{content:'＋ ';color:var(--accent)} .tbench[open] summary::before{content:'− '}
 .pane-head{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .pane-head h2{font-size:26px;font-weight:700;text-transform:uppercase;flex:1}
 .pane-back{width:44px;height:44px;flex:none;border-radius:50%;border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -369,7 +377,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.21.0';
+const APP_VERSION = '0.22.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2263,20 +2271,43 @@ function triGoalTableHTML(){
   return `<table class="tgoal"><thead><tr><th></th><th>Objectif</th><th>Prédiction</th></tr></thead><tbody>
     ${TRI_LEGS.map(([k, l]) => `<tr><th>${l}</th>${cell(G[k], pr[k])}<td class="num">${fmtHMS(pr[k])} ${dlt(G[k], pr[k])}</td></tr>`).join('')}
     <tr class="tot"><th>Total</th>${gTot ? `<td class="num">${fmtHMS(gTot)}</td>` : '<td class="num muted">—</td>'}<td class="num">${fmtHMS(pTot)} ${dlt(gTot, pTot)}</td></tr></tbody></table>
+    ${triBenchHTML(pr)}
     <p class="tiny muted" style="margin:6px 0 0">Nat : CSS ${fmtPace(pr.css)} /100 m${pr.cssData ? ' (tes nats)' : ''} + 4 s, +3 % en eau libre · Vélo : ${pr.P} W (78 % FTP), modèle physique ${pr.bikeGpx ? 'sur le tracé GPX' : 'sans tracé (montées à 5 %)'} · Course : ${fmtPace(pr.flat)} /km sur le plat (seuil ${fmtPace(pr.thr)}${pr.thrData ? ', tes courses' : ''} × 1,10), modulé par la pente ${pr.runGpx ? 'du tracé GPX' : ''} (Minetti) · T1/T2 : ordre de grandeur de tes transitions. <a href="#" data-trigoals="1">Objectifs et tracés GPX</a></p>`;
+}
+// repères par distance : niveau actuel (tes allures) vs niveau qu'il faut pour tenir l'objectif de la course A
+const riegel = (t, d0, d1, b = 1.06) => t*Math.pow(d1/d0, b);
+function triBenchHTML(pr){
+  const G = tri()?.goals || {}, r = tri().race;
+  // course : seuil ≈ allure 10 km + 8 s → 10 km = (seuil − 8 s) × 10, puis Riegel (b = 1,06)
+  const runFactor = pr.run/pr.flat; // somme des facteurs de pente (Minetti) : temps course = allure plat × facteur
+  const thrGoal = G.run ? G.run/runFactor/1.10 : null;
+  const run10 = thr => (thr - 8)*10;
+  const RD = [['5 km', 5], ['10 km', 10], ['Semi', 21.0975]];
+  // nat : CSS ≈ allure tenable ~1500 m (≈ 25–30 min) → 1500 m = 15 × CSS, puis Riegel (b = 1,04 en natation)
+  const cssGoal = G.swim ? G.swim/(r.swim/100*1.03) - 4 : null;
+  const SD = [['400 m', 400], ['1000 m', 1000], ['2000 m', 2000]];
+  const row = (l, a, b) => `<tr><th>${l}</th><td class="num">${fmtHMS(a)}</td><td class="num ${b ? '' : 'muted'}">${b ? fmtHMS(b) : '—'}${b ? ` <span class="${a <= b ? 'ok' : 'bad'}">${a <= b ? '✓' : '+' + fmtHMS(a - b)}</span>` : ''}</td></tr>`;
+  const tb = (title, rows) => `<table class="tgoal" style="margin-top:6px"><thead><tr><th>${title}</th><th>Actuel</th><th>Cible</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<details class="tbench"><summary>Repères par distance</summary>
+    ${tb('🏃 Course', RD.map(([l, d]) => row(l, riegel(run10(pr.thr), 10, d), thrGoal ? riegel(run10(thrGoal), 10, d) : null)).join(''))}
+    <p class="tiny muted" style="margin:4px 0 8px">Actuel : seuil ${fmtPace(pr.thr)} /km (≈ allure 10 km + 8 s), loi de Riegel. Cible : l'allure seuil qu'il faut pour courir ${G.run ? fmtHMS(G.run) : 'ton objectif'} sur le tracé${thrGoal ? ` = ${fmtPace(thrGoal)} /km` : ''}.</p>
+    ${tb('🏊 Nat', SD.map(([l, d]) => row(l, riegel(15*pr.css, 1500, d, 1.04), cssGoal ? riegel(15*cssGoal, 1500, d, 1.04) : null)).join(''))}
+    <p class="tiny muted" style="margin:4px 0 0">Actuel : CSS ${fmtPace(pr.css)} /100 m. Cible : la CSS qu'il faut pour nager ${G.swim ? fmtHMS(G.swim) : 'ton objectif'} sur ${r.swim} m${cssGoal ? ` = ${fmtPace(cssGoal)} /100 m` : ''}. Temps en piscine, sans combinaison.</p></details>`;
 }
 function triGoalsDlg(){
   const G = tri()?.goals || {}, pr = triPredict(), r = tri().race, prof = { bikeProf: r.bikeProf || null, runProf: r.runProf || null };
   const gl = p => p ? `${p.km} km · ${p.up} m D+ ✓` : 'aucun tracé';
-  openDlg(`<h2 style="margin:0 0 4px">🎯 Objectifs ${esc(r.name)}</h2><p class="small muted" style="margin:0 0 10px">Format h:mm:ss ou mm:ss. Laisse vide pour ne pas fixer d'objectif.</p>
-    <form id="tgF" class="grid2" style="gap:10px">${TRI_LEGS.map(([k, l]) => `<div><label class="f">${l}</label><input type="text" name="${k}" inputmode="numeric" value="${G[k] ? fmtHMS(G[k]).replace(/h|'/g, ':') : ''}" placeholder="${fmtHMS(pr[k]).replace(/h|'/g, ':')}"></div>`).join('')}</form>
+  openDlg(`<h2 style="margin:0 0 4px">🎯 Objectifs ${esc(r.name)}</h2><p class="small muted" style="margin:0 0 10px">En gris : la prédiction. Laisse une ligne vide pour ne pas fixer d'objectif.</p>
+    <form id="tgF" class="tgin">${TRI_LEGS.map(([k, l]) => { const v = G[k] || 0, ph = Math.round(pr[k]), hasH = k === 'bike' || k === 'run';
+      const fld = (u, val, pv, max) => `<label><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="${max}" name="${k}_${u}" value="${v ? val : ''}" placeholder="${pv}"><span>${u}</span></label>`;
+      return `<div class="tgrow"><span class="tgl">${l}</span>${hasH ? fld('h', Math.floor(v/3600), Math.floor(ph/3600), 12) : '<span></span>'}${fld('min', Math.floor(v % 3600/60), Math.floor(ph % 3600/60), 59)}${fld('s', v % 60, ph % 60, 59)}</div>`; }).join('')}</form>
     <h3 style="margin:14px 0 4px">Tracés GPX</h3><p class="tiny muted" style="margin:0 0 6px">La prédiction suit alors chaque portion du parcours ; distance et D+ de la course sont mis à jour.</p>
     <div class="grid2" style="gap:10px"><label class="btn sm" style="flex-direction:column">🚴 Vélo<input type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" data-gpx="bikeProf" hidden><span class="tiny muted" id="g_bikeProf">${gl(prof.bikeProf)}</span></label>
       <label class="btn sm" style="flex-direction:column">🏃 Course<input type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" data-gpx="runProf" hidden><span class="tiny muted" id="g_runProf">${gl(prof.runProf)}</span></label></div>
     <div class="row" style="margin-top:12px"><button class="btn primary" id="tgGo">Enregistrer</button></div>`);
   document.querySelectorAll('[data-gpx]').forEach(inp => inp.onchange = async () => { const f = inp.files[0]; if (!f) return; const p = gpxProfile(await f.text()), k = inp.dataset.gpx;
     $('#g_' + k).textContent = p ? gl(p) : 'fichier illisible'; if (p) prof[k] = p; });
-  $('#tgGo').onclick = () => { const E = $('#tgF').elements, goals = {}; for (const [k] of TRI_LEGS) { const v = parseHMS(E[k].value); if (v) goals[k] = v; }
+  $('#tgGo').onclick = () => { const E = $('#tgF').elements, goals = {}; for (const [k] of TRI_LEGS) { const n = u => +(E[`${k}_${u}`]?.value || 0), v = n('h')*3600 + n('min')*60 + n('s'); if (v) goals[k] = v; }
     S.tri.goals = goals;
     if (prof.bikeProf) { r.bikeProf = prof.bikeProf; r.bike = prof.bikeProf.km; r.bikeDp = prof.bikeProf.up; }
     if (prof.runProf) { r.runProf = prof.runProf; r.run = prof.runProf.km; r.runDp = prof.runProf.up; }
