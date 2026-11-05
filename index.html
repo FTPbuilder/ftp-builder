@@ -1642,7 +1642,8 @@ function lastSessionsHTML(sp, ss){
 function sportSessionDlg(ref){
   if (ref.startsWith('a:')) return activityDlg(ref.slice(2));
   const ss = sportSessions(), x = ss.find(y => y.ref === ref); if (!x) return;
-  const sp = x.sport, all = realSessions(sp, ss), S3 = SPORTS3[sp], p = sPace(x), e = sEff(x);
+  const sp = x.sport, S3 = SPORTS3[sp]; if (!S3) return;
+  const all = realSessions(sp, ss), p = sPace(x), e = sEff(x);
   const sim = similarBefore(x, all), mp = med(sim.map(sPace)), me = med(sim.map(sEff)), mh = med(sim.map(y => y.hr));
   const d = paceTrend(x, all);
   const kpis = [['Durée', fmtDur(x.min*60)], ['Distance', x.km ? (sp === 'swim' ? `${Math.round(x.km*1000)} m` : `${x.km.toFixed(1).replace('.', ',')} km`) : '—'], [`Allure${paceUnit(sp)}`, fmtSPace(sp, p)], ['FC moy.', x.hr ? `${x.hr} bpm` : '—']];
@@ -1740,7 +1741,7 @@ function dayItems(d){
     items.push({ key:'p:' + s.id, ts:0, prio:1, ic:'○', l: WORKOUTS[s.workoutId].name, open: () => sessionDlg(s.id) });
   for (const e of Health.extraWorkouts().filter(x => x.date === d)) {
     const sp = e.sport, ref = 'w:' + e.w.start_at, taf = sp === 'bike' && isVelotafW(e.w);
-    const inSS = sp !== 'walk' && !taf && (+e.w.duration_min || 0) > 1;
+    const inSS = ['bike', 'swim', 'run'].includes(sp) && !taf && (+e.w.duration_min || 0) > 1; // fiche « séance » : vélo, nat, course uniquement
     items.push({ key: ref, ts: Math.floor(Date.parse(e.w.start_at)/1000), prio: sp === 'bike' ? (taf ? 5 : Health.bikeIndoor(e.w) ? 0 : 2) : 3,
       ic: SPORTS3[sp]?.ic || { strength:'🏋️', walk:'🚶', mobility:'🧘' }[sp] || '⏱️', l: taf ? 'Vélotaf' : e.w.type || 'Séance',
       open: () => inSS ? sportSessionDlg(ref) : openDlg(`<span class="muted small">${fmtDate(d)} · ${esc(e.w.source || '')}</span><h2 style="margin:6px 0">${esc(e.w.type)}</h2><div class="grid4" style="margin:8px 0">${[['Durée', e.w.duration_min ? fmtDur(e.w.duration_min*60) : '—'], ['Distance', e.w.distance_km ? (+e.w.distance_km).toFixed(1).replace('.', ',') + ' km' : '—'], ['FC moy.', e.w.avg_hr ? Math.round(e.w.avg_hr) + ' bpm' : '—'], ['TSS', '~' + e.tss]].map(([l, v]) => `<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div><p class="tiny muted">Activité Apple Santé / Intervals.icu, comptée dans ta forme et ta fatigue.</p>`) });
