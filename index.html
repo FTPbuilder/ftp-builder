@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-:root{
+:root{--swim:#19c3c9;--run:#2fbf71;
   --bg:#0f1115; --bg2:#171a21; --card:#1c2029; --line:#2a2f3b; --text:#eef0f4; --muted:#9aa1b0;
   --accent:#ff8a4c; --accent2:#ffb02e; --ok:#3ecf8e; --warn:#ffb02e; --bad:#ff4d5e;
   --z1:#6b7280; --z2:#3b82f6; --z3:#22c55e; --z4:#facc15; --z5:#f97316; --z6:#ef4444;
@@ -159,6 +159,14 @@ nav.tabs button.on{color:var(--text)}
 .mcal .c .sm{font-size:15px;line-height:1;margin-top:1px}
 .mcal .dots{position:absolute;bottom:6px;left:0;right:0;display:flex;justify-content:center;gap:3px}
 .mcal .dots i{width:7px;height:7px;border-radius:50%;display:block}
+.mcal .dots i.sw{background:var(--swim)} .mcal .dots i.rn{background:var(--run)}
+.mcal .dots i.pl{background:transparent;border:1.5px solid var(--muted);box-sizing:border-box} .mcal .dots i.pl.sw{border-color:var(--swim)} .mcal .dots i.pl.rn{border-color:var(--run)}
+.mcal .dots i.race{background:transparent;width:auto;height:auto;font-style:normal;font-size:9px;line-height:7px} .mcal .dots i.race::before{content:"🏁"}
+.mleg i.ring{background:transparent;border:1.5px solid var(--muted);box-sizing:border-box}
+.tsteps{display:flex;flex-direction:column;gap:4px;margin-top:8px}.tstep{display:flex;gap:8px;align-items:center;padding:8px 10px;border-radius:10px;background:var(--bg2);border-left:4px solid var(--muted);font-size:14px}
+.tstep.z-z1,.tstep.z-e,.tstep.z-rec{border-left-color:var(--z1)}.tstep.z-z2,.tstep.z-drill{border-left-color:var(--z2)}.tstep.z-m,.tstep.z-race{border-left-color:var(--z3)}.tstep.z-css,.tstep.z-t,.tstep.z-hill{border-left-color:var(--z4)}.tstep.z-fast,.tstep.z-i{border-left-color:var(--z5)}.tstep.z-max,.tstep.z-r{border-left-color:var(--z6)}
+.sess.tri-swim .m b{color:var(--swim)} .sess.tri-run .m b{color:var(--run)} .sess.tri-race{border-color:var(--accent)}
+.seg.multi button{min-width:34px}
 .mcal .dots i.in{background:var(--accent)} .mcal .dots i.ext{background:var(--z2)} .mcal .dots i.oth{background:var(--muted);opacity:.7} .mcal .dots i.taf{background:var(--z4)}
 .mnav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .mnav b{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:20px;text-transform:uppercase;letter-spacing:.02em}
@@ -379,6 +387,8 @@ const WORKOUTS = {
   vo2_pyr: { name:'Pyramide VO2 1-2-3-4-3-2-1', type:'vo2', goal:"Pyramide à 115 % avec récup égale à l'effort : varié, dur, très efficace.", steps:[...WU_ACT, ...[1,2,3,4,3,2,1].flatMap(m => [S_(m,115,`VO2 ${m} min`,null,{cad:98}), S_(m,50,'Récup','rest')]), ...CD(6)] },
   vo2_4020: { name:'40/20 · 3 × 8 min', type:'vo2', goal:"40 s à 120 % / 20 s de récup : on accumule du temps près de VO2max avec très peu de récupération.", steps:[...WU, R_(3,[R_(8,[S_(40/60,120,'ON',null,{cad:100}), S_(20/60,50,'OFF','rest')]), S_(5,55,'Récup','rest')]), ...CD(6)] },
   end_neuro: { name:'Endurance + sprints 1 h', type:'end', goal:"Endurance Z2 avec 8 sprints de 15 s : réveille la puissance explosive sans fatigue.", steps:[S_(10,58,'Échauffement','warmup'), R_(8,[S_(0.25,180,'Sprint 15 s',null,{cad:110}), S_(4.75,66,'Endurance')]), S_(5,62,'Endurance'), S_(5,55,'Retour au calme','cooldown')] },
+  end_150: { name:'Sortie longue 2 h 30 avec D+', type:'end', goal:"Dehors : endurance Z2 en terrain vallonné (vallée de Chevreuse), montées au tempo sans dépasser le seuil. Mange toutes les 30 min comme en course.", steps:[S_(10,55,'Échauffement','warmup'), R_(4,[S_(25,67,'Endurance Z2'), S_(8,82,'Montée tempo',null,{cad:80})]), S_(8,55,'Retour au calme','cooldown')] },
+  end_180: { name:'Sortie longue 3 h · spécifique', type:'end', goal:"La répétition générale du vélo de l'AlpsMan : 3 h dehors avec les cols de la journée au tempo (82-88 %), nutrition de course, puis l'enchaînement à pied.", steps:[S_(15,55,'Échauffement','warmup'), R_(3,[S_(30,67,'Endurance Z2'), S_(20,85,'Col au tempo',null,{cad:78})]), S_(15,55,'Retour au calme','cooldown')] },
   rec_45: { name:'Récup active 45 min', type:'rec', goal:"Faire tourner les jambes, très facile (< 60 %).", steps:[S_(45,55,'Récup active','rest',{cad:90})] },
   openers: { name:'Rappels (veille de test)', type:'rec', goal:"Réveiller les jambes sans fatigue avant un test ou une semaine dure.", steps:[S_(10,55,'Échauffement','warmup'), R_(3,[S_(1,110,'Rappel',null,{cad:100}), S_(2,55,'Récup','rest')]), S_(10,65,'Endurance'), S_(5,50,'Retour au calme','cooldown')] },
 };
@@ -401,12 +411,14 @@ const BLOCKS = [
   { name:'Seuil + VO2max', k:[['thr_3x12','thr_prog','thr_2x15'],['vo2_5x4','vo2_8x2','vo2_pyr'],['force_4x8','ss_2x20','ou_3x9']] },
   { name:'VO2max · Spécifique', k:[['vo2_6x3','vo2_4020','vo2_3030'],['thr_2x15','ou_3x9','thr_2x20'],['ss_ou','force_4x8','tempo_end']] },
 ];
+// bloc spécifique triathlon montagne : force en cadence basse, seuil long, tempo (cols)
+const TRI_SPEC = { name:'Spécifique montagne', k:[['force_4x8','thr_2x15','force_5x5'],['ss_2x20','tempo_2x20','thr_prog'],['tempo_end','ss_ou','ss_3x15']] };
 const ALT = { // repli si la séance dépasse la durée dispo du jour
   ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'], thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','thr_2x15','thr_2x20'], vo2:['vo2_8x2','vo2_6x3','vo2_4x5','vo2_5x4','vo2_pyr','vo2_4020','vo2_3030'],
-  force:['force_5x5','force_4x8'], tempo:['tempo_2x20','tempo_end'], end:['end_60','end_neuro','end_90','end_120'], rec:['openers','rec_45'], test:['ramp','test20'] };
+  force:['force_5x5','force_4x8'], tempo:['tempo_2x20','tempo_end'], end:['end_60','end_neuro','end_90','end_120','end_150','end_180'], rec:['openers','rec_45'], test:['ramp','test20'] };
 // échelles de difficulté (de la plus facile à la plus dure) pour « plus facile / plus dur »
 const LADDER = {
-  rec:['rec_45','openers'], end:['rec_45','end_60','end_neuro','end_90','end_120'], tempo:['tempo_end','tempo_2x20'],
+  rec:['rec_45','openers'], end:['rec_45','end_60','end_neuro','end_90','end_120','end_150','end_180'], tempo:['tempo_end','tempo_2x20'],
   force:['force_5x5','force_4x8'], ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'],
   thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','thr_2x15','thr_2x20'], vo2:['vo2_4x5','vo2_8x2','vo2_5x4','vo2_pyr','vo2_6x3','vo2_4020','vo2_3030'] };
 const DOWN = { vo2:'thr', thr:'ss', ss:'tempo', force:'tempo', tempo:'end', end:'rec', rec:null };
@@ -464,6 +476,11 @@ function weekKinds(p){
     else { k.kind = 'load'; k.bi = b; k.pos = pos; k.block = BLOCKS[b].name; }
     load++;
   }
+  if (triOn()) { // tri : 8 dernières semaines de charge en spécifique montagne, sinon base → seuil → VO2 ; semaine de course
+    const loads = kinds.filter(k => k.kind === 'load');
+    loads.forEach((k, j) => { k.bi = j >= loads.length - 8 ? 3 : Math.min(Math.floor(j/4), 2); k.block = k.bi === 3 ? TRI_SPEC.name : BLOCKS[k.bi].name; });
+    for (const k of kinds) { if (k.kind === 'final') k.block = 'Semaine de course'; if (k.kind === 'recovery' && k.test && kinds.length - k.i <= 6) { k.test = false; k.block = 'Semaine allégée'; } }
+  }
   return kinds;
 }
 function christmasWeeks(p){ // semaines contenant 24/12 et 31/12
@@ -499,10 +516,13 @@ function generatePlan(p, keepFrom){
         avail.filter(d => d >= td + 2).slice(0, 1 + p.optionalPerWeek).forEach(d => add(k.ws, d, p.days[d].max >= 90 ? 'end_90' : 'end_60', 'optional', k));
         break; }
       case 'load': {
-        const blk = BLOCKS[k.bi];
-        K.forEach((d, j) => add(k.ws, d, blk.k[j % blk.k.length][k.pos], 'key', k));
-        O.forEach((d, j) => { const opts = p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','end_60']; add(k.ws, d, opts[(k.i + j) % 3], 'optional', k); }); break; }
+        const blk = triOn() && k.bi === 3 ? TRI_SPEC : BLOCKS[k.bi];
+        // tri : à partir du bloc VO2, la séance clé du week-end devient la sortie longue (cols au tempo)
+        K.forEach((d, j) => add(k.ws, d, triOn() && k.bi >= 2 && (d === 5 || d === 6) ? (k.bi === 3 && k.pos !== 0 ? 'end_180' : 'end_150') : blk.k[j % blk.k.length][k.pos], 'key', k));
+        O.forEach((d, j) => { const opts = triOn() && p.days[d].max >= 150 && k.bi >= 2 ? (k.bi === 3 ? ['end_180','end_150','end_180'] : ['end_150','end_120','end_150']) : p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','end_60']; add(k.ws, d, opts[(k.i + j) % 3], 'optional', k); }); break; }
       case 'recovery': case 'taper': case 'final': {
+        if (k.kind === 'final' && triOn()) { // semaine de course : un rappel en début de semaine, puis la course
+          const rd = dowMon(p.endDate); if (rd >= 2) add(k.ws, Math.min(K[0], rd - 2), 'openers', 'recovery', k); break; }
         const testNow = k.test || k.kind === 'final';
         if (testNow) {
           if (K.length >= 2) { add(k.ws, kd(0), 'openers', 'recovery', k); add(k.ws, kd(1), testW, 'test', k); }
@@ -525,6 +545,148 @@ function generatePlan(p, keepFrom){
   return plan.sort((a,b)=>a.date.localeCompare(b.date));
 }
 const mandatory = s => s.kind !== 'optional';
+
+/* ============ TRIATHLON : course A, séances nat / course, plan ============ */
+// Réglages par défaut : AlpsMan Half (début juin 2027, date à confirmer), 2 nat + 2 course, doubles séances autorisées
+const TRI_DEF = () => ({ enabled:false, race:{ name:'AlpsMan Half', date:'2027-06-05', swim:2000, bike:100, bikeDp:1920, run:16, runDp:1300 },
+  swimPerWeek:2, runPerWeek:2, doubles:true, swimDays:[1, 4], runDays:[3, 6], css:105, runThr:270, pool:25, longRide:180 });
+const tri = () => S.tri || null;
+const triOn = () => !!(S.tri && S.tri.enabled);
+// allures : nat en s/100 m (par rapport à la CSS), course en s/km (par rapport à l'allure seuil)
+const SW_Z = { z1:{ l:'souple', k:15, pct:87 }, z2:{ l:'aérobie', k:7, pct:94 }, css:{ l:'CSS', k:0, pct:100 }, race:{ l:'allure course', k:4, pct:97 }, fast:{ l:'rapide', k:-5, pct:104 }, max:{ l:'à fond', k:-10, pct:110 }, drill:{ l:'éducatifs', k:20, pct:82 } };
+const RN_Z = { e:{ l:'footing', f:1.28, pct:78 }, m:{ l:'allure 70.3', f:1.10, pct:91 }, t:{ l:'seuil', f:1.0, pct:100 }, i:{ l:'VO2max', f:0.93, pct:107 }, r:{ l:'lignes droites', f:0.88, pct:113 }, hill:{ l:'côte · effort seuil', f:null, pct:null }, rec:{ l:'récup trot', f:1.4, pct:71 } };
+const fmtPace = s => `${Math.floor(s/60)}'${String(Math.round(s % 60) % 60).padStart(2, '0')}`;
+const swPace = z => (tri()?.css || 105) + SW_Z[z].k;
+const rnPace = z => RN_Z[z].f ? (tri()?.runThr || 270)*RN_Z[z].f : null;
+// étape : { n: répétitions, d: mètres (nat) ou secondes (course), z: zone, l: libellé, r: récup (s) }
+const st = (n, d, z, l = '', r = 0) => ({ n, d, z, l, r });
+
+// séances de natation par phase · v = variante (semaine), f = facteur de volume
+const SWIM = {
+  tech: (ph, v, f) => ({ name:'Nat technique + aérobie', goal:"Gainage et glisse : la technique d'abord, puis du volume pull régulier, sans jamais forcer.",
+    steps:[st(1, 400, 'z1', 'Échauffement crawl / dos'), st(8, 50, 'drill', ['Rattrapé', 'Chien', 'Poings fermés', 'Pull-buoy jambes serrées'][v % 4], 15),
+      st(Math.max(3, Math.round(({ base:4, build:5, build2:5, spec:4, recov:3, taper:2 }[ph] || 4)*f)), 200, 'z2', 'Pull plaquettes, amplitude', 20), st(4, 50, 'fast', 'Rapide, nage propre', 20), st(1, 200, 'z1', 'Retour au calme')] }),
+  qual: (ph, v, f) => {
+    const W = { name:'', goal:'', steps:[st(1, 400, 'z1', 'Échauffement'), st(4, 50, 'z2', 'Progressif 1 → 4', 15)] };
+    if (ph === 'base') { const n = Math.round([8, 10, 12, 10][v % 4]*f); W.name = `Nat CSS ${n} × 100`; W.goal = "Apprendre l'allure seuil (CSS) : régulier du 1er au dernier, récup courte."; W.steps.push(st(n, 100, 'css', 'Allure CSS', 15)); }
+    else if (ph === 'build') { const n = Math.max(3, Math.round([5, 6, 5, 6][v % 4]*f)); W.name = `Nat CSS ${n} × 200`; W.goal = "Tenir la CSS sur 200 m : c'est l'allure de ton 2 km en course."; W.steps.push(st(n, 200, 'css', 'Allure CSS', 20), st(6, 50, 'fast', 'Rapide', 20)); }
+    else if (ph === 'build2') { const n = Math.max(2, Math.round(3*f)); W.name = `Nat ${n} × 400 + vitesse`; W.goal = "Longs blocs à la CSS puis de la vitesse : départ rapide en course sans exploser."; W.steps.push(st(n, 400, 'css', 'Allure CSS', 30), st(8, 50, 'fast', 'Rapide', 20), st(4, 25, 'max', 'Sprint départ de course', 30)); }
+    else if (ph === 'spec') { const n = Math.max(2, Math.round([3, 4, 3, 4][v % 4]*f)); W.name = `Nat allure course ${n} × 500`; W.goal = "Spécifique 2 km : allure course, visée toutes les 6 coups de bras comme en lac. À partir de mi-mai, en eau libre si possible."; W.steps.push(st(n, 500, 'race', 'Allure course, visée en tête', 30), st(4, 50, 'fast', 'Relances (dépassements)', 20)); }
+    else if (ph === 'taper') { W.name = 'Nat rappels allure course'; W.goal = "Garder la sensation de l'allure course sans fatigue."; W.steps.push(st(4, 100, 'race', 'Allure course', 20), st(4, 25, 'max', 'Sprint départ', 40)); }
+    else { W.name = 'Nat souple + vitesse'; W.goal = "Semaine allégée : de l'aisance et un peu de vitesse."; W.steps.push(st(1, Math.round(1000*f/100)*100, 'z2', 'Continu souple'), st(8, 25, 'fast', 'Vite', 20)); }
+    W.steps.push(st(1, 200, 'z1', 'Retour au calme')); return W; },
+};
+// séances de course à pied par phase
+const RUN = {
+  qual: (ph, v) => {
+    const wu = st(1, 900, 'e', 'Échauffement footing'), cd = st(1, 600, 'e', 'Retour au calme');
+    const opts = {
+      base:[{ name:'Fartlek 8 × 1 min', goal:"Réveiller la vitesse sans entamer la base : 1 min vite (allure 10 km) / 1 min trot.", s:[wu, st(8, 60, 'i', 'Vite', 60), cd] },
+            { name:'Côtes courtes 10 × 20 s', goal:"Force et foulée : 20 s en côte raide, fort mais relâché, retour en marchant. Le meilleur exercice anti-blessure.", s:[wu, st(10, 20, 'hill', 'Côte raide', 70), st(1, 900, 'e', 'Footing'), cd] },
+            { name:'Footing + 6 lignes droites', goal:"Aérobie facile avec 6 accélérations progressives de 20 s.", s:[st(1, 2400, 'e', 'Footing'), st(6, 20, 'r', 'Ligne droite', 60), cd] },
+            { name:'Tempo 3 × 8 min', goal:"Allure 70.3 : confortablement dur, tu peux dire une phrase.", s:[wu, st(3, 480, 'm', 'Allure 70.3', 120), cd] }],
+      build:[{ name:'Seuil 3 × 10 min', goal:"Travail au seuil : le levier n°1 pour ton 10 km en 40'30.", s:[wu, st(3, 600, 't', 'Seuil', 120), cd] },
+             { name:'Seuil 5 × 6 min', goal:"Seuil fractionné, récup courte : régularité avant tout.", s:[wu, st(5, 360, 't', 'Seuil', 90), cd] },
+             { name:'Seuil 2 × 15 min', goal:"Deux longs blocs au seuil : si tu les tiens, le 10 km descend.", s:[wu, st(2, 900, 't', 'Seuil', 180), cd] },
+             { name:'Côtes 8 × 1 min 30', goal:"Côte régulière (5-8 %) à effort seuil, retour en trottinant : force pour les 1 300 m D+.", s:[wu, st(8, 90, 'hill', 'Côte 5-8 %', 120), cd] }],
+      build2:[{ name:'VO2max 5 × 3 min', goal:"Relever le plafond : allure 3-5 km, récup égale.", s:[wu, st(5, 180, 'i', 'VO2max', 150), cd] },
+              { name:'Côtes 6 × 2 min', goal:"VO2 en côte : moins traumatisant que la piste et très spécifique montagne.", s:[wu, st(6, 120, 'hill', 'Côte 6-10 %', 150), cd] },
+              { name:'30/30 × 2 × 8', goal:"30 s vite / 30 s trot : du temps près de VO2max avec peu de fatigue.", s:[wu, st(16, 30, 'i', 'Vite', 30), cd] },
+              { name:'Seuil 4 × 8 min', goal:"Retour au seuil, un cran plus long.", s:[wu, st(4, 480, 't', 'Seuil', 120), cd] }],
+      spec:[{ name:'Côtes longues 5 × 4 min', goal:"Montée longue à effort seuil, descente travaillée : c'est le profil de ton 16 km à 1 300 m D+.", s:[wu, st(5, 240, 'hill', 'Montée effort seuil', 240), cd] },
+            { name:'Tempo 2 × 15 min allure 70.3', goal:"Apprendre l'allure course sur jambes fatiguées : régulier, relâché.", s:[wu, st(2, 900, 'm', 'Allure 70.3', 180), cd] },
+            { name:'Montée-descente 3 × 8 min', goal:"Spécifique trail : 8 min de montée continue à effort seuil, descente rapide et contrôlée.", s:[wu, st(3, 480, 'hill', 'Montée continue', 300), cd] },
+            { name:'Seuil 3 × 10 min', goal:"Entretien du seuil sur le plat.", s:[wu, st(3, 600, 't', 'Seuil', 120), cd] }],
+      taper:[{ name:'Rappels 4 × 3 min', goal:"Garder du tonus sans fatigue avant la course.", s:[wu, st(4, 180, 'm', 'Allure 70.3', 120), st(4, 20, 'r', 'Ligne droite', 60), cd] }],
+      recov:[{ name:'Footing + lignes droites', goal:"Semaine allégée : faire tourner, rester frais.", s:[st(1, 2100, 'e', 'Footing'), st(6, 20, 'r', 'Ligne droite', 60), cd] }],
+    };
+    const L = opts[ph] || opts.base, o = L[v % L.length]; return { name:o.name, goal:o.goal, steps:o.s }; },
+  long: (ph, min, dp) => ({ name:`Sortie longue ${fmtDur(min*60)}${dp ? ` · ${dp} m D+` : ''}`,
+    goal: dp ? `Endurance en terrain vallonné (Meudon, Saint-Cloud, Saint-Germain) : monte en marchant vite si ça dépasse le seuil, travaille les descentes. Objectif ${dp} m D+.` : "Endurance fondamentale : facile, tu dois pouvoir parler. C'est elle qui construit le moteur.",
+    steps:[st(1, min*60, 'e', dp ? `Footing vallonné · ${dp} m D+` : 'Footing facile')] }),
+  brick: (min) => ({ name:`Enchaînement vélo → course ${min} min`, goal:"Juste après la sortie vélo longue : chaussures prêtes, 5 premières minutes souples puis allure 70.3. Apprendre à courir sur jambes lourdes.",
+    steps:[st(1, 300, 'e', 'Mise en route'), st(1, (min - 5)*60, 'm', 'Allure 70.3')] }),
+};
+const RACE_W = r => ({ name:`🏁 ${r.name}`, goal:`${(r.swim/1000).toString().replace('.', ',')} km nat · ${r.bike} km vélo (${r.bikeDp} m D+) · ${r.run} km course (${r.runDp} m D+). Pars prudemment sur le vélo : la course se joue dans la dernière montée à pied.`, steps:[] });
+
+function triWorkout(x){
+  const T = tri(); if (!T) return null;
+  if (x.sport === 'race') return RACE_W(T.race);
+  if (x.sport === 'swim') return SWIM[x.wid](x.ph, x.v || 0, x.f || 1);
+  if (x.wid === 'long') return RUN.long(x.ph, x.min, x.dp || 0);
+  if (x.wid === 'brick') return RUN.brick(x.min);
+  return RUN.qual(x.ph, x.v || 0);
+}
+// durée (s) et distance (m) estimées
+function triEst(x, W = triWorkout(x)){
+  let sec = 0, m = 0;
+  for (const s of W.steps) {
+    if (x.sport === 'swim') { m += s.n*s.d; sec += s.n*(s.d/100*swPace(s.z) + s.r); }
+    else { sec += s.n*(s.d + s.r); const p = rnPace(s.z) || rnPace('t')*1.15; m += s.n*(s.d/p*1000 + (s.r ? s.r/(rnPace('rec'))*1000 : 0)); }
+  }
+  return { sec: Math.round(sec), m: Math.round(m/(x.sport === 'swim' ? 1 : 10))*(x.sport === 'swim' ? 1 : 10) };
+}
+// texte au format Intervals.icu (calendrier, montre via l'app Companion)
+function triIcuText(x, W = triWorkout(x)){
+  const rest = r => r ? `\n- ${r}s ${x.sport === 'swim' ? '' : '60% Pace '}récup` : '';
+  return W.steps.map(s => {
+    const z = x.sport === 'swim' ? SW_Z[s.z] : RN_Z[s.z];
+    const target = x.sport === 'swim' ? `${s.d}mtr ${z.pct}% Pace` : `${s.d >= 60 ? Math.round(s.d/60) + 'm' : s.d + 's'} ${z.pct ? z.pct + '% Pace' : 'Z4 HR'}`;
+    const line = `- ${s.l ? s.l + ' ' : ''}${target}`;
+    return s.n > 1 ? `\n${s.n}x\n${line}${rest(s.r)}\n` : line;
+  }).join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// phases des semaines, alignées sur celles du vélo (même calendrier de charge / récup)
+function triPhase(k){
+  if (k.kind === 'final') return 'race';
+  if (k.kind === 'taper') return 'taper';
+  if (k.kind === 'recovery' || k.kind === 'holiday') return 'recov';
+  if (k.kind === 'calib') return 'base';
+  return ['base', 'build', 'build2', 'spec'][k.bi ?? 0] || 'base';
+}
+function generateTri(p, T, keepFrom){
+  const kinds = weekKinds(p), out = [], race = T.race.date;
+  const ok = date => date >= p.startDate && date <= race && !(p.absences || []).some(a => date >= a.from && date <= a.to) && (!keepFrom || date >= keepFrom);
+  const add = (k, dow, o) => { const date = addDays(k.ws, dow); if (date > race || !ok(date)) return; out.push({ id: uid(), date, week: k.i, block: k.block, status:'planned', ...o }); };
+  const loadIdx = {}; let li = 0; for (const k of kinds) if (k.kind === 'load') loadIdx[k.i] = li++;
+  const nLoad = li;
+  for (const k of kinds) {
+    const ph = triPhase(k), v = k.i, prog = nLoad ? (loadIdx[k.i] ?? Math.round(k.i/kinds.length*nLoad))/Math.max(1, nLoad - 1) : 0; // 0 → 1 au fil de la prépa
+    const f = ph === 'recov' ? 0.7 : ph === 'taper' ? 0.6 : 1;
+    const sd = T.swimDays.slice(0, T.swimPerWeek), rd = T.runDays.slice(0, T.runPerWeek);
+    if (ph === 'race') {
+      const rdow = dowMon(race);
+      if (rdow >= 3) { add(k, sd[0] ?? 1, { sport:'swim', wid:'qual', ph:'taper', v, f:0.6, kind:'key' }); add(k, Math.min(rdow - 2, rd[0] ?? 2), { sport:'run', wid:'qual', ph:'taper', v, kind:'key' }); }
+      out.push({ id: uid(), date: race, week: k.i, block:'Course', status:'planned', sport:'race', kind:'race' });
+      continue;
+    }
+    sd.forEach((d, j) => add(k, d, { sport:'swim', wid: j === 0 ? 'qual' : 'tech', ph, v, f, kind: j < 2 ? 'key' : 'optional' }));
+    rd.forEach((d, j) => {
+      if (rd.length === 1 || j === rd.length - 1) {
+        // sortie longue : 55 → 110 min ; D+ à partir du bloc spécifique (et un peu en build2)
+        let min = Math.round((55 + prog*55)/5)*5; if (ph === 'recov') min = Math.round(min*0.65/5)*5; if (ph === 'taper') min = 50;
+        const dp = ph === 'spec' ? Math.round((350 + prog*650)/50)*50 : ph === 'build2' ? 250 : 0;
+        add(k, d, { sport:'run', wid:'long', ph, v, min, dp: ph === 'recov' ? 0 : dp, kind:'key' });
+      } else add(k, d, { sport:'run', wid:'qual', ph, v: v + j, kind:'key' });
+    });
+    // enchaînement après la sortie vélo longue du week-end (build2 et spécifique, une semaine sur deux puis toutes)
+    if (T.doubles && (ph === 'build2' || ph === 'spec') && (ph === 'spec' || v % 2 === 0)) {
+      const wk = [5, 6].find(d => p.days[d]?.avail && (p.days[d].max || 0) >= 90);
+      if (wk != null) add(k, wk, { sport:'run', wid:'brick', ph, v, min: ph === 'spec' ? 25 : 15, kind:'optional' });
+    }
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+// séance faite ? on cherche une activité du même sport ce jour-là (Apple Santé / Intervals)
+function triDone(x){
+  if (x.sport === 'race') return null;
+  const ws = Health.extraWorkouts().filter(e => e.date === x.date && e.sport === x.sport && (+e.w.duration_min || 0) >= (x.wid === 'brick' ? 8 : 15));
+  return ws[0] || null;
+}
+function triStatus(x){ if (x.status === 'skipped') return 'skipped'; if (triDone(x)) return 'done'; return x.date < todayISO() && x.sport !== 'race' ? 'missed' : 'planned'; }
+const TRI_IC = { swim:'🏊', run:'🏃', race:'🏁' };
+/* ===== /TRIATHLON ===== */
 
 /* ============ FIT : lecture ============ */
 const FIT_EPOCH = 631065600;
@@ -1710,18 +1872,20 @@ function monthHTML(){
     const extra = extraByDay[d] || [];
     const plan = S.plan.filter(s => s.date === d);
     const miss = d < t && plan.some(s => s.status === 'planned' && mandatory(s)) && !acts.length;
+    const tp = triItems(d), tpl = tp.filter(x => triStatus(x) === 'planned' || x.sport === 'race' && d >= t);
     const planned = d >= t && plan.some(s => s.status === 'planned');
     if (inMonth) { if (miss) missed++; for (const a of acts) { if (isVelotaf(a)) { taf++; continue; } done++; isIndoor(a) ? indoor++ : outdoor++; } for (const e of extra) { if (e.sport === 'bike') { if (isVelotafW(e.w)) { taf++; continue; } done++; Health.bikeIndoor(e.w) ? indoor++ : outdoor++; } else others++; } }
-    const dots = [...acts.map(a => isIndoor(a) ? 'in' : isVelotaf(a) ? 'taf' : 'ext'), ...extra.map(e => e.sport === 'bike' ? (Health.bikeIndoor(e.w) ? 'in' : isVelotafW(e.w) ? 'taf' : 'ext') : 'oth')].slice(0, 4).map(c => `<i class="${c}"></i>`).join('');
- const target = (plan[0]?.id || acts.length || extra.length) ? `data-calday="${d}"` : '';
-    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':isVelotaf(a)?'Vélotaf':'Extérieur'} · ${a.name}`), ...extra.map(e => `${e.w.type}${e.w.duration_min ? ' · ' + fmtDur(e.w.duration_min*60) : ''}`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
-    cells += `<div class="c ${inMonth?'':'out'} ${d===t?'today':''} ${miss?'miss':''} ${planned && !miss ? 'planned' : ''} ${dots ? 'hasdots' : ''}" ${target} title="${esc(title)}" aria-label="${fmtDate(d)}${miss?', séance manquée':''}">
+    const rings = [...(planned ? plan.filter(s => s.status === 'planned').map(() => 'pl') : []), ...tpl.map(x => x.sport === 'race' ? 'race' : 'pl ' + (x.sport === 'swim' ? 'sw' : 'rn'))];
+    const dots = [...acts.map(a => isIndoor(a) ? 'in' : isVelotaf(a) ? 'taf' : 'ext'), ...extra.map(e => e.sport === 'bike' ? (Health.bikeIndoor(e.w) ? 'in' : isVelotafW(e.w) ? 'taf' : 'ext') : e.sport === 'swim' ? 'sw' : e.sport === 'run' ? 'rn' : 'oth'), ...rings].slice(0, 5).map(c => `<i class="${c}"></i>`).join('');
+ const target = (plan[0]?.id || acts.length || extra.length || tp.length) ? `data-calday="${d}"` : '';
+    const title = [...acts.map(a => `${isIndoor(a)?'Home trainer':isVelotaf(a)?'Vélotaf':'Extérieur'} · ${a.name}`), ...extra.map(e => `${e.w.type}${e.w.duration_min ? ' · ' + fmtDur(e.w.duration_min*60) : ''}`), ...tp.map(x => `${triWorkout(x).name} (prévue)`), ...plan.map(s => `${WORKOUTS[s.workoutId].name}${s.status==='done'?' ✓':s.status==='skipped'?' (sautée)':''}`)].join('\n');
+    cells += `<div class="c ${inMonth?'':'out'} ${d===t?'today':''} ${miss?'miss':''} ${dots ? 'hasdots' : ''}" ${target} title="${esc(title)}" aria-label="${fmtDate(d)}${miss?', séance manquée':''}">
       <span>${+d.slice(8)}</span>${miss ? '<span class="sm" aria-hidden="true">😞</span>' : ''}${dots ? `<div class="dots">${dots}</div>` : ''}</div>`;
   }
   return `<div class="card">
     <div class="mnav"><button data-mnav="-1" aria-label="Mois précédent">‹</button><b>${MONTHS_L[m-1]} ${y}</b><button data-mnav="1" aria-label="Mois suivant">›</button></div>
     <div class="mcal">${cells}</div>
-    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="background:var(--z4)"></i>Vélotaf</span><span><i style="background:var(--muted);opacity:.7"></i>Autre sport</span><span><i style="border:1.5px solid var(--muted);box-sizing:border-box"></i>Prévue</span><span>😞 Manquée</span></div>
+    <div class="mleg"><span><i style="background:var(--accent)"></i>Home trainer</span><span><i style="background:var(--z2)"></i>Extérieur</span><span><i style="background:var(--z4)"></i>Vélotaf</span>${triOn() || Health.extraWorkouts().some(e => e.sport === 'swim') ? '<span><i style="background:var(--swim)"></i>Nat</span><span><i style="background:var(--run)"></i>Course</span>' : ''}<span><i style="background:var(--muted);opacity:.7"></i>Autre sport</span><span><i class="ring"></i>Prévue${triOn() ? ' (couleur du sport)' : ''}</span><span>😞 Manquée</span></div>
     <div class="tiny muted" style="margin-top:8px">Ce mois-ci : <b style="color:var(--text)">${done}</b> sortie${done>1?'s':''} vélo (${indoor} home trainer, ${outdoor} extérieur)${taf ? ` · ${taf} vélotaf` : ''}${others ? ` · ${others} autre${others>1?'s':''} sport${others>1?'s':''}` : ''}${missed ? ` · <b style="color:var(--bad)">${missed} manquée${missed>1?'s':''}</b>` : ''}</div>
   </div>`;
 }
@@ -1739,6 +1903,9 @@ function dayItems(d){
   }
   for (const s of S.plan.filter(s => s.date === d && s.status === 'planned'))
     items.push({ key:'p:' + s.id, ts:0, prio:1, ic:'○', l: WORKOUTS[s.workoutId].name, open: () => sessionDlg(s.id) });
+  for (const x of triItems(d).filter(x => triStatus(x) !== 'done')) {
+    const W = triWorkout(x); items.push({ key:'tri:' + x.id, ts:0, prio: x.sport === 'race' ? -1 : 1, ic: TRI_IC[x.sport], l: x.sport === 'race' ? 'Course' : W.name.replace(/^Nat |^Sortie /, ''), open: () => triDlg(x.id) });
+  }
   for (const e of Health.extraWorkouts().filter(x => x.date === d)) {
     const sp = e.sport, ref = 'w:' + e.w.start_at, taf = sp === 'bike' && isVelotafW(e.w);
     const inSS = ['bike', 'swim', 'run'].includes(sp) && !taf && (+e.w.duration_min || 0) > 1; // fiche « séance » : vélo, nat, course uniquement
@@ -1764,17 +1931,21 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-dayi
 function calHTML(){
   const t = todayISO();
   const weeks = {}; for (const s of S.plan) (weeks[monday(s.date)] ||= []).push(s);
+  const tweeks = {}; if (triOn()) for (const x of S.triPlan || []) { (tweeks[monday(x.date)] ||= []).push(x); weeks[monday(x.date)] ||= []; }
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
-  let h = monthHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
+  let h = monthHTML() + triBannerHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
   for (const k of keys) {
-    const list = weeks[k]; const done = list.filter(s=>s.status==='done').length;
-    const tss = list.reduce((a,s)=>a+wTSS(s.workoutId),0);
-    h += `<div class="week" id="w-${k}"><div class="wh"><h3>Sem. ${list[0].week+1} · ${esc(list[0].block)}</h3><span class="tiny muted num">${fmtShort(k)} · ${done}/${list.length} · TSS ${tss}</span></div>`;
-    for (const s of list) {
+    const list = weeks[k], tl = tweeks[k] || []; const done = list.filter(s=>s.status==='done').length + tl.filter(x => triStatus(x) === 'done').length;
+    const tss = list.reduce((a,s)=>a+wTSS(s.workoutId),0), hd = list[0] || tl[0];
+    const triVol = tl.length ? (() => { const sw = tl.filter(x => x.sport === 'swim').reduce((a, x) => a + triEst(x).m, 0), rn = tl.filter(x => x.sport === 'run').reduce((a, x) => a + triEst(x).sec, 0); return `${sw ? ` · 🏊 ${(sw/1000).toFixed(1).replace('.', ',')} km` : ''}${rn ? ` · 🏃 ${fmtDur(rn)}` : ''}`; })() : '';
+    h += `<div class="week" id="w-${k}"><div class="wh"><h3>Sem. ${hd.week+1} · ${esc(hd.block)}</h3><span class="tiny muted num">${fmtShort(k)} · ${done}/${list.length + tl.length}${tss ? ` · TSS ${tss}` : ''}${triVol}</span></div>`;
+    const rows = [...list.map(s => ({ d: s.date, o: 0, s })), ...tl.map(x => ({ d: x.date, o: x.sport === 'swim' ? -1 : 1, x }))].sort((a, b) => a.d.localeCompare(b.d) || a.o - b.o);
+    for (const { s, x } of rows) {
+      if (x) { h += triRowHTML(x); continue; }
       const W = WORKOUTS[s.workoutId], d = parseD(s.date);
       h += `<div class="sess ${s.status} ${s.date===t?'today':''} ${s.kind==='optional'?'opt':''}" data-open="${s.id}">
         <div class="d"><span>${DOW[dowMon(s.date)]}</span><b class="num">${d.getDate()}</b></div>
@@ -1785,6 +1956,113 @@ function calHTML(){
   }
   setTimeout(() => { const b = $('#jumpToday'); if (b) b.onclick = () => { const el = document.getElementById('w-'+monday(t)) || document.querySelector('.week'); el?.scrollIntoView({ behavior:'smooth', block:'start' }); }; }, 0);
   return h;
+}
+
+/* ----- Triathlon : réglages, fiche séance, intégration calendrier / programme ----- */
+const parsePace = (v, def) => { const m = String(v || '').trim().match(/^(\d{1,2})\s*[:'’.,h]\s*(\d{1,2})/); return m ? +m[1]*60 + +m[2] : (+v > 30 ? +v : def); };
+// estimations depuis tes séances : CSS ≈ allure moyenne des nats ≥ 1,5 km − 5 s ; seuil course ≈ allure des courses de 35-70 min les plus rapides
+function triGuess(){
+  const ws = Health.extraWorkouts(), med = a => { const b = a.slice().sort((x, y) => x - y); return b.length ? b[Math.floor(b.length/2)] : null; };
+  const sw = ws.filter(e => e.sport === 'swim' && +e.w.distance_km >= 1.5 && +e.w.duration_min > 20).map(e => e.w.duration_min*60/(e.w.distance_km*10));
+  const rn = ws.filter(e => e.sport === 'run' && +e.w.distance_km >= 6 && +e.w.duration_min >= 30 && +e.w.duration_min <= 75).map(e => e.w.duration_min*60/e.w.distance_km).sort((a, b) => a - b).slice(0, 3); // tes courses d'entraînement sont plus lentes que le seuil : ~5 %
+  return { css: sw.length >= 2 ? Math.round(med(sw) - 5) : null, runThr: rn.length ? Math.round(rn[0]*0.95) : null };
+}
+function triSetupDlg(){
+  const T = Object.assign(TRI_DEF(), S.tri || {}), g = triGuess();
+  if (!S.tri) { if (g.css) T.css = g.css; if (g.runThr) T.runThr = g.runThr; }
+  const DN = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  const dayPick = (name, sel) => `<div class="seg multi" data-days="${name}">${DN.map((l, i) => `<button type="button" class="${sel.includes(i) ? 'on' : ''}" data-v="${i}" aria-pressed="${sel.includes(i)}" aria-label="${DOW[i]}">${l}</button>`).join('')}</div>`;
+  const cnt = (name, v) => `<div class="seg" data-cnt="${name}">${[1, 2, 3].map(n => `<button type="button" class="${v === n ? 'on' : ''}" data-v="${n}">${n}</button>`).join('')}</div>`;
+  openDlg(`<h2 style="margin:0 0 4px">🏁 Plan triathlon</h2>
+    <p class="small muted" style="margin:0 0 10px">Tout le plan (vélo, nat, course) est construit en arrière depuis ta course : base → seuil → VO2 → spécifique montagne → affûtage. Les séances vélo à venir sont régénérées ; celles déjà faites restent.</p>
+    <form id="triF" class="grid2" style="gap:10px">
+      <div style="grid-column:1/-1"><label class="f">Course A</label><input type="text" name="name" value="${esc(T.race.name)}"></div>
+      <div><label class="f">Date</label><input type="date" name="date" value="${T.race.date}" min="${addDays(todayISO(), 21)}"></div>
+      <div><label class="f">Nat (m)</label><input type="number" name="swim" value="${T.race.swim}" step="100"></div>
+      <div><label class="f">Vélo (km)</label><input type="number" name="bike" value="${T.race.bike}"></div>
+      <div><label class="f">Vélo D+ (m)</label><input type="number" name="bikeDp" value="${T.race.bikeDp}" step="10"></div>
+      <div><label class="f">Course (km)</label><input type="number" name="run" value="${T.race.run}" step="0.1"></div>
+      <div><label class="f">Course D+ (m)</label><input type="number" name="runDp" value="${T.race.runDp}" step="10"></div>
+      <div><label class="f">CSS nat (/100 m)</label><input type="text" name="css" value="${fmtPace(T.css)}" inputmode="numeric"><span class="tiny muted">${g.css && !S.tri ? 'estimée sur tes nats' : 'allure seuil en piscine'}</span></div>
+      <div><label class="f">Seuil course (/km)</label><input type="text" name="runThr" value="${fmtPace(T.runThr)}" inputmode="numeric"><span class="tiny muted">${g.runThr && !S.tri ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
+      <div><label class="f">Nat / semaine</label>${cnt('swimPerWeek', T.swimPerWeek)}</div>
+      <div><label class="f">Course / semaine</label>${cnt('runPerWeek', T.runPerWeek)}</div>
+      <div style="grid-column:1/-1"><label class="f">Jours de nat</label>${dayPick('swimDays', T.swimDays)}</div>
+      <div style="grid-column:1/-1"><label class="f">Jours de course <span class="tiny muted">(le dernier = sortie longue)</span></label>${dayPick('runDays', T.runDays)}</div>
+      <div style="grid-column:1/-1"><label class="f">Sortie vélo longue du week-end <span class="tiny muted">(à partir du bloc VO2)</span></label><select name="longRide">${[120, 150, 180, 210].map(m => `<option value="${m}" ${T.longRide === m ? 'selected' : ''}>jusqu'à ${fmtDur(m*60)}</option>`).join('')}</select></div>
+      <label class="small" style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><input type="checkbox" name="doubles" ${T.doubles ? 'checked' : ''} style="width:auto"> Doubles séances (nat le matin + vélo le soir, enchaînements vélo → course)</label>
+    </form>
+    <p class="tiny muted" id="triMsg" style="margin:8px 0 0"></p>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="triGo">${triOn() ? 'Mettre à jour le plan' : 'Créer le plan triathlon'}</button>${triOn() ? '<button class="btn ghost" id="triOff">Revenir au plan vélo seul</button>' : ''}</div>`);
+  const f = $('#triF');
+  f.querySelectorAll('[data-days] button').forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); });
+  f.querySelectorAll('[data-cnt] button').forEach(b => b.onclick = () => { b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
+  const days = n => [...f.querySelectorAll(`[data-days="${n}"] button.on`)].map(b => +b.dataset.v);
+  const cntV = n => +(f.querySelector(`[data-cnt="${n}"] button.on`)?.dataset.v || 2);
+  $('#triGo').onclick = () => {
+    const E = f.elements, race = { name: E.name.value.trim() || 'Course A', date: E.date.value, swim: +E.swim.value || 2000, bike: +E.bike.value || 90, bikeDp: +E.bikeDp.value || 0, run: +E.run.value || 21, runDp: +E.runDp.value || 0 };
+    const nT = { ...T, enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: cntV('swimPerWeek'), runPerWeek: cntV('runPerWeek'), swimDays: days('swimDays'), runDays: days('runDays'), doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
+    const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : nT.swimDays.length < nT.swimPerWeek ? `Coche au moins ${nT.swimPerWeek} jours de nat.` : nT.runDays.length < nT.runPerWeek ? `Coche au moins ${nT.runPerWeek} jours de course.` : '';
+    if (msg) { $('#triMsg').textContent = msg; $('#triMsg').style.color = 'var(--bad)'; return; }
+    applyTri(nT); closeDlg(); TAB = 'cal'; render(); toast(`Plan triathlon créé : ${S.triPlan.filter(x => x.date >= todayISO()).length} séances nat / course jusqu'au ${fmtDate(race.date)}`);
+  };
+  if ($('#triOff')) $('#triOff').onclick = () => { S.tri.enabled = false; S.triPlan = (S.triPlan || []).filter(x => x.date < todayISO()); save(); closeDlg(); render(); toast('Plan triathlon désactivé : les séances nat / course à venir sont retirées'); };
+}
+function applyTri(T){
+  const p = S.profile, t = todayISO();
+  S.tri = T;
+  // le vélo suit la course : fin du plan = jour de course, semaine de course = dernière semaine
+  p.endDate = T.race.date; p.goalDate = T.race.date;
+  const wk = [5, 6].find(d => p.days[d]?.avail); if (wk != null) p.days[wk].max = Math.max(p.days[wk].max || 0, T.longRide || 180);
+  regenerateFuture();
+  const keep = (S.triPlan || []).filter(x => x.date < t);
+  S.triPlan = [...keep, ...generateTri(p, T, t)];
+  save();
+}
+const triItems = d => triOn() ? (S.triPlan || []).filter(x => x.date === d) : [];
+function triRowHTML(x){
+  const W = triWorkout(x), E = triEst(x, W), stt = triStatus(x), t = todayISO();
+  const meta = x.sport === 'race' ? esc(T_raceLine()) : `${fmtDur(E.sec)} · ${x.sport === 'swim' ? E.m + ' m' : (E.m/1000).toFixed(1).replace('.', ',') + ' km'}${x.kind === 'optional' ? ' · optionnelle' : ''}`;
+  return `<div class="sess ${stt === 'missed' ? 'planned' : stt} ${x.date === t ? 'today' : ''} ${x.kind === 'optional' ? 'opt' : ''} tri-${x.sport}" data-tri="${x.id}">
+    <div class="d"><span>${DOW[dowMon(x.date)]}</span><b class="num">${parseD(x.date).getDate()}</b></div>
+    <div class="m"><b>${TRI_IC[x.sport]} ${esc(W.name)}</b><span class="tiny muted">${meta}</span></div>
+    <div class="st">${stt === 'done' ? '✅' : stt === 'skipped' ? '⏭️' : stt === 'missed' ? '😞' : x.sport === 'race' ? '🏁' : ''}</div></div>`;
+}
+const T_raceLine = () => { const r = tri().race; return `${r.swim} m · ${r.bike} km (${r.bikeDp} m D+) · ${r.run} km (${r.runDp} m D+)`; };
+function triStepsHTML(x, W){
+  if (x.sport === 'race') return '';
+  return `<div class="tsteps">${W.steps.map(s => {
+    const z = x.sport === 'swim' ? SW_Z[s.z] : RN_Z[s.z];
+    const pace = x.sport === 'swim' ? `${fmtPace(swPace(s.z))} /100 m` : rnPace(s.z) ? `${fmtPace(rnPace(s.z))} /km` : 'effort seuil (FC)';
+    const qty = x.sport === 'swim' ? `${s.n > 1 ? s.n + ' × ' : ''}${s.d} m` : `${s.n > 1 ? s.n + ' × ' : ''}${s.d >= 60 ? fmtDur(s.d) : s.d + ' s'}`;
+    return `<div class="tstep z-${s.z}"><div style="flex:1;min-width:0"><b class="num">${qty}</b> ${esc(s.l)}${s.r ? ` <span class="tiny muted">· récup ${s.r >= 60 ? fmtDur(s.r) : s.r + "''"}</span>` : ''}</div><span class="tiny num" style="white-space:nowrap">${esc(z.l)} · ${pace}</span></div>`; }).join('')}</div>`;
+}
+function triDlg(id){
+  const x = (S.triPlan || []).find(y => y.id === id); if (!x) return;
+  const W = triWorkout(x), E = triEst(x, W), stt = triStatus(x), done = triDone(x);
+  const daysLeft = diffDays(todayISO(), tri().race.date);
+  openDlg(`<span class="muted small">${fmtDate(x.date)} · Sem. ${x.week + 1} · ${esc(x.block)}${x.kind === 'optional' ? ' · optionnelle' : ''}</span>
+    <h2 style="margin:6px 0">${TRI_IC[x.sport]} ${esc(W.name)}</h2><p class="muted small">${esc(W.goal)}</p>
+    ${x.sport === 'race' ? `<div class="note ok">${daysLeft > 0 ? `J-${daysLeft}` : daysLeft === 0 ? "C'est aujourd'hui !" : 'Course passée'} · ${esc(T_raceLine())}</div>`
+      : `<div class="grid3" style="margin:8px 0"><div class="kpi"><div class="v num" style="font-size:22px">${fmtDur(E.sec)}</div><div class="l">Durée estimée</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? E.m + ' m' : '~' + (E.m/1000).toFixed(1).replace('.', ',') + ' km'}</div><div class="l">Distance</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? fmtPace(tri().css) : fmtPace(tri().runThr)}</div><div class="l">${x.sport === 'swim' ? 'CSS /100 m' : 'Seuil /km'}</div></div></div>`}
+    ${triStepsHTML(x, W)}
+    ${stt === 'done' ? `<div class="note ok" style="margin-top:10px">✅ Faite : ${esc(done.w.type)} · ${fmtDur(done.w.duration_min*60)}${done.w.distance_km ? ` · ${x.sport === 'swim' ? Math.round(done.w.distance_km*1000) + ' m' : (+done.w.distance_km).toFixed(1).replace('.', ',') + ' km'}` : ''}</div>` : stt === 'missed' ? `<div class="note warn" style="margin-top:10px">Pas de séance de ${x.sport === 'swim' ? 'nat' : 'course'} trouvée ce jour-là.</div>` : ''}
+    ${x.sport !== 'race' ? `<div class="row" style="margin-top:12px;flex-wrap:wrap">
+      ${done ? `<button class="btn" data-ssess="w:${esc(done.w.start_at)}">Voir la séance faite</button>` : ''}
+      <label class="small" style="display:flex;gap:6px;align-items:center">Déplacer au <input type="date" id="triMove" value="${x.date}" style="width:auto"></label>
+      <button class="btn ghost sm" id="triSkip">${x.status === 'skipped' ? 'Rétablir' : 'Sauter'}</button></div>` : ''}
+    <p class="tiny muted" style="margin-top:10px">Allures calculées sur ta CSS (${fmtPace(tri().css)} /100 m) et ton seuil course (${fmtPace(tri().runThr)} /km) · <a href="#" id="triEdit">modifier</a></p>`);
+  $('#triEdit').onclick = e => { e.preventDefault(); triSetupDlg(); };
+  if ($('#triSkip')) $('#triSkip').onclick = () => { x.status = x.status === 'skipped' ? 'planned' : 'skipped'; save(); render(); triDlg(id); };
+  if ($('#triMove')) $('#triMove').onchange = e => { const d = e.target.value; if (!d) return; x.date = d; S.triPlan.sort((a, b) => a.date.localeCompare(b.date)); save(); render(); toast(`Séance déplacée au ${fmtDate(d)}`); triDlg(id); };
+}
+document.addEventListener('click', e => { const r = e.target.closest('[data-tri]'); if (r) triDlg(r.dataset.tri); const s = e.target.closest('[data-trisetup]'); if (s) triSetupDlg(); });
+function triBannerHTML(){
+  if (triOn()) { const T = tri(), d = diffDays(todayISO(), T.race.date), next = (S.triPlan || []).filter(x => x.date >= todayISO() && triStatus(x) === 'planned');
+    return `<div class="card tri-banner"><div class="row between"><h2 style="margin:0">🏁 ${esc(T.race.name)}</h2><span class="num" style="font-size:22px;font-weight:700">J-${d}</span></div>
+      <p class="tiny muted" style="margin:4px 0 0">${fmtDate(T.race.date)} · ${esc(T_raceLine())} · ${next.length} séances nat / course à venir</p>
+      <div class="row" style="margin-top:8px"><button class="btn sm" data-trisetup="1">Réglages du plan tri</button></div></div>`; }
+  return `<div class="card tri-banner"><h2 style="margin:0 0 4px">🏁 Passer en plan triathlon</h2><p class="small muted" style="margin:0 0 8px">Un seul plan vélo + nat + course construit autour de ta course A (AlpsMan Half, début juin).</p><button class="btn primary sm" data-trisetup="1">Configurer</button></div>`;
 }
 
 /* ----- Carrousel d'arches (programme) ----- */
@@ -3553,14 +3831,20 @@ const Cloud = (() => {
     if (!icu.connected || !S.profile) return 0;
     const t = todayISO(), until = addDays(t, 28);
     const items = S.plan.filter(s => s.status === 'planned' && s.date >= t && s.date <= until);
-    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId, s.adj || 1])]);
+    const titems = triOn() ? (S.triPlan || []).filter(x => x.sport !== 'race' && x.status !== 'skipped' && x.date >= t && x.date <= until && !triDone(x)) : [];
+    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId, s.adj || 1]), titems.map(x => [x.id, x.date, x.wid, x.ph]), tri()?.css, tri()?.runThr]);
     if (!force && sig === S.icuPushSig) return 0;
     const events = items.map(s => { const W = WORKOUTS[s.workoutId]; return { date: s.date, name: `${W.name}${s.kind==='optional'?' (optionnelle)':''}`, external_id: 'ftpb-' + s.id, moving_time: wDur(s.workoutId),
       description: `${W.goal}\n\nFTP ${ftp()} W · créé par FTP Builder\n\n${icuText(s.workoutId)}`, fit_base64: b64(encodeWorkout(s.workoutId, ftp() * sAdj(s))) }; });
+    // nat / course : séance texte au format Intervals (allures en % du seuil)
+    for (const x of titems) { const W = triWorkout(x), E = triEst(x, W);
+      events.push({ date: x.date, type: x.sport === 'swim' ? 'Swim' : 'Run', name: `${W.name}${x.kind === 'optional' ? ' (optionnelle)' : ''}`, external_id: 'ftpb-t-' + x.id, moving_time: E.sec,
+        description: `${W.goal}\n\n${x.sport === 'swim' ? `CSS ${fmtPace(tri().css)} /100 m` : `Seuil ${fmtPace(tri().runThr)} /km`} · créé par FTP Builder\n\n${triIcuText(x, W)}` }); }
     const prev = S.icuPushed || {};
-    const remove = Object.keys(prev).filter(id => !items.some(s => s.id === id) && prev[id] >= t).map(id => 'ftpb-' + id);
+    const ids = new Set([...items.map(s => s.id), ...titems.map(x => 't-' + x.id)]);
+    const remove = Object.keys(prev).filter(id => !ids.has(id) && prev[id] >= t).map(id => 'ftpb-' + id);
     const r = await icuCall({ action:'push', events, remove });
-    S.icuPushed = Object.fromEntries(items.map(s => [s.id, s.date]));
+    S.icuPushed = Object.fromEntries([...items.map(s => [s.id, s.date]), ...titems.map(x => ['t-' + x.id, x.date])]);
     S.icuPushSig = sig; save();
     return r.created || events.length;
   }

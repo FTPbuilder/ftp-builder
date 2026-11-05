@@ -175,7 +175,7 @@ Deno.serve(async (req) => {
     if (body.action === "sync") return json(await syncUser(user, key, Math.min(Math.max(Number(body.days) || 30, 1), 180)));
 
     if (body.action === "push") {
-      const events = (body.events ?? []).map((e: Record<string, unknown>) => ({ category: "WORKOUT", type: "Ride", start_date_local: `${e.date}T00:00:00`, name: e.name, description: e.description, external_id: e.external_id, moving_time: e.moving_time,
+      const events = (body.events ?? []).map((e: Record<string, unknown>) => ({ category: "WORKOUT", type: /^(Ride|Run|Swim|VirtualRide)$/.test(String(e.type ?? "")) ? e.type : "Ride", start_date_local: `${e.date}T00:00:00`, name: e.name, description: e.description, external_id: e.external_id, moving_time: e.moving_time,
         ...(e.fit_base64 ? { filename: `${e.external_id}.fit`, file_contents_base64: e.fit_base64 } : {}) }));
       let created = 0, removed = 0;
       if (events.length) { const r = await icu(key, "/athlete/0/events/bulk?upsert=true", { method: "POST", body: JSON.stringify(events) }); created = Array.isArray(r) ? r.length : events.length; }
