@@ -369,7 +369,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.20.0';
+const APP_VERSION = '0.21.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2180,6 +2180,7 @@ function triSetupDlg(){
   const cntV = n => +(f.querySelector(`[data-cnt="${n}"] button.on`)?.dataset.v || 2);
   $('#triGo').onclick = () => {
     const E = f.elements, race = { name: E.name.value.trim() || 'Course A', date: E.date.value, swim: +E.swim.value || 2000, bike: +E.bike.value || 90, bikeDp: +E.bikeDp.value || 0, run: +E.run.value || 21, runDp: +E.runDp.value || 0 };
+    if (T.race.bikeProf && race.bike === T.race.bike) race.bikeProf = T.race.bikeProf; if (T.race.runProf && race.run === T.race.run) race.runProf = T.race.runProf; // tracés GPX gardés si la distance ne change pas
     const nT = { ...T, enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: Math.min(3, wm.swim.length), runPerWeek: Math.min(3, wm.run.length), swimDays: wm.swim, runDays: wm.run, doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
     const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : !wm.bike.length ? 'Coche au moins un jour de vélo.' : !wm.swim.length ? 'Coche au moins un jour de nat.' : !wm.run.length ? 'Coche au moins un jour de course.' : '';
     if (msg) { $('#triMsg').textContent = msg; $('#triMsg').style.color = 'var(--bad)'; return; }
@@ -2217,18 +2218,39 @@ function bikeSpeed(P, grade, m, cda = 0.32, crr = 0.005, rho = 1.15, eta = 0.975
   for (let k = 0; k < 60; k++) { const v = (lo + hi)/2; ((F + 0.5*rho*cda*v*v)*v > P*eta) ? hi = v : lo = v; }
   return (lo + hi)/2;
 }
+// parcours GPX → altitude tous les 100 m (lissée sur 300 m) : de quoi simuler chaque portion
+function gpxProfile(txt){
+  const pts = [...txt.matchAll(/<trkpt[^>]*lat="([\d.\-]+)"[^>]*lon="([\d.\-]+)"[^>]*>[\s\S]*?<ele>([\d.\-]+)<\/ele>/g)].map(m => [+m[1], +m[2], +m[3]]);
+  if (pts.length < 10) return null;
+  const D = [0], E = [pts[0][2]];
+  for (let i = 1; i < pts.length; i++) { const [a1, o1] = pts[i-1], [a2, o2, e] = pts[i], R = Math.PI/180;
+    D.push(D[i-1] + 6371000*Math.hypot((o2 - o1)*R*Math.cos((a1 + a2)/2*R), (a2 - a1)*R)); E.push(e); }
+  const raw = []; for (let x = 0, j = 0; x <= D[D.length - 1]; x += 100) { while (j < D.length - 2 && D[j+1] < x) j++; const t = (x - D[j])/Math.max(D[j+1] - D[j], 1e-9); raw.push(E[j] + t*(E[j+1] - E[j])); }
+  const el = raw.map((_, i) => { const w = raw.slice(Math.max(0, i - 1), i + 2); return Math.round(w.reduce((a, b) => a + b, 0)/w.length*10)/10; });
+  let up = 0, dn = 0; for (let i = 1; i < el.length; i++) { const d = el[i] - el[i-1]; d > 0 ? up += d : dn -= d; }
+  return { step:100, el, km: Math.round(el.length*0.1*10)/10, up: Math.round(up), dn: Math.round(dn) };
+}
+// coût énergétique de la course selon la pente (Minetti 2002), relatif au plat ; au-delà de 15 % on marche vite : plafonné
+const minetti = g => { g = Math.max(-0.3, Math.min(0.4, g)); const c = 155.4*g**5 - 30.4*g**4 - 43.3*g**3 + 46.3*g**2 + 19.5*g + 3.6; return Math.min(c/3.6, g > 0.15 ? 3 : 9); };
 function triPredict(){
   const T = Object.assign(TRI_DEF(), S.tri || {}), r = T.race, g = triGuess(), kg = +S.profile?.weightKg || 75;
   const css = g.css || T.css, thr = g.runThr || T.runThr;
   // nat : allure course ≈ CSS + 4 s/100 m sur 2 km, +3 % de distance en eau libre (trajectoire, visée)
   const swim = r.swim/100*(css + 4)*1.03;
-  // vélo : IF 0,76 × FTP sur un half vallonné (0,75–0,83 selon le niveau, bas de fourchette pour garder le semi), +5 % dans les bosses
-  const P = 0.76*ftp(), m = kg + 9, climbKm = Math.min(r.bike*0.45, (r.bikeDp || 0)/0.05/1000), flatKm = Math.max(0, r.bike - 2*climbKm);
-  const vUp = bikeSpeed(P*1.05, 0.05, m), vFlat = bikeSpeed(P, 0, m), vDown = Math.min(bikeSpeed(P*0.4, -0.05, m), 50/3.6);
-  const bike = climbKm*1000/vUp + climbKm*1000/vDown + flatKm*1000/vFlat;
-  // course : allure 70.3 ≈ seuil × 1,10 (fatigue du vélo) appliquée aux km-effort (1 km + 100 m D+ = 2 km-effort)
-  const run = (r.run + (r.runDp || 0)/100)*thr*1.10;
-  return { swim, t1: 240, bike, t2: 120, run, css, thr, P: Math.round(P), cssData: !!g.css, thrData: !!g.runThr };
+  // vélo : IF 0,78 × FTP sur un half vallonné (0,75–0,83 selon le niveau), +8 % dans les montées, roue libre dans les descentes (≤ 52 km/h)
+  const P = 0.78*ftp(), m = kg + 8.5;
+  let bike = 0;
+  if (r.bikeProf) { const el = r.bikeProf.el, st = r.bikeProf.step;
+    for (let i = 1; i < el.length; i++) { const gr = (el[i] - el[i-1])/st, pw = gr > 0.02 ? P*1.08 : gr < -0.03 ? P*0.3 : P;
+      let v = bikeSpeed(pw, gr, m, 0.30, 0.005, 1.12); if (gr < -0.03) v = Math.min(v, 52/3.6); bike += st/v; } }
+  else { const climbKm = Math.min(r.bike*0.45, (r.bikeDp || 0)/0.05/1000), flatKm = Math.max(0, r.bike - 2*climbKm);
+    bike = climbKm*1000/bikeSpeed(P*1.08, 0.05, m) + climbKm*1000/Math.min(bikeSpeed(P*0.3, -0.05, m), 52/3.6) + flatKm*1000/bikeSpeed(P, 0, m); }
+  // course : allure plat d'après vélo ≈ seuil × 1,10, modulée par la pente portion par portion (Minetti)
+  const flat = thr*1.10;
+  let run = 0;
+  if (r.runProf) { const el = r.runProf.el, st = r.runProf.step; for (let i = 1; i < el.length; i++) run += st/1000*flat*minetti((el[i] - el[i-1])/st); }
+  else { const gUp = (r.runDp || 0)/(r.run*500); run = r.run/2*flat*(minetti(gUp) + minetti(-gUp)); } // sans tracé : moitié montée, moitié descente
+  return { swim, t1: 180, bike, t2: 90, run, css, thr, P: Math.round(P), cssData: !!g.css, thrData: !!g.runThr, flat, bikeGpx: !!r.bikeProf, runGpx: !!r.runProf };
 }
 const fmtHMS = sec => { sec = Math.round(sec); const h = Math.floor(sec/3600), m = Math.floor(sec % 3600/60), x = sec % 60; return h ? `${h}h${pad(m)}'${pad(x)}` : `${m}'${pad(x)}`; };
 const parseHMS = v => { const n = String(v || '').trim().split(/[^\d]+/).filter(Boolean).map(Number); if (!n.length) return null; return n.length >= 3 ? n[0]*3600 + n[1]*60 + n[2] : n.length === 2 ? n[0]*60 + n[1] : n[0]*60; };
@@ -2241,15 +2263,24 @@ function triGoalTableHTML(){
   return `<table class="tgoal"><thead><tr><th></th><th>Objectif</th><th>Prédiction</th></tr></thead><tbody>
     ${TRI_LEGS.map(([k, l]) => `<tr><th>${l}</th>${cell(G[k], pr[k])}<td class="num">${fmtHMS(pr[k])} ${dlt(G[k], pr[k])}</td></tr>`).join('')}
     <tr class="tot"><th>Total</th>${gTot ? `<td class="num">${fmtHMS(gTot)}</td>` : '<td class="num muted">—</td>'}<td class="num">${fmtHMS(pTot)} ${dlt(gTot, pTot)}</td></tr></tbody></table>
-    <p class="tiny muted" style="margin:6px 0 0">Nat : CSS ${fmtPace(pr.css)} /100 m${pr.cssData ? ' (tes nats)' : ''} + 4 s, +3 % en eau libre · Vélo : ${pr.P} W (76 % FTP), modèle physique, montées à 5 % · Course : seuil ${fmtPace(pr.thr)} /km${pr.thrData ? ' (tes courses)' : ''} × 1,10 sur les km-effort (100 m D+ = 1 km) · T1/T2 : moyennes amateurs. <a href="#" data-trigoals="1">${hasG ? 'Modifier' : 'Fixer'} mes objectifs</a></p>`;
+    <p class="tiny muted" style="margin:6px 0 0">Nat : CSS ${fmtPace(pr.css)} /100 m${pr.cssData ? ' (tes nats)' : ''} + 4 s, +3 % en eau libre · Vélo : ${pr.P} W (78 % FTP), modèle physique ${pr.bikeGpx ? 'sur le tracé GPX' : 'sans tracé (montées à 5 %)'} · Course : ${fmtPace(pr.flat)} /km sur le plat (seuil ${fmtPace(pr.thr)}${pr.thrData ? ', tes courses' : ''} × 1,10), modulé par la pente ${pr.runGpx ? 'du tracé GPX' : ''} (Minetti) · T1/T2 : ordre de grandeur de tes transitions. <a href="#" data-trigoals="1">Objectifs et tracés GPX</a></p>`;
 }
 function triGoalsDlg(){
-  const G = tri()?.goals || {}, pr = triPredict();
-  openDlg(`<h2 style="margin:0 0 4px">🎯 Objectifs ${esc(tri().race.name)}</h2><p class="small muted" style="margin:0 0 10px">Format h:mm:ss ou mm:ss. Laisse vide pour ne pas fixer d'objectif.</p>
+  const G = tri()?.goals || {}, pr = triPredict(), r = tri().race, prof = { bikeProf: r.bikeProf || null, runProf: r.runProf || null };
+  const gl = p => p ? `${p.km} km · ${p.up} m D+ ✓` : 'aucun tracé';
+  openDlg(`<h2 style="margin:0 0 4px">🎯 Objectifs ${esc(r.name)}</h2><p class="small muted" style="margin:0 0 10px">Format h:mm:ss ou mm:ss. Laisse vide pour ne pas fixer d'objectif.</p>
     <form id="tgF" class="grid2" style="gap:10px">${TRI_LEGS.map(([k, l]) => `<div><label class="f">${l}</label><input type="text" name="${k}" inputmode="numeric" value="${G[k] ? fmtHMS(G[k]).replace(/h|'/g, ':') : ''}" placeholder="${fmtHMS(pr[k]).replace(/h|'/g, ':')}"></div>`).join('')}</form>
+    <h3 style="margin:14px 0 4px">Tracés GPX</h3><p class="tiny muted" style="margin:0 0 6px">La prédiction suit alors chaque portion du parcours ; distance et D+ de la course sont mis à jour.</p>
+    <div class="grid2" style="gap:10px"><label class="btn sm" style="flex-direction:column">🚴 Vélo<input type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" data-gpx="bikeProf" hidden><span class="tiny muted" id="g_bikeProf">${gl(prof.bikeProf)}</span></label>
+      <label class="btn sm" style="flex-direction:column">🏃 Course<input type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" data-gpx="runProf" hidden><span class="tiny muted" id="g_runProf">${gl(prof.runProf)}</span></label></div>
     <div class="row" style="margin-top:12px"><button class="btn primary" id="tgGo">Enregistrer</button></div>`);
+  document.querySelectorAll('[data-gpx]').forEach(inp => inp.onchange = async () => { const f = inp.files[0]; if (!f) return; const p = gpxProfile(await f.text()), k = inp.dataset.gpx;
+    $('#g_' + k).textContent = p ? gl(p) : 'fichier illisible'; if (p) prof[k] = p; });
   $('#tgGo').onclick = () => { const E = $('#tgF').elements, goals = {}; for (const [k] of TRI_LEGS) { const v = parseHMS(E[k].value); if (v) goals[k] = v; }
-    S.tri.goals = goals; save(); closeDlg(); render(); toast('Objectifs enregistrés'); };
+    S.tri.goals = goals;
+    if (prof.bikeProf) { r.bikeProf = prof.bikeProf; r.bike = prof.bikeProf.km; r.bikeDp = prof.bikeProf.up; }
+    if (prof.runProf) { r.runProf = prof.runProf; r.run = prof.runProf.km; r.runDp = prof.runProf.up; }
+    save(); closeDlg(); render(); toast('Objectifs et parcours enregistrés'); };
 }
 document.addEventListener('click', e => { const g = e.target.closest('[data-trigoals]'); if (g) { e.preventDefault(); triGoalsDlg(); } });
 function triStepsHTML(x, W){
