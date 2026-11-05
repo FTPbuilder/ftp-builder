@@ -33,7 +33,7 @@ h1,h2,h3,.disp{font-family:"Barlow Condensed","Arial Narrow",Inter,system-ui,san
 .num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 button,input,select,textarea{font:inherit;color:inherit}
 a{color:var(--accent)}
-.app{max-width:760px;margin:0 auto;padding:16px 16px calc(96px + env(safe-area-inset-bottom))}
+.app{max-width:760px;margin:0 auto;padding:16px 16px calc(118px + env(safe-area-inset-bottom))}
 header.top{display:flex;align-items:center;justify-content:space-between;gap:8px 12px;margin-bottom:14px;flex-wrap:wrap}
 html,body{max-width:100%;overflow-x:hidden}
 @media (max-width:420px){ .brand h1{font-size:24px} .brand small{display:none} header.top .chip{font-size:11px;padding:3px 8px} }
@@ -80,10 +80,10 @@ nav.tabs{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bo
 nav.tabs .in{position:relative;display:flex;max-width:420px;width:100%;padding:6px;border-radius:999px;background:color-mix(in srgb,var(--card) 62%,transparent);border:1px solid color-mix(in srgb,var(--text) 10%,transparent);backdrop-filter:blur(22px) saturate(1.6);-webkit-backdrop-filter:blur(22px) saturate(1.6);box-shadow:0 10px 30px rgba(0,0,0,.28);pointer-events:auto}
 nav.tabs .pill{position:absolute;top:6px;bottom:6px;left:6px;width:0;border-radius:999px;background:color-mix(in srgb,var(--text) 14%,transparent);transition:left .42s cubic-bezier(.3,1.45,.5,1),width .42s cubic-bezier(.3,1.45,.5,1);pointer-events:none}
 nav.tabs .pill.still{transition:none}
-nav.tabs button{position:relative;z-index:1;flex:1;background:none;border:0;color:var(--muted);display:flex;align-items:center;justify-content:center;height:52px;padding:0;cursor:pointer;border-radius:999px;-webkit-tap-highlight-color:transparent;transition:color .25s,transform .15s}
+nav.tabs button{position:relative;z-index:1;flex:1;background:none;border:0;color:var(--muted);display:flex;flex-direction:column;gap:2px;align-items:center;justify-content:center;height:56px;padding:0;cursor:pointer;border-radius:999px;-webkit-tap-highlight-color:transparent;transition:color .25s,transform .15s}
 nav.tabs button:active{transform:scale(.92)}
-nav.tabs button svg{width:25px;height:25px}
-nav.tabs button .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+nav.tabs button svg{width:22px;height:22px}
+nav.tabs button .lbl{font-size:10.5px;font-weight:600;letter-spacing:.01em;line-height:1}
 nav.tabs button.on{color:var(--text)}
 /* Aujourd'hui : 4 tuiles iridescentes */
 :root{ --iri:linear-gradient(115deg,#7cc3ff 0%,#8f86ff 18%,#ad5cf0 36%,#e05ad0 54%,#ff6f8a 70%,#ff9a52 85%,#7cc3ff 100%);
@@ -108,8 +108,8 @@ nav.tabs button.on{color:var(--text)}
 @keyframes iriShiftT{from{background-position:0% 50%}to{background-position:100% 50%}}
 @media (prefers-reduced-motion:reduce){.tile,.tile .tv{animation:none}}
 .tiles-home{margin-top:6px}
-.tiles-home .tile{aspect-ratio:3/4.3}
-.tiles-home .tile .tv{display:block;transform:scaleY(1.75);transform-origin:left top;margin-bottom:calc(.86em * .75)}
+.tiles-home .tile{aspect-ratio:auto;min-height:148px}
+.tiles-home .tile .tv{display:block;font-size:clamp(46px,14vw,70px);transform:scaleY(1.35);transform-origin:left top;margin:6px 0 calc(.86em * .35)}
 .pane-head{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .pane-head h2{font-size:26px;font-weight:700;text-transform:uppercase;flex:1}
 .pane-back{width:44px;height:44px;flex:none;border-radius:50%;border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -263,6 +263,14 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 @media (prefers-reduced-motion:reduce){.batt-fill{animation:none}}
 .ntab{width:100%;border-collapse:collapse;font-size:13px}.ntab th{font-size:11px;color:var(--muted);font-weight:500;text-align:right;padding:2px 4px}.ntab td{padding:6px 4px;border-top:1px solid var(--line);text-align:right}.ntab td:first-child,.ntab th:first-child{text-align:left}.ntab .dot{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 .cycbar{display:flex;height:8px;border-radius:4px;overflow:hidden;margin:5px 0 3px;background:var(--bg2)}.cycbar i{display:block;height:100%}
+.today-card .tlist{display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.trow{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--bg2);border:1px solid var(--line);border-radius:14px;padding:10px 12px;cursor:pointer;color:var(--text)}
+.trow .ti{font-size:22px;line-height:1}.trow .tm{flex:1;min-width:0;display:flex;flex-direction:column}.trow .tm b{font-size:15px}.trow .tst{color:var(--muted);font-size:18px}.trow.done{opacity:.7}
+.tbatt{background:none;border:0;padding:0;display:flex;flex-direction:column;align-items:center;gap:0;cursor:pointer}
+details.more{margin-top:10px}details.more>summary{cursor:pointer;color:var(--muted);font-size:13px;font-weight:600;list-style:none;padding:4px 0}details.more>summary::-webkit-details-marker{display:none}details.more[open]>summary{color:var(--text)}
+.wgrid{display:grid;grid-template-columns:auto repeat(7,1fr);gap:5px;align-items:center}.wgrid .wh{text-align:center;font-size:11px;color:var(--muted);font-weight:600}.wgrid .wl{font-size:12px;white-space:nowrap;padding-right:4px}
+.wgrid .wc{height:36px;border-radius:9px;border:1px solid var(--line);background:var(--bg2);cursor:pointer;font-size:17px;padding:0}.wgrid .wc.on.bike{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,var(--bg2))}.wgrid .wc.on.swim{border-color:var(--swim);background:color-mix(in srgb,var(--swim) 16%,var(--bg2))}.wgrid .wc.on.run{border-color:var(--run);background:color-mix(in srgb,var(--run) 16%,var(--bg2))}
+.day .dsp{display:flex;flex-direction:column;align-items:stretch;gap:3px;margin:6px 3px 0}.day .sp{font-size:14px;line-height:1;padding:4px 0;border-radius:7px;border:1px solid var(--line);opacity:.35;filter:grayscale(1);cursor:pointer}.day .sp.on{opacity:1;filter:none}.day .sp[data-sp=swim].on{border-color:var(--swim);background:color-mix(in srgb,var(--swim) 18%,var(--bg))}.day .sp[data-sp=run].on{border-color:var(--run);background:color-mix(in srgb,var(--run) 18%,var(--bg))}
 .daysel button{font-size:13px;padding:6px 10px;white-space:nowrap}
 .seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 dialog{border:0;padding:0;background:transparent;max-width:640px;width:calc(100% - 24px);color:var(--text)}
@@ -1419,6 +1427,43 @@ document.addEventListener('click', e => {
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; if (b.dataset.tab === 'today') TODAY_PANE = null; TAB = b.dataset.tab; render(); window.scrollTo(0,0); });
 
 /* ----- Aujourd'hui ----- */
+// séances de la semaine en cours (vélo + nat / course) : faites / prévues, et tout ce qui reste à venir
+function weekCount(){
+  const t = todayISO(), w0 = monday(t), w1 = addDays(w0, 6);
+  const bike = S.plan.filter(s => s.status !== 'skipped' && s.date >= w0 && s.date <= w1 && mandatory(s));
+  const tp = triOn() ? (S.triPlan || []).filter(x => x.sport !== 'race' && x.status !== 'skipped' && x.date >= w0 && x.date <= w1) : [];
+  const done = bike.filter(s => s.status === 'done').length + tp.filter(x => triStatus(x) === 'done').length;
+  const left = S.plan.filter(s => s.status === 'planned' && s.date >= t && mandatory(s)).length + (triOn() ? (S.triPlan || []).filter(x => x.date >= t && triStatus(x) === 'planned').length : 0);
+  return { done, total: bike.length + tp.length, left };
+}
+// carte d'accueil : ce que je fais aujourd'hui, avec un conseil selon l'énergie du jour
+function todayCardHTML(){
+  const t = todayISO(), sc = Health.score();
+  const bike = S.plan.filter(s => s.date === t && s.status !== 'skipped').map(s => { const W = WORKOUTS[s.workoutId];
+    return { ic: '🚴', name: W.name, meta: `${fmtDur(wDur(s.workoutId))}${mainStep(s.workoutId) ? ` · ${watts(mainStep(s.workoutId).p, ftp(), sAdj(s))} W` : ''}`, done: s.status === 'done', hard: s.status === 'planned' && isHard(s.workoutId), attr: `data-open="${s.id}"`, s }; });
+  const tp = triItems(t).filter(x => x.status !== 'skipped').map(x => { const W = triWorkout(x), E = triEst(x, W);
+    return { ic: TRI_IC[x.sport], name: W.name, meta: x.sport === 'race' ? 'Jour J' : `${fmtDur(E.sec)} · ${x.sport === 'swim' ? E.m + ' m' : '~' + (E.m/1000).toFixed(1).replace('.', ',') + ' km'}`, done: triStatus(x) === 'done', hard: triStatus(x) === 'planned' && (x.wid === 'qual' || x.wid === 'long'), attr: `data-tri="${x.id}"`, x }; });
+  const items = [...tp.filter(i => i.x.sport === 'swim'), ...bike, ...tp.filter(i => i.x.sport !== 'swim')];
+  let body = '';
+  if (items.length) body = items.map(i => `<button class="trow ${i.done ? 'done' : ''}" ${i.attr}><span class="ti">${i.ic}</span><span class="tm"><b>${esc(i.name)}</b><span class="tiny muted">${esc(i.meta)}</span></span><span class="tst">${i.done ? '✅' : '›'}</span></button>`).join('');
+  else {
+    const nb = S.plan.find(s => s.date > t && s.status === 'planned'), nt = triOn() ? (S.triPlan || []).find(x => x.date > t && triStatus(x) === 'planned') : null;
+    const n = [nb && { d: nb.date, l: '🚴 ' + WORKOUTS[nb.workoutId].name, attr: `data-open="${nb.id}"` }, nt && { d: nt.date, l: TRI_IC[nt.sport] + ' ' + triWorkout(nt).name, attr: `data-tri="${nt.id}"` }].filter(Boolean).sort((a, b) => a.d.localeCompare(b.d))[0];
+    body = `<p class="small" style="margin:0">Repos aujourd'hui.</p>${n ? `<button class="trow" ${n.attr}><span class="ti">📅</span><span class="tm"><b>${esc(n.l)}</b><span class="tiny muted">${diffDays(t, n.d) === 1 ? 'Demain' : fmtDate(n.d)}</span></span><span class="tst">›</span></button>` : ''}`;
+  }
+  // conseil : uniquement s'il reste une séance dure à faire aujourd'hui
+  const hard = items.filter(i => i.hard), hb = hard.find(i => i.s);
+  let tip = '';
+  if (sc && hard.length) {
+    if (sc.v < 40) tip = `<div class="note bad" style="margin:10px 0 0"><b>Énergie basse (${sc.v}).</b> Ton corps n'a pas récupéré : ${hb ? 'remplace par une récup ou reporte' : 'fais-la en version facile (footing / nage souple)'}.${hb ? `<div class="row" style="margin-top:8px;gap:6px"><button class="btn sm" data-sx="rec" data-sid="${hb.s.id}">Récup à la place</button><button class="btn sm" data-sx="post" data-sid="${hb.s.id}">Reporter</button></div>` : ''}</div>`;
+    else if (sc.v < 55) tip = `<div class="note warn" style="margin:10px 0 0"><b>Énergie moyenne (${sc.v}).</b> Garde la séance mais lève un peu le pied.${hb ? `<div class="row" style="margin-top:8px;gap:6px"><button class="btn sm" data-sadj="0.95" data-sid="${hb.s.id}">Cibles −5 %</button>${neighbor(hb.s.workoutId, -1) ? `<button class="btn sm" data-sx="easier" data-sid="${hb.s.id}">Version plus facile</button>` : ''}</div>` : ''}</div>`;
+    else if (sc.v >= 80) tip = `<div class="note ok" style="margin:10px 0 0"><b>Énergie haute (${sc.v}).</b> Feu vert : tu peux viser le haut des cibles si les jambes répondent à l'échauffement.</div>`;
+  }
+  const allDone = items.length && items.every(i => i.done);
+  return `<div class="card today-card"><div class="row between" style="align-items:center"><div><h2 style="margin:0">Aujourd'hui</h2><span class="tiny muted">${fmtDate(t)}${triOn() ? ` · ${esc(tri().race.name)} J-${Math.max(0, diffDays(t, tri().race.date))}` : ''}</span></div>
+      ${sc ? `<div class="tbatt" role="button" tabindex="0" data-i="score" aria-label="Énergie ${sc.v} sur 100, détail">${batterySVG(sc.v, 64)}<span class="tiny" style="color:${battCol(sc.v)}">${{ ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level]}</span></div>` : ''}</div>
+    <div class="tlist">${body}</div>${allDone ? `<div class="note ok" style="margin:10px 0 0">Journée faite ✅</div>` : tip}</div>`;
+}
 function todayHTML(){
   const p = S.profile, t = todayISO();
   const next = S.plan.find(s => s.date >= t && s.status === 'planned');
@@ -1437,14 +1482,14 @@ function todayHTML(){
   const sc = Health.score(), ll = lastLoad();
   const show0 = todays.length ? todays : (next ? [next] : []), s0 = show0[0], ms0 = s0 && mainStep(s0.workoutId);
   const chs = activeChallenges().map(c => ({ name:c.name, pct:Math.floor(clamp(chTotal(c)/c.target*100,0,100)) })).sort((x,y)=>y.pct-x.pct), chPct = chs.length ? chs[0].pct : 0;
-  const sh = sportHoursRolling();
+  const sh = sportHoursRolling(), wk = weekCount();
   const tiles = [
-    { k:'prog', l:'Programme', v:done, u:'', sub:`sur ${p.minSessions} séances` },
-    { k:'forme', l:'Forme', v:sc ? sc.v : ll ? Math.round(ll.tsb) : '—', u:'', sub:sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] + ' · indice /100' : 'TSB (forme de charge)' },
+    { k:'prog', l:'Programme', v:`${wk.done}/${wk.total}`, u:'', sub: triOn() ? `cette semaine · J-${Math.max(0, diffDays(t, tri().race.date))}` : `cette semaine · ${done}/${p.minSessions} au total` },
+    { k:'forme', l:'Énergie', v:sc ? sc.v : ll ? Math.round(ll.tsb) : '—', u:'', col: sc ? battCol(sc.v) : null, sub:sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] + ' · sur 100' : 'forme de charge (TSB)' },
     { k:'heures', l:'Heures de sport', v:fmtH(sh.cur), u:'h', sub:`${sh.cur>=sh.prev?'+':'−'}${fmtH(Math.abs(sh.cur-sh.prev))} h vs 7 j précédents` },
     { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length ? [chs[0].name, ...chs.slice(1).map(x=>`${x.name} ${x.pct} %`)].join(' · ') : '' },
   ];
-  if (!TODAY_PANE) return h + `<div class="tiles tiles-home">${tiles.map((x,i)=>`<button class="tile" data-pane="${x.k}" style="--idl:-${i*2.3}s;--ip:${i*30}%;--tdl:${i*50}ms"><span class="tl">${x.l}</span><span class="tv num">${x.v}${x.u?`<small>${x.u}</small>`:''}</span><span class="ts">${esc(x.sub)}</span></button>`).join('')}</div>`;
+  if (!TODAY_PANE) return h + todayCardHTML() + `<div class="tiles tiles-home">${tiles.map((x,i)=>`<button class="tile" data-pane="${x.k}" style="--idl:-${i*2.3}s;--ip:${i*30}%;--tdl:${i*50}ms"><span class="tl">${x.l}</span><span class="tv num"${x.col ? ` style="background:none;-webkit-text-fill-color:${x.col};color:${x.col}"` : ''}>${x.v}${x.u?`<small>${x.u}</small>`:''}</span><span class="ts">${esc(x.sub)}</span></button>`).join('')}</div>`;
   const cur = tiles.find(x => x.k === TODAY_PANE);
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
   if (TODAY_PANE === 'heures') h += sportHoursHTML();
@@ -1464,14 +1509,16 @@ function todayHTML(){
       <h2 style="margin-top:8px">${esc(W.name)}</h2><p class="muted small" style="margin:0 0 10px">${esc(W.goal)}</p>
       ${profileBars(s.workoutId)}
       <div class="row small muted" style="margin:8px 0 4px"><span class="num">${fmtDur(wDur(s.workoutId))}</span>·<span class="num">TSS ≈ ${wTSS(s.workoutId)}</span>${mainStep(s.workoutId)?`·<span class="num">bloc à ${watts(mainStep(s.workoutId).p, ftp(), sAdj(s))} W</span>`:''}${sAdj(s)!==1?`·<span style="color:var(--accent)">${sAdj(s)>1?'+':''}${Math.round((sAdj(s)-1)*100)} %</span>`:''}</div>
-      ${s.status==='done' ? (evalHTML(S.activities.find(a=>a.id===s.activityId), s) || `<div class="note ok" style="margin:10px 0 0">Séance faite ✔</div>`) : `<div class="row" style="margin-top:10px">
-        <button class="btn primary" data-log="${s.id}">J'ai fait la séance</button>
-        <button class="btn" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>
-        <button class="btn ghost" data-open="${s.id}">Détails</button>
-        <button class="btn ghost" data-absence="1">✈︎ Absent ?</button></div>
-        ${W.type==='test' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}
-        ${isToday ? formeHint(s) : ''}
-        ${adjustHTML(s, true)}`}
+      ${s.status==='done' ? (evalHTML(S.activities.find(a=>a.id===s.activityId), s) || `<div class="note ok" style="margin:10px 0 0">Séance faite ✔</div>`) : `${isToday ? formeHint(s) : ''}
+        <div class="row" style="margin-top:10px">
+        <button class="btn primary" data-open="${s.id}">Voir la séance</button>
+        ${Cloud.icu?.connected ? `<span class="tiny muted">Envoyée sur l'Edge via Intervals · validée automatiquement</span>` : `<button class="btn" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>`}</div>
+        ${adjustHTML(s, true)}
+        <details class="more"><summary>⋯ Autres actions</summary><div class="row" style="margin-top:8px;gap:6px">
+          <button class="btn sm" data-log="${s.id}">Saisir la séance à la main</button>
+          ${Cloud.icu?.connected ? `<button class="btn sm" data-export="${s.id}">Fichier .fit pour l'Edge</button>` : ''}
+          <button class="btn sm" data-absence="1">✈︎ Absent / vacances</button>
+          ${W.type==='test' ? `<button class="btn sm" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}</div></details>`}
     </div>`;
   }
   if (!show.length) h += `<div class="card"><h2>Plan terminé</h2><p class="muted">Plus aucune séance prévue. Régénère un plan depuis le Profil.</p></div>`;
@@ -1490,7 +1537,7 @@ function batterySVG(v, w = 132){
   const col = battCol(v), X = 4, Y = 6, W = 104, H = 52, P = 5, iw = W - 2*P, fw = Math.max(v ? 6 : 0, iw*v/100);
   // 5 segments : repères de charge
   const seps = [1, 2, 3, 4].map(k => { const x = X + P + iw*k/5; return x < X + P + fw ? `<line x1="${x}" y1="${Y + P}" x2="${x}" y2="${Y + H - P}" stroke="var(--card)" stroke-width="2.5" opacity=".55"/>` : ''; }).join('');
-  return `<svg viewBox="0 0 120 64" width="${w}" height="${Math.round(w*64/120)}" role="img" aria-label="Batterie de forme ${v} sur 100">
+  return `<svg viewBox="0 0 120 64" width="${w}" height="${Math.round(w*64/120)}" role="img" aria-label="Énergie ${v} sur 100">
     <rect x="${X}" y="${Y}" width="${W}" height="${H}" rx="11" fill="var(--bg2)" stroke="${col}" stroke-width="3"/>
     <rect x="${X + W + 2}" y="${Y + H/2 - 10}" width="7" height="20" rx="3" fill="${col}"/>
     <rect class="batt-fill" x="${X + P}" y="${Y + P}" width="${fw}" height="${H - 2*P}" rx="6" fill="${col}"/>${seps}
@@ -1939,7 +1986,7 @@ function calHTML(){
   const tweeks = {}; if (triOn()) for (const x of S.triPlan || []) { (tweeks[monday(x.date)] ||= []).push(x); weeks[monday(x.date)] ||= []; }
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
-  let h = monthHTML() + triBannerHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${mand} séances clés + ${total-mand} optionnelles</span></div>
+  let h = monthHTML() + triBannerHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${(() => { const w = weekCount(); return `${w.done}/${w.total} cette semaine · ${w.left} à venir`; })()}</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
@@ -1972,8 +2019,19 @@ function triGuess(){
   const rn = ws.filter(e => e.sport === 'run' && +e.w.distance_km >= 6 && +e.w.duration_min >= 30 && +e.w.duration_min <= 75).map(e => e.w.duration_min*60/e.w.distance_km).sort((a, b) => a - b).slice(0, 3); // tes courses d'entraînement sont plus lentes que le seuil : ~5 %
   return { css: sw.length >= 2 ? Math.round(med(sw) - 5) : null, runThr: rn.length ? Math.round(rn[0]*0.95) : null };
 }
+const WG_SP = [['bike', '🚴', 'Vélo'], ['swim', '🏊', 'Nat'], ['run', '🏃', 'Course']];
+function weekGridHTML(m){ // m = { bike:[jours], swim:[…], run:[…] }
+  const DN = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+  return `<div class="wgrid" role="group" aria-label="Ma semaine"><span></span>${DN.map((d, i) => `<span class="wh">${d}</span>`).join('')}
+    ${WG_SP.map(([k, ic, l]) => `<span class="wl">${ic} ${l}</span>${DN.map((_, i) => `<button type="button" class="wc ${k} ${m[k].includes(i) ? 'on' : ''}" data-wg="${k}" data-v="${i}" aria-pressed="${m[k].includes(i)}" aria-label="${l} ${DOW[i]}">${m[k].includes(i) ? ic : ''}</button>`).join('')}`).join('')}</div>`;
+}
+function bindWeekGrid(root, m){
+  root.querySelectorAll('[data-wg]').forEach(b => b.onclick = e => { e.stopPropagation(); const k = b.dataset.wg, v = +b.dataset.v, on = !m[k].includes(v);
+    m[k] = on ? [...m[k], v].sort((a, c) => a - c) : m[k].filter(x => x !== v); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.textContent = on ? WG_SP.find(x => x[0] === k)[1] : ''; });
+}
 function triSetupDlg(){
   const T = Object.assign(TRI_DEF(), S.tri || {}), g = triGuess();
+  const wm = { bike: [0, 1, 2, 3, 4, 5, 6].filter(d => S.profile.days[d]?.avail), swim: T.swimDays.slice(0, T.swimPerWeek), run: T.runDays.slice(0, T.runPerWeek) };
   if (!S.tri) { if (g.css) T.css = g.css; if (g.runThr) T.runThr = g.runThr; }
   const DN = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
   const dayPick = (name, sel) => `<div class="seg multi" data-days="${name}">${DN.map((l, i) => `<button type="button" class="${sel.includes(i) ? 'on' : ''}" data-v="${i}" aria-pressed="${sel.includes(i)}" aria-label="${DOW[i]}">${l}</button>`).join('')}</div>`;
@@ -1990,25 +2048,24 @@ function triSetupDlg(){
       <div><label class="f">Course D+ (m)</label><input type="number" name="runDp" value="${T.race.runDp}" step="10"></div>
       <div><label class="f">CSS nat (/100 m)</label><input type="text" name="css" value="${fmtPace(T.css)}" inputmode="numeric"><span class="tiny muted">${g.css && !S.tri ? 'estimée sur tes nats' : 'allure seuil en piscine'}</span></div>
       <div><label class="f">Seuil course (/km)</label><input type="text" name="runThr" value="${fmtPace(T.runThr)}" inputmode="numeric"><span class="tiny muted">${g.runThr && !S.tri ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
-      <div><label class="f">Nat / semaine</label>${cnt('swimPerWeek', T.swimPerWeek)}</div>
-      <div><label class="f">Course / semaine</label>${cnt('runPerWeek', T.runPerWeek)}</div>
-      <div style="grid-column:1/-1"><label class="f">Jours de nat</label>${dayPick('swimDays', T.swimDays)}</div>
-      <div style="grid-column:1/-1"><label class="f">Jours de course <span class="tiny muted">(le dernier = sortie longue ; avec 3 courses, le 1er = footing facile)</span></label>${dayPick('runDays', T.runDays)}</div>
+      <div style="grid-column:1/-1"><label class="f">Ma semaine</label>${weekGridHTML(wm)}
+        <p class="tiny muted" style="margin:6px 0 0">Vélo : les 2 jours les plus espacés portent les séances clés (durées max dans Profil). Course : la dernière de la semaine = sortie longue ; avec 3 courses, la 1re = footing facile. Nat : la 1re = qualité.</p></div>
       <div style="grid-column:1/-1"><label class="f">Sortie vélo longue du week-end <span class="tiny muted">(à partir du bloc VO2)</span></label><select name="longRide">${[120, 150, 180, 210].map(m => `<option value="${m}" ${T.longRide === m ? 'selected' : ''}>jusqu'à ${fmtDur(m*60)}</option>`).join('')}</select></div>
       <label class="small" style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><input type="checkbox" name="doubles" ${T.doubles ? 'checked' : ''} style="width:auto"> Doubles séances (nat le matin + vélo le soir, enchaînements vélo → course)</label>
     </form>
     <p class="tiny muted" id="triMsg" style="margin:8px 0 0"></p>
     <div class="row" style="margin-top:12px"><button class="btn primary" id="triGo">${triOn() ? 'Mettre à jour le plan' : 'Créer le plan triathlon'}</button>${triOn() ? '<button class="btn ghost" id="triOff">Revenir au plan vélo seul</button>' : ''}</div>`);
-  const f = $('#triF');
+  const f = $('#triF'); bindWeekGrid(f, wm);
   f.querySelectorAll('[data-days] button').forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); });
   f.querySelectorAll('[data-cnt] button').forEach(b => b.onclick = () => { b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
   const days = n => [...f.querySelectorAll(`[data-days="${n}"] button.on`)].map(b => +b.dataset.v);
   const cntV = n => +(f.querySelector(`[data-cnt="${n}"] button.on`)?.dataset.v || 2);
   $('#triGo').onclick = () => {
     const E = f.elements, race = { name: E.name.value.trim() || 'Course A', date: E.date.value, swim: +E.swim.value || 2000, bike: +E.bike.value || 90, bikeDp: +E.bikeDp.value || 0, run: +E.run.value || 21, runDp: +E.runDp.value || 0 };
-    const nT = { ...T, enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: cntV('swimPerWeek'), runPerWeek: cntV('runPerWeek'), swimDays: days('swimDays'), runDays: days('runDays'), doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
-    const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : nT.swimDays.length < nT.swimPerWeek ? `Coche au moins ${nT.swimPerWeek} jours de nat.` : nT.runDays.length < nT.runPerWeek ? `Coche au moins ${nT.runPerWeek} jours de course.` : '';
+    const nT = { ...T, enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: Math.min(3, wm.swim.length), runPerWeek: Math.min(3, wm.run.length), swimDays: wm.swim, runDays: wm.run, doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
+    const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : !wm.bike.length ? 'Coche au moins un jour de vélo.' : !wm.swim.length ? 'Coche au moins un jour de nat.' : !wm.run.length ? 'Coche au moins un jour de course.' : '';
     if (msg) { $('#triMsg').textContent = msg; $('#triMsg').style.color = 'var(--bad)'; return; }
+    for (let d = 0; d < 7; d++) S.profile.days[d].avail = wm.bike.includes(d);
     applyTri(nT); closeDlg(); TAB = 'cal'; render(); toast(`Plan triathlon créé : ${S.triPlan.filter(x => x.date >= todayISO()).length} séances nat / course jusqu'au ${fmtDate(race.date)}`);
   };
   if ($('#triOff')) $('#triOff').onclick = () => { S.tri.enabled = false; S.triPlan = (S.triPlan || []).filter(x => x.date < todayISO()); save(); closeDlg(); render(); toast('Plan triathlon désactivé : les séances nat / course à venir sont retirées'); };
@@ -2088,7 +2145,7 @@ function bindArcs(){
   const upd = () => { raf = 0; const c = box.scrollLeft + box.clientWidth / 2; let best = 0, bd = 1e9;
     cards.forEach((el, i) => { const d = Math.abs(el.offsetLeft + el.offsetWidth / 2 - c); const k = Math.min(d / 115, 1);
       el.style.transform = `scale(${(1.16 - k * 0.38).toFixed(3)})`; el.style.zIndex = Math.round(1000 - d); el.style.setProperty('--fo', (1 - k * 0.7).toFixed(2)); if (d < bd) { bd = d; best = i; } });
-    if (best !== cur) { cards[cur]?.classList.remove('on'); cards[best].classList.add('on'); cur = best; const pos = $('#arcPos'); if (pos) pos.textContent = `${best + 1} / ${cards.length}`; } };
+    if (best !== cur) { cards[cur]?.classList.remove('on'); cards[best].classList.add('on'); cur = best; const pos = $('#arcPos'); if (pos) pos.textContent = cards[best].dataset.date === todayISO() ? "aujourd'hui" : fmtDate(cards[best].dataset.date); } };
   box.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(upd); }, { passive: true });
   box.addEventListener('click', e => { const el = e.target.closest('.arc'); if (!el) return; const i = cards.indexOf(el);
     if (i === cur) sessionDlg(el.dataset.arc); else box.scrollTo({ left: el.offsetLeft + el.offsetWidth / 2 - box.clientWidth / 2, behavior: 'smooth' }); });
@@ -2185,7 +2242,8 @@ function defaultProfile(){
     startDate: addDays(t,1), days, keyPerWeek:2, optionalPerWeek:1, otherSports:true, holidays:true, testProtocol:'20min', intensityAdj:1, ctl0: 40 };
 }
 function qHTML(p, onboarding){
-  const dayCells = [0,1,2,3,4,5,6].map(d => `<div class="day ${p.days[d].avail?'on':''}" data-day="${d}"><button type="button">${DOW[d]}</button><input type="number" min="30" max="300" step="15" value="${p.days[d].max}" ${p.days[d].avail?'':'disabled'} aria-label="Durée max ${DOW[d]}"><div class="tiny muted">min</div></div>`).join('');
+  const T0 = triOn() ? tri() : null, tsw = T0 ? T0.swimDays.slice(0, T0.swimPerWeek) : [], trn = T0 ? T0.runDays.slice(0, T0.runPerWeek) : [];
+  const dayCells = [0,1,2,3,4,5,6].map(d => `<div class="day ${p.days[d].avail?'on':''}" data-day="${d}"><button type="button">${DOW[d]}</button><input type="number" min="30" max="300" step="15" value="${p.days[d].max}" ${p.days[d].avail?'':'disabled'} aria-label="Durée max vélo ${DOW[d]}"><div class="tiny muted">min 🚴</div>${T0 ? `<div class="dsp"><span class="sp ${tsw.includes(d)?'on':''}" data-sp="swim" data-v="${d}" role="button" aria-pressed="${tsw.includes(d)}" aria-label="Nat ${DOW[d]}">🏊</span><span class="sp ${trn.includes(d)?'on':''}" data-sp="run" data-v="${d}" role="button" aria-pressed="${trn.includes(d)}" aria-label="Course ${DOW[d]}">🏃</span></div>` : ''}</div>`).join('');
   return `<form id="qform" autocomplete="off">
   <div class="card"><div class="row between"><h2>Toi</h2><button type="button" class="btn sm" id="prefill">Pré-remplir depuis un .fit Garmin</button></div>
     <div class="grid2">
@@ -2209,8 +2267,8 @@ function qHTML(p, onboarding){
     </div>
     <div id="goalCheck" class="small" style="margin-top:10px"></div>
   </div>
-  <div class="card"><h2>Tes disponibilités</h2>
-    <p class="muted small" style="margin-top:0">Touche un jour pour l'activer ou le retirer, puis ajuste sa durée max en minutes.</p>
+  <div class="card"><h2>Ma semaine</h2>
+    <p class="muted small" style="margin-top:0">${triOn() ? 'Vélo : touche un jour pour l\'activer, puis règle sa durée max. Nat et course : touche 🏊 ou 🏃 sous le jour.' : 'Touche un jour pour l\'activer ou le retirer, puis ajuste sa durée max en minutes.'}</p>
     <div class="days">${dayCells}</div>
     <div class="grid2" style="margin-top:6px">
       <div><label class="f">Séances clés / semaine (home trainer)</label><div class="seg" data-seg="keyPerWeek">${[1,2,3].map(n=>`<button type="button" class="${p.keyPerWeek===n?'on':''}" data-v="${n}">${n}</button>`).join('')}</div></div>
@@ -2260,6 +2318,9 @@ function bindQuestionnaire(onboarding){
     const d = +el.dataset.day; base.days[d].avail = !base.days[d].avail;
     el.classList.toggle('on', base.days[d].avail); inp.disabled = !base.days[d].avail; refresh();
   }));
+  const triDays = triOn() ? { swim: tri().swimDays.slice(0, tri().swimPerWeek), run: tri().runDays.slice(0, tri().runPerWeek) } : null;
+  f.querySelectorAll('[data-sp]').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); e.preventDefault(); const k = b.dataset.sp, v = +b.dataset.v, on = !triDays[k].includes(v);
+    triDays[k] = on ? [...triDays[k], v].sort((a, c) => a - c) : triDays[k].filter(x => x !== v); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }));
   f.querySelectorAll('.seg').forEach(seg => seg.querySelectorAll('button').forEach(b => b.onclick = () => { base[seg.dataset.seg] = +b.dataset.v; seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); refresh(); }));
   $('#prefill').onclick = () => pickFile(async file => {
     try {
@@ -2284,7 +2345,9 @@ function bindQuestionnaire(onboarding){
     } else {
       p.ftp = S.profile.ftp; // la FTP ne change que via un test ou l'édition explicite
       const newF = +f.elements.ftp.value; if (newF && newF !== S.profile.ftp) { p.ftp = newF; S.ftpHistory.push({ date: todayISO(), ftp: newF, source:'manual' }); }
-      S.profile = p; regenerateFuture(); save(); render(); toast('Profil enregistré, séances à venir régénérées');
+      S.profile = p;
+      if (triDays && triDays.swim.length && triDays.run.length) { applyTri({ ...tri(), swimDays: triDays.swim, runDays: triDays.run, swimPerWeek: Math.min(3, triDays.swim.length), runPerWeek: Math.min(3, triDays.run.length) }); render(); toast('Ma semaine enregistrée : vélo, nat et course à venir régénérés'); return; }
+      regenerateFuture(); save(); render(); toast('Profil enregistré, séances à venir régénérées');
     }
   });
   const so = $('#saveOnly'); if (so) so.onclick = () => { refresh(); const newF = +f.elements.ftp.value; if (newF && newF !== S.profile.ftp) S.ftpHistory.push({ date: todayISO(), ftp: newF, source:'manual' }); base.ftp = newF || S.profile.ftp; S.profile = base; save(); render(); toast('Profil enregistré'); };
@@ -2527,8 +2590,8 @@ const INFO = {
   rhr: () => ({ t:'FC au repos', body:`${trendChart('rhr')}<p>Ton pouls au repos (mesuré par la montre). Elle baisse quand ta forme s'améliore. <b>+5 bpm ou plus</b> par rapport à ta moyenne : signe de fatigue ou d'infection qui arrive, à prendre au sérieux avant une séance dure.</p>` }),
   sleep: () => ({ t:'Sommeil', body:`${sleepDetail()}<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
   weight: () => ({ t:'Poids', body:`${trendChart('weight')}<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
-  score: () => { const sc = Health.score(); if (!sc) return { t:'Indice de forme', body:'<p>Pas encore assez de données Santé.</p>' };
-    return { t:`Indice de forme · ${sc.v}/100`, body:`${trendChart('score')}<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
+  score: () => { const sc = Health.score(); if (!sc) return { t:'Énergie', body:'<p>Pas encore assez de données Santé.</p>' };
+    return { t:`Énergie · ${sc.v}/100`, body:`${trendChart('score')}<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
       <div class="infoscale">${sc.parts.map(p => `<div><b>${p.k} · ${Math.round(p.s)}</b><span>${esc(p.d)} <span class="muted">(poids ${Math.round(p.w*100)} %)</span></span></div>`).join('')}</div>
       <ul><li><b>VFC</b> : comparée à ta moyenne et ta variabilité habituelles (échelle logarithmique, méthode utilisée en recherche sur l'entraînement).</li><li><b>FC repos</b> : chaque bpm au-dessus de ta moyenne fait baisser l'indice.</li><li><b>Sommeil</b> : la nuit dernière (60 %) et les 3 dernières (40 %) ; 8 h = plein score, 5 h = zéro.</li><li><b>Charge</b> : ta forme (TSB) ; très fatigué = pénalité.</li></ul>
       ${scale([[75,101,'75 – 100','Prêt : bon jour pour pousser'],[55,75,'55 – 75','Correct : séance prévue'],[40,55,'40 – 55','Prudence : cibles −3 à −5 %'],[0,40,'< 40','Récupère : endurance ou repos']], sc.v)}
@@ -3448,7 +3511,7 @@ function adjustHTML(s, compact=false){
   if (s.status !== 'planned' || WORKOUTS[s.workoutId].type === 'test') return '';
   const easier = neighbor(s.workoutId, -1), harder = neighbor(s.workoutId, 1), k = sAdj(s);
   const chip = v => `<button type="button" class="${Math.abs(k - v) < 0.001 ? 'on' : ''}" data-sadj="${v}" data-sid="${s.id}">${v === 1 ? 'Prévu' : (v > 1 ? '+' : '−') + Math.round(Math.abs(v-1)*100) + ' %'}</button>`;
-  return `<details class="adj" ${compact ? '' : 'open'} style="margin-top:12px"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">Ajuster selon ma forme</summary>
+  return `<details class="adj" ${compact ? '' : 'open'} style="margin-top:12px"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">Ajuster : plus facile, plus dur, reporter</summary>
     <div class="row" style="margin-top:10px;gap:6px">
       ${easier ? `<button class="btn sm" data-sx="easier" data-sid="${s.id}" title="${esc(WORKOUTS[easier].name)}">⬇ Plus facile <span class="tiny muted">· ${esc(WORKOUTS[easier].name)}</span></button>` : ''}
       ${harder ? `<button class="btn sm" data-sx="harder" data-sid="${s.id}" title="${esc(WORKOUTS[harder].name)}">⬆ Plus dur <span class="tiny muted">· ${esc(WORKOUTS[harder].name)}</span></button>` : ''}
@@ -3467,9 +3530,9 @@ function formeHint(s){
   const sc = (typeof Health !== 'undefined') ? Health.score() : null;
   const lastFeel = S.activities.filter(a => a.feel?.rpe).sort((a,b) => b.date.localeCompare(a.date))[0];
   let msg = '', btns = '';
-  if (sc && sc.v < 40) { msg = `Indice de forme ${sc.v}/100 : ton corps n'a pas récupéré.`; btns = `<button class="btn sm" data-sx="post" data-sid="${s.id}">Reporter</button><button class="btn sm" data-sx="rec" data-sid="${s.id}">Récup à la place</button>`; }
-  else if (sc && sc.v < 55) { msg = `Indice de forme ${sc.v}/100 : garde la séance mais lève un peu le pied.`; btns = `<button class="btn sm" data-sadj="0.95" data-sid="${s.id}">Cibles −5 %</button>${neighbor(s.workoutId,-1) ? `<button class="btn sm" data-sx="easier" data-sid="${s.id}">Version plus facile</button>` : ''}`; }
-  else if (sc && sc.v >= 80 && (!lastFeel || lastFeel.feel.rpe <= 7)) { msg = `Indice de forme ${sc.v}/100 : tu es frais. Tu peux viser un cran au-dessus si les jambes répondent à l'échauffement.`; btns = `<button class="btn sm" data-sadj="1.03" data-sid="${s.id}">Cibles +3 %</button>${neighbor(s.workoutId,1) ? `<button class="btn sm" data-sx="harder" data-sid="${s.id}">Version plus dure</button>` : ''}`; }
+  if (sc && sc.v < 40) { msg = `Énergie ${sc.v}/100 : ton corps n'a pas récupéré.`; btns = `<button class="btn sm" data-sx="post" data-sid="${s.id}">Reporter</button><button class="btn sm" data-sx="rec" data-sid="${s.id}">Récup à la place</button>`; }
+  else if (sc && sc.v < 55) { msg = `Énergie ${sc.v}/100 : garde la séance mais lève un peu le pied.`; btns = `<button class="btn sm" data-sadj="0.95" data-sid="${s.id}">Cibles −5 %</button>${neighbor(s.workoutId,-1) ? `<button class="btn sm" data-sx="easier" data-sid="${s.id}">Version plus facile</button>` : ''}`; }
+  else if (sc && sc.v >= 80 && (!lastFeel || lastFeel.feel.rpe <= 7)) { msg = `Énergie ${sc.v}/100 : tu es frais. Tu peux viser un cran au-dessus si les jambes répondent à l'échauffement.`; btns = `<button class="btn sm" data-sadj="1.03" data-sid="${s.id}">Cibles +3 %</button>${neighbor(s.workoutId,1) ? `<button class="btn sm" data-sx="harder" data-sid="${s.id}">Version plus dure</button>` : ''}`; }
   if (!msg) return '';
   return `<div class="note ${sc.v < 55 ? 'bad' : 'ok'}" style="margin:12px 0 0">${esc(msg)}<div class="row" style="margin-top:8px;gap:6px">${btns}</div></div>`;
 }
@@ -3522,14 +3585,15 @@ function sessionDlg(id){
     ${stepsTable(s.workoutId, sAdj(s))}
     ${act ? `<div class="note ok" style="margin-top:12px">Réalisée : ${fmtDur(act.durationS)}${act.np?` · NP ${act.np} W`:''}${act.avgHr?` · ${act.avgHr} bpm`:''}${act.feel?.rpe?` · RPE ${act.feel.rpe}`:''}</div>${evalHTML(act, s)}${ActChart.html(act, s)}` : ''}
     <div class="row" style="margin-top:14px">
-      ${s.status!=='done' ? `<button class="btn primary" data-log="${s.id}">J'ai fait la séance</button>` : `<button class="btn" data-act="${act?.id}">Voir l'activité</button>`}
-      <button class="btn" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>
+      ${s.status === 'done' ? `<button class="btn primary" data-act="${act?.id}">Voir l'activité</button>` : Cloud.icu?.connected ? `<span class="tiny muted">Envoyée sur l'Edge via Intervals.icu, validée automatiquement après la synchro.</span>` : `<button class="btn primary" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>`}
     </div>
     ${W.type==='test' && s.status==='planned' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}
+    <details class="more" style="margin-top:14px"><summary>⋯ Autres actions : saisir, déplacer, remplacer, passer</summary>
+    <div class="row" style="margin-top:8px;gap:6px">${s.status !== 'done' ? `<button class="btn sm" data-log="${s.id}">Saisir la séance à la main</button>` : ''}${Cloud.icu?.connected || s.status === 'done' ? `<button class="btn sm" data-export="${s.id}">Fichier .fit pour l'Edge</button>` : ''}</div>
     <label class="f">Déplacer au</label><div class="row"><input type="date" id="mvDate" value="${s.date}" style="flex:1"><button class="btn" id="mvBtn">Déplacer</button></div>
     <div id="mvWarn" class="tiny" style="color:var(--warn);margin-top:4px"></div>
     <label class="f">Remplacer par</label><div class="row"><select id="rpSel" style="flex:1">${opts}</select><button class="btn" id="rpBtn">Remplacer</button></div>
-    <div class="row" style="margin-top:14px">${s.status==='planned'?`<button class="btn sm" id="skipBtn">Passer cette séance</button>`:''}${s.status==='skipped'?`<button class="btn sm" id="unskipBtn">Remettre au programme</button>`:''}<button class="btn sm danger" id="delBtn">Supprimer</button></div>`);
+    <div class="row" style="margin-top:14px">${s.status==='planned'?`<button class="btn sm" id="skipBtn">Passer cette séance</button>`:''}${s.status==='skipped'?`<button class="btn sm" id="unskipBtn">Remettre au programme</button>`:''}<button class="btn sm danger" id="delBtn">Supprimer</button></div></details>`);
   const warn = () => { const d = $('#mvDate').value; $('#mvWarn').textContent = hardConflict(s, d); };
   $('#mvDate').oninput = warn;
   $('#mvBtn').onclick = () => { const d = $('#mvDate').value; if (!d) return; s.date = d; s.week = Math.floor(diffDays(monday(S.profile.startDate), d)/7); S.plan.sort((a,b)=>a.date.localeCompare(b.date)); save(); closeDlg(); render(); toast('Séance déplacée'); };
@@ -4245,7 +4309,7 @@ const Health = (() => {
     const gauge = sc ? `<div class="row" style="gap:16px;margin-bottom:12px;cursor:pointer" data-i="score">
         ${batterySVG(sc.v)}
         <div style="flex:1;min-width:150px"><div class="disp" style="font-size:22px;font-weight:700;color:${scCol};text-transform:uppercase">${ {ok:'Prêt',mid:'Correct',warn:'Prudence',bad:'Récupère'}[sc.level] } <span class="tiny muted" style="text-transform:none;font-family:Inter,sans-serif;font-weight:500">· détail ⓘ</span></div><div class="small">${scTxt}</div></div></div>` : '';
-    return `<div class="card"><div class="row between"><h2>Forme du jour</h2><span class="chip" style="color:${col[r.level==='none'?'':r.level]}">● ${ {ok:'Récupéré',warn:'Moyen',bad:'Fatigué',none:'Apple Santé'}[r.level] }</span></div>
+    return `<div class="card"><div class="row between"><h2>Énergie du jour</h2><span class="chip" style="color:${col[r.level==='none'?'':r.level]}">● ${ {ok:'Récupéré',warn:'Moyen',bad:'Fatigué',none:'Apple Santé'}[r.level] }</span></div>
       ${gauge}<div class="grid4">${r.items.map(i=>`<div class="kpi"><div class="v num" style="font-size:24px;color:${i.st?col[i.st]:'var(--text)'}">${i.v}</div><div class="l">${i.l}</div><div class="tiny muted" style="margin-top:2px">${i.sub}</div></div>`).join('')}</div>
       ${sc ? '' : `<p class="small" style="margin:10px 0 0">${msg}</p>`}${wNote}
       ${H.daily.filter(x => x.metric === 'hrv' && x.day >= addDays(todayISO(), -60)).length < 21 ? `<p class="tiny muted" style="margin:10px 0 0">Pour un indice fiable dès aujourd'hui, importe ton historique Santé (Profil › Apple Santé) : il faut ~3 semaines de VFC pour connaître ta normale.</p>` : ''}</div>`;
@@ -4296,7 +4360,7 @@ const Health = (() => {
       <div class="row"><button class="btn primary" id="hKeyBtn">${H.token ? 'Générer une nouvelle clé' : 'Générer ma clé'}</button><button class="btn ghost" id="hReload">Actualiser</button></div>
       <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
       <h3>Importer ton historique</h3>
-      <p class="small muted" style="margin-top:0">Une fois : 4 mois de VFC, FC repos, sommeil, poids, VO2max et toutes tes séances, pour calibrer ton indice de forme et ta fitness.</p>
+      <p class="small muted" style="margin-top:0">Une fois : 4 mois de VFC, FC repos, sommeil, poids, VO2max et toutes tes séances, pour calibrer ton énergie du jour et ta fitness.</p>
       <ol class="small" style="padding-left:20px;margin:6px 0 10px"><li>App <b>Santé</b> › ta photo en haut à droite › <b>Exporter toutes les données de santé</b> › Exporter (1 à 5 min).</li><li>Choisis <b>Enregistrer dans Fichiers</b>.</li><li>Ici : <b>Choisir export.zip</b> (ou export.xml si tu l'as décompressé).</li></ol>
       <button class="btn" id="hImportBtn">Choisir export.zip</button><div id="hImportBox" class="small" style="margin-top:10px">${HealthImport.last || (S.healthImportedAt ? `<span class="muted">Dernier import : ${new Date(S.healthImportedAt).toLocaleDateString('fr-FR')}</span>` : '')}</div></div>`;
   }

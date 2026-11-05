@@ -16,8 +16,8 @@ for (const scheme of ['dark', 'light']) {
   const lab = await pg.getAttribute('[data-i="score"] svg', 'aria-label');
   const fill = await pg.getAttribute('[data-i="score"] .batt-fill', 'fill');
   console.log(scheme, lab, fill);
-  if (!/Batterie de forme \d+/.test(lab) || !/var\(--(ok|warn|bad)\)/.test(fill) || errs.length) { bad++; console.log('ÉCHEC', errs); }
-  await pg.locator('.card', { hasText: 'Forme du jour' }).first().screenshot({ path: `${out}/battery-${scheme}.png` });
+  if (!/Énergie \d+ sur 100/.test(lab) || !/var\(--(ok|warn|bad)\)/.test(fill) || errs.length) { bad++; console.log('ÉCHEC', errs); }
+  await pg.locator('.card', { hasText: 'Énergie du jour' }).first().screenshot({ path: `${out}/battery-${scheme}.png` });
   // les trois couleurs
   const cols = await pg.evaluate(() => [85, 45, 20].map(v => (batterySVG(v).match(/class="batt-fill"[^>]*fill="([^"]+)"/) || [])[1]));
   console.log('couleurs 85/45/20', cols); if (cols.join() !== 'var(--ok),var(--warn),var(--bad)') bad++;
