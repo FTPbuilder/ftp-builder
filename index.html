@@ -161,6 +161,12 @@ nav.tabs button .lbl{font:italic 800 12.5px/1 "Barlow Condensed","Arial Narrow",
 .home .ring{width:76px;height:76px}
 .home .ring .ic{width:30px;height:30px}
 nav.tabs .in{background:color-mix(in srgb,var(--card) 84%,transparent)}
+.tgoal{width:100%;border-collapse:collapse;margin-top:12px;font-size:14px}
+.tgoal th,.tgoal td{padding:7px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+.tgoal th:first-child{text-align:left;font-weight:500}
+.tgoal thead th{font:italic 800 13px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.tgoal tr.tot th,.tgoal tr.tot td{border-bottom:0;font-weight:700;color:var(--text)}
+.tgoal .ok{color:var(--ok);font-size:12px} .tgoal .bad{color:var(--bad);font-size:12px}
 .pane-head{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .pane-head h2{font-size:26px;font-weight:700;text-transform:uppercase;flex:1}
 .pane-back{width:44px;height:44px;flex:none;border-radius:50%;border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -363,7 +369,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.19.1';
+const APP_VERSION = '0.20.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1480,12 +1486,22 @@ $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[d
 /* ----- Aujourd'hui ----- */
 // séances de la semaine en cours (vélo + nat / course) : faites / prévues, et tout ce qui reste à venir
 function weekCount(){
-  const t = todayISO(), w0 = monday(t), w1 = addDays(w0, 6);
-  const bike = S.plan.filter(s => s.status !== 'skipped' && s.date >= w0 && s.date <= w1 && mandatory(s));
-  const tp = triOn() ? (S.triPlan || []).filter(x => x.sport !== 'race' && x.status !== 'skipped' && x.date >= w0 && x.date <= w1) : [];
-  const done = bike.filter(s => s.status === 'done').length + tp.filter(x => triStatus(x) === 'done').length;
+  const t = todayISO(), w0 = monday(t), w1 = addDays(w0, 6), inW = d => d >= w0 && d <= w1;
+  const bike = S.plan.filter(s => s.status !== 'skipped' && inW(s.date) && mandatory(s));
+  let done = bike.filter(s => s.status === 'done').length, total = bike.length;
+  // sorties vélo hors plan comptées comme séances (case « compter comme une séance ») : elles remplissent d'abord une séance vélo encore ouverte
+  const bikeOpen = bike.filter(s => s.status === 'planned').length, bikeX = S.activities.filter(a => !a.planId && a.countAsSession && inW(a.date)).length;
+  done += bikeX; total += Math.max(0, bikeX - bikeOpen);
+  if (triOn()) for (const sp of ['swim', 'run']) {
+    // nat / course : une séance faite un autre jour que prévu (ou avant la création du plan) remplit un créneau ouvert de la semaine, sinon s'ajoute
+    const tp = (S.triPlan || []).filter(x => x.sport === sp && x.status !== 'skipped' && inW(x.date));
+    const okDates = new Set(tp.filter(x => triStatus(x) === 'done').map(x => x.date));
+    const extra = new Set(Health.extraWorkouts().filter(e => e.sport === sp && inW(e.date) && e.date <= t && (+e.w.duration_min || 0) >= 15 && !okDates.has(e.date)).map(e => e.date)).size;
+    const open = tp.length - okDates.size;
+    done += okDates.size + extra; total += tp.length + Math.max(0, extra - open);
+  }
   const left = S.plan.filter(s => s.status === 'planned' && s.date >= t && mandatory(s)).length + (triOn() ? (S.triPlan || []).filter(x => x.date >= t && triStatus(x) === 'planned').length : 0);
-  return { done, total: bike.length + tp.length, left };
+  return { done: Math.min(done, total), total, left };
 }
 // carte d'accueil : ce que je fais aujourd'hui, avec un conseil selon l'énergie du jour
 function todayCardHTML(){
@@ -2193,6 +2209,49 @@ function triRowHTML(x){
     <div class="st">${stt === 'done' ? '✅' : stt === 'skipped' ? '⏭️' : stt === 'missed' ? '😞' : x.sport === 'race' ? '🏁' : ''}</div></div>`;
 }
 const T_raceLine = () => { const r = tri().race; return `${r.swim} m · ${r.bike} km (${r.bikeDp} m D+) · ${r.run} km (${r.runDp} m D+)`; };
+/* ----- Course A : objectifs et prédiction par discipline ----- */
+// vélo : modèle physique (puissance = gravité + roulement + aéro), parcours découpé en montées à 5 %, descentes et plat
+function bikeSpeed(P, grade, m, cda = 0.32, crr = 0.005, rho = 1.15, eta = 0.975){
+  const g = 9.81, th = Math.atan(grade), F = m*g*(Math.sin(th) + crr*Math.cos(th));
+  let lo = 0.5, hi = 25; // m/s : bissection sur P·η = (F + ½ρ·CdA·v²)·v
+  for (let k = 0; k < 60; k++) { const v = (lo + hi)/2; ((F + 0.5*rho*cda*v*v)*v > P*eta) ? hi = v : lo = v; }
+  return (lo + hi)/2;
+}
+function triPredict(){
+  const T = Object.assign(TRI_DEF(), S.tri || {}), r = T.race, g = triGuess(), kg = +S.profile?.weightKg || 75;
+  const css = g.css || T.css, thr = g.runThr || T.runThr;
+  // nat : allure course ≈ CSS + 4 s/100 m sur 2 km, +3 % de distance en eau libre (trajectoire, visée)
+  const swim = r.swim/100*(css + 4)*1.03;
+  // vélo : IF 0,76 × FTP sur un half vallonné (0,75–0,83 selon le niveau, bas de fourchette pour garder le semi), +5 % dans les bosses
+  const P = 0.76*ftp(), m = kg + 9, climbKm = Math.min(r.bike*0.45, (r.bikeDp || 0)/0.05/1000), flatKm = Math.max(0, r.bike - 2*climbKm);
+  const vUp = bikeSpeed(P*1.05, 0.05, m), vFlat = bikeSpeed(P, 0, m), vDown = Math.min(bikeSpeed(P*0.4, -0.05, m), 50/3.6);
+  const bike = climbKm*1000/vUp + climbKm*1000/vDown + flatKm*1000/vFlat;
+  // course : allure 70.3 ≈ seuil × 1,10 (fatigue du vélo) appliquée aux km-effort (1 km + 100 m D+ = 2 km-effort)
+  const run = (r.run + (r.runDp || 0)/100)*thr*1.10;
+  return { swim, t1: 240, bike, t2: 120, run, css, thr, P: Math.round(P), cssData: !!g.css, thrData: !!g.runThr };
+}
+const fmtHMS = sec => { sec = Math.round(sec); const h = Math.floor(sec/3600), m = Math.floor(sec % 3600/60), x = sec % 60; return h ? `${h}h${pad(m)}'${pad(x)}` : `${m}'${pad(x)}`; };
+const parseHMS = v => { const n = String(v || '').trim().split(/[^\d]+/).filter(Boolean).map(Number); if (!n.length) return null; return n.length >= 3 ? n[0]*3600 + n[1]*60 + n[2] : n.length === 2 ? n[0]*60 + n[1] : n[0]*60; };
+const TRI_LEGS = [['swim', '🏊 Nat'], ['t1', 'T1'], ['bike', '🚴 Vélo'], ['t2', 'T2'], ['run', '🏃 Course']];
+function triGoalTableHTML(){
+  const pr = triPredict(), G = tri()?.goals || {}, sum = o => TRI_LEGS.reduce((a, [k]) => a + (o[k] || 0), 0);
+  const hasG = TRI_LEGS.some(([k]) => G[k]), gTot = TRI_LEGS.every(([k]) => G[k]) ? sum(G) : null, pTot = sum(pr);
+  const cell = g => { if (!g) return '<td class="num muted">—</td>'; return `<td class="num">${fmtHMS(g)}</td>`; };
+  const dlt = (g, p) => g ? `<span class="${p <= g ? 'ok' : 'bad'}">${p <= g ? '−' : '+'}${fmtHMS(Math.abs(p - g))}</span>` : '';
+  return `<table class="tgoal"><thead><tr><th></th><th>Objectif</th><th>Prédiction</th></tr></thead><tbody>
+    ${TRI_LEGS.map(([k, l]) => `<tr><th>${l}</th>${cell(G[k], pr[k])}<td class="num">${fmtHMS(pr[k])} ${dlt(G[k], pr[k])}</td></tr>`).join('')}
+    <tr class="tot"><th>Total</th>${gTot ? `<td class="num">${fmtHMS(gTot)}</td>` : '<td class="num muted">—</td>'}<td class="num">${fmtHMS(pTot)} ${dlt(gTot, pTot)}</td></tr></tbody></table>
+    <p class="tiny muted" style="margin:6px 0 0">Nat : CSS ${fmtPace(pr.css)} /100 m${pr.cssData ? ' (tes nats)' : ''} + 4 s, +3 % en eau libre · Vélo : ${pr.P} W (76 % FTP), modèle physique, montées à 5 % · Course : seuil ${fmtPace(pr.thr)} /km${pr.thrData ? ' (tes courses)' : ''} × 1,10 sur les km-effort (100 m D+ = 1 km) · T1/T2 : moyennes amateurs. <a href="#" data-trigoals="1">${hasG ? 'Modifier' : 'Fixer'} mes objectifs</a></p>`;
+}
+function triGoalsDlg(){
+  const G = tri()?.goals || {}, pr = triPredict();
+  openDlg(`<h2 style="margin:0 0 4px">🎯 Objectifs ${esc(tri().race.name)}</h2><p class="small muted" style="margin:0 0 10px">Format h:mm:ss ou mm:ss. Laisse vide pour ne pas fixer d'objectif.</p>
+    <form id="tgF" class="grid2" style="gap:10px">${TRI_LEGS.map(([k, l]) => `<div><label class="f">${l}</label><input type="text" name="${k}" inputmode="numeric" value="${G[k] ? fmtHMS(G[k]).replace(/h|'/g, ':') : ''}" placeholder="${fmtHMS(pr[k]).replace(/h|'/g, ':')}"></div>`).join('')}</form>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="tgGo">Enregistrer</button></div>`);
+  $('#tgGo').onclick = () => { const E = $('#tgF').elements, goals = {}; for (const [k] of TRI_LEGS) { const v = parseHMS(E[k].value); if (v) goals[k] = v; }
+    S.tri.goals = goals; save(); closeDlg(); render(); toast('Objectifs enregistrés'); };
+}
+document.addEventListener('click', e => { const g = e.target.closest('[data-trigoals]'); if (g) { e.preventDefault(); triGoalsDlg(); } });
 function triStepsHTML(x, W){
   if (x.sport === 'race') return '';
   return `<div class="tsteps">${W.steps.map(s => {
@@ -2225,7 +2284,8 @@ function triBannerHTML(){
   if (triOn()) { const T = tri(), d = diffDays(todayISO(), T.race.date), next = (S.triPlan || []).filter(x => x.date >= todayISO() && triStatus(x) === 'planned');
     return `<div class="card tri-banner"><div class="row between"><h2 style="margin:0">🏁 ${esc(T.race.name)}</h2><span class="num" style="font-size:22px;font-weight:700">J-${d}</span></div>
       <p class="tiny muted" style="margin:4px 0 0">${fmtDate(T.race.date)} · ${esc(T_raceLine())} · ${next.length} séances nat / course à venir</p>
-      <div class="row" style="margin-top:8px"><button class="btn sm" data-trisetup="1">Réglages du plan tri</button></div></div>`; }
+      ${triGoalTableHTML()}
+      <div class="row" style="margin-top:10px"><button class="btn sm" data-trisetup="1">Réglages du plan tri</button></div></div>`; }
   return `<div class="card tri-banner"><h2 style="margin:0 0 4px">🏁 Passer en plan triathlon</h2><p class="small muted" style="margin:0 0 8px">Un seul plan vélo + nat + course construit autour de ta course A (AlpsMan Half, début juin).</p><button class="btn primary sm" data-trisetup="1">Configurer</button></div>`;
 }
 
