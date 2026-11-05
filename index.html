@@ -549,7 +549,7 @@ const mandatory = s => s.kind !== 'optional';
 /* ============ TRIATHLON : course A, séances nat / course, plan ============ */
 // Réglages par défaut : AlpsMan Half (début juin 2027, date à confirmer), 2 nat + 2 course, doubles séances autorisées
 const TRI_DEF = () => ({ enabled:false, race:{ name:'AlpsMan Half', date:'2027-06-05', swim:2000, bike:100, bikeDp:1920, run:16, runDp:1300 },
-  swimPerWeek:2, runPerWeek:2, doubles:true, swimDays:[1, 4], runDays:[3, 6], css:105, runThr:270, pool:25, longRide:180 });
+  swimPerWeek:2, runPerWeek:3, doubles:true, swimDays:[1, 4], runDays:[0, 2, 6], css:105, runThr:270, pool:25, longRide:180 });
 const tri = () => S.tri || null;
 const triOn = () => !!(S.tri && S.tri.enabled);
 // allures : nat en s/100 m (par rapport à la CSS), course en s/km (par rapport à l'allure seuil)
@@ -604,6 +604,9 @@ const RUN = {
   long: (ph, min, dp) => ({ name:`Sortie longue ${fmtDur(min*60)}${dp ? ` · ${dp} m D+` : ''}`,
     goal: dp ? `Endurance en terrain vallonné (Meudon, Saint-Cloud, Saint-Germain) : monte en marchant vite si ça dépasse le seuil, travaille les descentes. Objectif ${dp} m D+.` : "Endurance fondamentale : facile, tu dois pouvoir parler. C'est elle qui construit le moteur.",
     steps:[st(1, min*60, 'e', dp ? `Footing vallonné · ${dp} m D+` : 'Footing facile')] }),
+  easy: (ph) => { const min = ph === 'recov' || ph === 'taper' ? 30 : ph === 'base' ? 40 : 45;
+    return { name:`Footing ${min} min${ph === 'recov' || ph === 'taper' ? '' : ' + lignes droites'}`, goal:"Footing facile au lendemain du week-end vélo : remettre les jambes en route, aisance respiratoire totale. Les lignes droites gardent une foulée tonique.",
+      steps: ph === 'recov' || ph === 'taper' ? [st(1, min*60, 'e', 'Footing facile')] : [st(1, (min - 5)*60, 'e', 'Footing facile'), st(6, 20, 'r', 'Ligne droite', 30)] }; },
   brick: (min) => ({ name:`Enchaînement vélo → course ${min} min`, goal:"Juste après la sortie vélo longue : chaussures prêtes, 5 premières minutes souples puis allure 70.3. Apprendre à courir sur jambes lourdes.",
     steps:[st(1, 300, 'e', 'Mise en route'), st(1, (min - 5)*60, 'm', 'Allure 70.3')] }),
 };
@@ -615,6 +618,7 @@ function triWorkout(x){
   if (x.sport === 'swim') return SWIM[x.wid](x.ph, x.v || 0, x.f || 1);
   if (x.wid === 'long') return RUN.long(x.ph, x.min, x.dp || 0);
   if (x.wid === 'brick') return RUN.brick(x.min);
+  if (x.wid === 'easy') return RUN.easy(x.ph);
   return RUN.qual(x.ph, x.v || 0);
 }
 // durée (s) et distance (m) estimées
@@ -668,7 +672,8 @@ function generateTri(p, T, keepFrom){
         let min = Math.round((55 + prog*55)/5)*5; if (ph === 'recov') min = Math.round(min*0.65/5)*5; if (ph === 'taper') min = 50;
         const dp = ph === 'spec' ? Math.round((350 + prog*650)/50)*50 : ph === 'build2' ? 250 : 0;
         add(k, d, { sport:'run', wid:'long', ph, v, min, dp: ph === 'recov' ? 0 : dp, kind:'key' });
-      } else add(k, d, { sport:'run', wid:'qual', ph, v: v + j, kind:'key' });
+      } else if (rd.length >= 3 && j === 0) add(k, d, { sport:'run', wid:'easy', ph, v, kind:'key' }); // 3 courses : la 1re = footing facile
+      else add(k, d, { sport:'run', wid:'qual', ph, v: v + j, kind:'key' });
     });
     // enchaînement après la sortie vélo longue du week-end (build2 et spécifique, une semaine sur deux puis toutes)
     if (T.doubles && (ph === 'build2' || ph === 'spec') && (ph === 'spec' || v % 2 === 0)) {
@@ -1988,7 +1993,7 @@ function triSetupDlg(){
       <div><label class="f">Nat / semaine</label>${cnt('swimPerWeek', T.swimPerWeek)}</div>
       <div><label class="f">Course / semaine</label>${cnt('runPerWeek', T.runPerWeek)}</div>
       <div style="grid-column:1/-1"><label class="f">Jours de nat</label>${dayPick('swimDays', T.swimDays)}</div>
-      <div style="grid-column:1/-1"><label class="f">Jours de course <span class="tiny muted">(le dernier = sortie longue)</span></label>${dayPick('runDays', T.runDays)}</div>
+      <div style="grid-column:1/-1"><label class="f">Jours de course <span class="tiny muted">(le dernier = sortie longue ; avec 3 courses, le 1er = footing facile)</span></label>${dayPick('runDays', T.runDays)}</div>
       <div style="grid-column:1/-1"><label class="f">Sortie vélo longue du week-end <span class="tiny muted">(à partir du bloc VO2)</span></label><select name="longRide">${[120, 150, 180, 210].map(m => `<option value="${m}" ${T.longRide === m ? 'selected' : ''}>jusqu'à ${fmtDur(m*60)}</option>`).join('')}</select></div>
       <label class="small" style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><input type="checkbox" name="doubles" ${T.doubles ? 'checked' : ''} style="width:auto"> Doubles séances (nat le matin + vélo le soir, enchaînements vélo → course)</label>
     </form>

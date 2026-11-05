@@ -21,10 +21,13 @@ const r = await pg.evaluate(() => ({ n: S.triPlan.length, swim: S.triPlan.filter
   race: S.triPlan.filter(x => x.sport === 'race').map(x => x.date), end: S.profile.endDate, after: S.plan.filter(s => s.date > '2027-06-05').length,
   spec: S.plan.some(s => s.block === 'Spécifique montagne'), long3h: S.plan.some(s => s.workoutId === 'end_180'), longDp: S.triPlan.filter(x => x.wid === 'long' && x.dp >= 800).length,
   weekOk: (() => { const w = S.triPlan.filter(x => x.date >= '2026-11-09' && x.date <= '2026-11-15'); return [w.filter(x => x.sport === 'swim').length, w.filter(x => x.sport === 'run').length]; })(),
+  runWeek: S.triPlan.filter(x => x.sport === 'run' && x.date >= '2026-11-09' && x.date <= '2026-11-15').map(x => DOW[dowMon(x.date)].toLowerCase() + ':' + x.wid),
+  swimWeek: S.triPlan.filter(x => x.sport === 'swim' && x.date >= '2026-11-09' && x.date <= '2026-11-15').map(x => DOW[dowMon(x.date)].toLowerCase()),
   raceWeekBike: S.plan.filter(s => s.date >= '2027-05-31').map(s => s.workoutId) }));
 console.log(JSON.stringify(r));
 assert(r.race.join() === '2027-06-05' && r.end === '2027-06-05' && r.after === 0, 'course le 5 juin, plan vélo prolongé jusqu\'à la course');
-assert(r.weekOk.join() === '2,2', '2 nat + 2 course par semaine');
+assert(r.weekOk.join() === '2,3', '2 nat + 3 course par semaine (défaut)');
+assert(r.runWeek.join() === 'lun:easy,mer:qual,dim:long' && r.swimWeek.join() === 'mar,ven', 'semaine type : footing lun., qualité mer., longue dim., nat mar. + ven.');
 assert(r.spec && r.long3h && r.longDp >= 3, 'bloc spécifique montagne : sorties vélo 3 h, sorties longues à pied avec D+');
 assert(r.raceWeekBike.join() === 'openers', 'semaine de course : un seul rappel vélo, pas de test FTP');
 // calendrier : ronds prévus visibles et jour cliquable avec sélecteur
