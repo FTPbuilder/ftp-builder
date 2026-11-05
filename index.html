@@ -9,7 +9,7 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
 :root{--swim:#19c3c9;--run:#2fbf71;
   --bg:#0f1115; --bg2:#171a21; --card:#1c2029; --line:#2a2f3b; --text:#eef0f4; --muted:#9aa1b0;
@@ -107,19 +107,45 @@ nav.tabs button.on{color:var(--text)}
 @keyframes iriShift{from{background-position:0 0,0% 50%}to{background-position:0 0,100% 50%}}
 @keyframes iriShiftT{from{background-position:0% 50%}to{background-position:100% 50%}}
 @media (prefers-reduced-motion:reduce){.tile,.tile .tv{animation:none}}
-.blobs{margin:4px auto 14px;max-width:420px}
-.blobs svg{display:block;width:100%;height:auto;overflow:visible;animation:blobsIn .55s cubic-bezier(.3,1.3,.5,1) backwards}
-.blobs .blob{transform-box:fill-box;transform-origin:center;animation:blobBreath 5.5s ease-in-out infinite alternate;animation-delay:var(--bd,0s)}
-.blobs svg{filter:drop-shadow(0 10px 26px color-mix(in srgb,#b79cff 38%,transparent))}
-.blobs text{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;text-anchor:middle;fill:#fff;pointer-events:none;paint-order:stroke;stroke:rgba(40,20,80,.28);stroke-width:3px;stroke-linejoin:round}
-.blobs .bl{font-weight:700;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
-.blobs .bv{font-weight:800}
-.blobs .bs{font-family:system-ui,sans-serif;opacity:.75}
-.blob-hit{cursor:pointer;outline:none;transition:transform .15s;transform-box:fill-box;transform-origin:center}
-.blob-hit:active{transform:scale(.95)} .blob-hit:focus-visible circle{stroke:var(--text);stroke-width:2;stroke-dasharray:4 4}
-@keyframes blobsIn{from{opacity:0;transform:scale(.88)}}
-@keyframes blobBreath{from{transform:scale(.97)}to{transform:scale(1.03)}}
-@media (prefers-reduced-motion:reduce){.blobs svg,.blobs .blob{animation:none}}
+/* Accueil : anneau Programme + cartes, typo condensée grasse italique */
+:root{--h-prog1:#7fe3c4;--h-prog2:#6fb6ff;--h-hrs:#6fb6ff;--h-nrg:#ff9a52;--h-def:#b48cff}
+.brand h1{font:italic 900 34px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.005em;background:none;-webkit-text-fill-color:currentColor;color:color-mix(in srgb,var(--text) 78%,var(--muted))}
+.brand h1 .ftp{background:linear-gradient(100deg,var(--h-prog1),var(--h-prog2));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;padding-right:.04em}
+.brand h1 b{color:var(--h-nrg);-webkit-text-fill-color:var(--h-nrg)}
+header.top .chip{font:italic 700 15px "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.03em;text-transform:uppercase}
+header.top .chip b{color:var(--text);font-weight:900;font-size:17px}
+nav.tabs button .lbl{font:italic 800 12.5px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.home{position:relative;max-width:440px;margin:0 auto;isolation:isolate}
+.home::before{content:"";position:absolute;left:-16px;right:-16px;top:-90px;height:420px;z-index:-1;pointer-events:none;background:radial-gradient(120% 70% at 70% 0%,color-mix(in srgb,#3b5aa8 30%,transparent),transparent 70%),radial-gradient(60% 30% at 100% 70%,rgba(255,154,82,.10),transparent)}
+.home .bc{font-family:"Barlow Condensed","Arial Narrow",sans-serif;font-style:italic}
+.home .lab{font:italic 800 17px/1 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.home .num0{font:italic 900 82px/.85 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.02em;padding-right:.05em;color:var(--text)}
+.home .num0 small{font-size:.38em;font-weight:800;color:color-mix(in srgb,var(--muted) 70%,var(--bg));margin-left:3px}
+.home .sub{font:italic 700 15px/1.15 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px}
+.home button{font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
+.home button:active{transform:scale(.97)}
+.home .hero{display:grid;place-items:center;margin:4px auto 14px;background:none;border:0;padding:0;width:240px;height:240px;position:relative}
+.home .hero>svg{position:absolute;inset:0;width:100%;height:100%}
+.home .hero .in{position:relative;text-align:center;display:flex;flex-direction:column;align-items:center}
+.home .hero .num0{font-size:140px;line-height:.82;margin:6px 0 4px}
+.home .hero .num0 small{font-size:.36em}
+.home .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.home .hc{background:var(--card);border:1px solid var(--line);border-radius:24px;padding:16px 16px 0;overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow,none)}
+.home .hc .top{display:flex;align-items:center;gap:8px}
+.home .hc .top svg{width:20px;height:20px;flex:none}
+.home .hc .num0{margin:12px 0 6px}
+.home .hc .spark{display:block;width:calc(100% + 32px);height:48px;margin:6px -16px 0}
+.home .hc .nospark{height:22px}
+.home .hc.wide{grid-column:1/-1;flex-direction:row;justify-content:space-between;align-items:center;padding:14px 18px}
+.home .ring{position:relative;width:86px;height:86px;display:grid;place-items:center;flex:none}
+.home .ring>svg:first-child{position:absolute;inset:0}
+.home .ring .ic{width:34px;height:34px}
+@keyframes homeIn{from{opacity:0;transform:translateY(8px)}}
+.home .hero,.home .hc{animation:homeIn .4s cubic-bezier(.3,1.2,.5,1) backwards}
+.home .hc:nth-child(1){animation-delay:.05s}.home .hc:nth-child(2){animation-delay:.1s}.home .hc:nth-child(3){animation-delay:.15s}
+@keyframes ringIn{from{stroke-dasharray:0 9999}}
+.home .harc{animation:ringIn .9s cubic-bezier(.3,.9,.3,1) backwards .1s}
+@media (prefers-reduced-motion:reduce){.home .hero,.home .hc,.home .harc{animation:none}}
 .tiles-home{margin-top:6px}
 .tiles-home .tile{aspect-ratio:auto;min-height:148px}
 .tiles-home .tile .tv{display:block;font-size:clamp(46px,14vw,70px);transform:scaleY(1.35);transform-origin:left top;margin:6px 0 calc(.86em * .35)}
@@ -325,7 +351,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.18.1';
+const APP_VERSION = '0.19.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1418,7 +1444,7 @@ function render(){
   if (!S.profile) { tabs.classList.add('hidden'); app.innerHTML = onboardingHTML(); bindQuestionnaire(true); return; }
   tabs.classList.remove('hidden');
   tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
-  const head = `<header class="top"><div class="brand"><h1>FTP<b>·</b>Builder</h1><small>v${APP_VERSION}</small></div><span class="chip num">FTP ${ftp()} W · ${(ftp()/S.profile.weightKg).toFixed(2)} W/kg</span></header>`;
+  const head = `<header class="top"><div class="brand"><h1><span class="ftp">FTP</span><b>·</b>Builder</h1><small>v${APP_VERSION}</small></div><span class="chip num">FTP <b>${ftp()} W</b> · <b>${(ftp()/S.profile.weightKg).toFixed(2).replace('.', ',')}</b> W/kg</span></header>`;
   app.innerHTML = head + ({ today: todayHTML, cal: calHTML, prog: progHTML, profile: profileHTML })[TAB]();
   if (TAB === 'profile') bindQuestionnaire(false);
   moveTabPill();
@@ -1434,10 +1460,9 @@ function moveTabPill(){
 window.addEventListener('resize', () => { _pillReady = false; moveTabPill(); });
 let TODAY_PANE = null;
 document.addEventListener('click', e => {
-  const b = e.target.closest('.tile[data-pane],.blob-hit[data-pane]'); if (b) { TODAY_PANE = b.dataset.pane; render(); window.scrollTo(0, 0); return; }
+  const b = e.target.closest('.tile[data-pane],.home [data-pane]'); if (b) { TODAY_PANE = b.dataset.pane; render(); window.scrollTo(0, 0); return; }
   if (e.target.closest('[data-paneback]')) { TODAY_PANE = null; render(); window.scrollTo(0, 0); }
 });
-document.addEventListener('keydown', e => { const b = (e.key === 'Enter' || e.key === ' ') && e.target.closest?.('.blob-hit[data-pane]'); if (b) { e.preventDefault(); TODAY_PANE = b.dataset.pane; render(); window.scrollTo(0, 0); } });
 $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; if (b.dataset.tab === 'today') TODAY_PANE = null; TAB = b.dataset.tab; render(); window.scrollTo(0,0); });
 
 /* ----- Aujourd'hui ----- */
@@ -1503,9 +1528,7 @@ function todayHTML(){
     { k:'heures', l:'Heures de sport', v:fmtH(sh.cur), u:'h', sub:`${sh.cur>=sh.prev?'+':'−'}${fmtH(Math.abs(sh.cur-sh.prev))} h vs 7 j précédents` },
     { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length ? [chs[0].name, ...chs.slice(1).map(x=>`${x.name} ${x.pct} %`)].join(' · ') : '' },
   ];
-  const short = { prog:'cette semaine', forme: sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] : 'forme', heures:`${sh.cur>=sh.prev?'+':'−'}${fmtH(Math.abs(sh.cur-sh.prev))} h vs 7 j`, defis: chs.length ? chs[0].name : '' };
-  tiles.forEach(x => { x.ss = short[x.k]; });
-  if (!TODAY_PANE) return h + blobsHTML(tiles);
+  if (!TODAY_PANE) return h + homeHTML({ wk, sh, sc, ll, chs });
   const cur = tiles.find(x => x.k === TODAY_PANE);
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
   if (TODAY_PANE === 'heures') h += sportHoursHTML();
@@ -1546,25 +1569,56 @@ function todayHTML(){
   }
   return h + `</div>`;
 }
-/* Accueil : 4 bulles reliées (métaballes), 2 grosses en diagonale + 2 moyennes, dégradé iridescent animé */
-const BLOB_POS = [[106,104],[250,212],[104,292],[226,412]]; // zigzag : Programme, Énergie, Heures, Défis
-function blobsHTML(tiles){
-  const rr = [84, 64, 64, 84];
-  const P = BLOB_POS, links = [[0,1],[1,2],[2,3]];
-  const necks = links.map(([a,b]) => `<line x1="${P[a][0]}" y1="${P[a][1]}" x2="${P[b][0]}" y2="${P[b][1]}" stroke="url(#blobFill)" stroke-width="${Math.round(Math.min(rr[a], rr[b]) * .72)}" stroke-linecap="round"/>`).join('');
-  const balls = tiles.map((x,i) => `<circle class="blob" cx="${P[i][0]}" cy="${P[i][1]}" r="${rr[i].toFixed(1)}" fill="url(#blobFill)" style="--bd:${-i*1.7}s"/>`).join('');
-  const labels = tiles.map((x,i) => {
-    const r = rr[i], [cx, cy] = P[i], fv = Math.round(r * .7), fl = Math.max(9, Math.round(Math.min(r * .19, 1.5 * r / (x.l.length * .62)))), fs = Math.max(9, Math.round(r * .15));
-    const sub = r >= 58 && x.ss ? `<text class="bs" x="${cx}" y="${cy + fv*.62 + fs*.9}" style="font-size:${fs}px">${esc(String(x.ss).slice(0, Math.floor(r / 4)))}</text>` : '';
-    return `<g class="blob-hit" data-pane="${x.k}" role="button" tabindex="0" aria-label="${esc(x.l)} : ${esc(String(x.v))}${x.u?' '+x.u:''}">
-      <circle cx="${cx}" cy="${cy}" r="${r.toFixed(1)}" fill="transparent"/>
-      <text class="bl" x="${cx}" y="${cy - fv*.5}" style="font-size:${fl}px">${esc(x.l)}</text>
-      <text class="bv" x="${cx}" y="${cy + fv*.42}" style="font-size:${fv}px">${esc(String(x.v))}${x.u?`<tspan style="font-size:.4em" dx="2">${x.u}</tspan>`:''}</text>${sub}</g>`;
-  }).join('');
-  return `<div class="blobs"><svg viewBox="0 0 340 510" role="group" aria-label="Indicateurs du jour">
-    <defs><linearGradient id="blobFill" gradientUnits="userSpaceOnUse" x1="10" y1="10" x2="330" y2="500" spreadMethod="reflect">${['#7cc3ff','#8f86ff','#ad5cf0','#e05ad0','#ff6f8a','#ff9a52'].map((c,i)=>`<stop offset="${(i/5).toFixed(2)}" stop-color="${c}"/>`).join('')}<animateTransform attributeName="gradientTransform" type="translate" values="0 0;140 -60;-80 120;0 0" dur="18s" repeatCount="indefinite"/></linearGradient>
-      <filter id="blobGoo" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur in="SourceGraphic" stdDeviation="9" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 22 -9" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter></defs>
-    <g filter="url(#blobGoo)">${necks}${balls}</g>${labels}</svg></div>`;
+/* ----- Accueil : anneau Programme, cartes Heures / Énergie (courbe 10 j), carte Défi ----- */
+const HOME_IC = {
+  timer:'<path d="M12 13.5V9.5M10 2.5h4M18.5 6.5l1.5-1.5"/><circle cx="12" cy="13.5" r="7.5"/>',
+  bolt:'<path d="M13 2.5 5 13.5h6l-1 8 8-11h-6l1-8z"/>',
+  chaise:'<path d="M5 3v18"/><circle cx="10" cy="5" r="1.8"/><path d="M8 8.5l-.5 6h7l.5 5.5M8.2 11h5"/>',
+  bulgares:'<circle cx="12" cy="4" r="1.8"/><path d="M12 6.5v6M12 12.5l-4 4.5v4M12 12.5l5 2 2 5h3M9 9h6"/>',
+  gainage:'<circle cx="5" cy="9" r="1.8"/><path d="M7 10.5l14 3M3 15h6M7 10.5 6 15M21 13.5v2"/>',
+  defi:'<path d="M7 4h10v4a5 5 0 0 1-10 0zM12 13v4M8 21h8M10 17h4M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>',
+};
+const homeIcon = (k, col, cls = '') => `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="${cls ? 1.7 : 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${HOME_IC[k] || HOME_IC.defi}</svg>`;
+function homeRing(pct, size, sw, c1, c2, id){
+  const r = (size - sw)/2, c = 2*Math.PI*r, len = Math.max(pct > 0 ? 0.001 : 0, clamp(pct, 0, 1))*c;
+  return `<svg viewBox="0 0 ${size} ${size}" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" y1="1" x2="1" y2="0"><stop offset="0" style="stop-color:${c1}"/><stop offset="1" style="stop-color:${c2}"/></linearGradient></defs>
+    <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="color-mix(in srgb,var(--line) 85%,var(--bg))" stroke-width="${sw}"/>
+    ${len ? `<circle class="harc" cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="url(#${id})" stroke-width="${sw}" stroke-linecap="round" stroke-dasharray="${len.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 ${size/2} ${size/2})"/>` : ''}</svg>`;
+}
+function homeSpark(vals, col, id){
+  const pts0 = vals.map((v, i) => [i, v]).filter(x => x[1] != null); if (pts0.length < 3 || pts0.every(x => x[1] === pts0[0][1])) return '<div class="nospark"></div>';
+  const W = 180, Hh = 48, n = vals.length - 1, lo = Math.min(...pts0.map(x => x[1])), hi = Math.max(...pts0.map(x => x[1]));
+  const pts = pts0.map(([i, v]) => [i*W/n, Hh - 6 - (v - lo)/((hi - lo) || 1)*(Hh - 16)]);
+  let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) { const [x0, y0] = pts[i-1], [x1, y1] = pts[i], cx = ((x0 + x1)/2).toFixed(1); d += ` C${cx},${y0.toFixed(1)} ${cx},${y1.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}`; }
+  const [lx, ly] = pts[pts.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${W} ${Hh}" preserveAspectRatio="none" aria-hidden="true"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" style="stop-color:${col};stop-opacity:.28"/><stop offset="1" style="stop-color:${col};stop-opacity:0"/></linearGradient></defs>
+    <path d="${d} L${pts[pts.length-1][0].toFixed(1)},${Hh} L${pts[0][0].toFixed(1)},${Hh}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${col}" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <circle cx="${Math.min(lx, W - 3.5).toFixed(1)}" cy="${ly.toFixed(1)}" r="3.5" fill="${col}"/></svg>`;
+}
+function homeHTML({ wk, sh, sc, ll, chs }){
+  const t = todayISO(), N = 10, days = Array.from({ length:N }, (_, i) => addDays(t, i - N + 1));
+  // heures de sport glissantes sur 7 j, pour chacun des 10 derniers jours
+  const ss = sportSessions(), hrs = days.map(d => ss.filter(x => x.date > addDays(d, -7) && x.date <= d).reduce((a, x) => a + x.min, 0)/60);
+  const nrg = days.map(d => { try { return Health.score(d)?.v ?? null; } catch { return null; } });
+  const dh = sh.cur - sh.prev, up = dh >= 0;
+  const tri = `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="${up ? 'M5 1l4 7H1z' : 'M5 9 1 2h8z'}" fill="${up ? 'var(--ok)' : 'var(--bad)'}"/></svg>`;
+  const ev = sc ? sc.v : ll ? Math.round(ll.tsb) : '—', el = sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] : ll ? 'Forme (TSB)' : 'Santé non reliée';
+  const c = activeChallenges().map(c => ({ c, pct: clamp(chTotal(c)/c.target, 0, 1) })).sort((a, b) => b.pct - a.pct)[0];
+  const fmtU = (v, u) => u === 'min' ? (v < 1 ? `${Math.round(v*60)} s` : `${(Math.round(v*10)/10).toString().replace('.', ',')} min`) : `${Math.round(v)} ${u}`;
+  const [hi, hf] = fmtH(sh.cur).split(',');
+  return `<div class="home">
+    <button class="hero" data-pane="prog" aria-label="Programme : ${wk.done} séances faites sur ${wk.total} cette semaine">${homeRing(wk.total ? wk.done/wk.total : 0, 240, 16, 'var(--h-prog1)', 'var(--h-prog2)', 'hRingP')}
+      <span class="in"><span class="lab" style="color:var(--h-prog1)">Programme</span><span class="num0">${wk.done}<small>/${wk.total}</small></span><span class="sub">${triOn() ? `cette semaine · J-${Math.max(0, diffDays(t, tri().race.date))}` : 'cette semaine'}</span></span></button>
+    <div class="grid">
+      <button class="hc" data-pane="heures"><span class="top">${homeIcon('timer', 'var(--h-hrs)')}<span class="lab" style="color:var(--h-hrs)">Heures sport</span></span>
+        <span class="num0">${hi}${hf ? `,${hf}` : ''}<small>h</small></span><span class="sub">${tri}${up ? '+' : '−'}${fmtH(Math.abs(dh))} h vs 7 j</span>${homeSpark(hrs, 'var(--h-hrs)', 'hSpH')}</button>
+      <button class="hc" data-pane="forme"><span class="top">${homeIcon('bolt', 'var(--h-nrg)')}<span class="lab" style="color:var(--h-nrg)">Énergie</span></span>
+        <span class="num0">${ev}</span><span class="sub">${esc(el)}</span>${homeSpark(nrg, 'var(--h-nrg)', 'hSpE')}</button>
+      <button class="hc wide" data-pane="defis"><span><span class="top"><span class="lab" style="color:var(--h-def)">Défi</span>${c ? `<span class="lab" style="color:var(--text)">${esc(c.c.name)}</span>` : ''}</span>
+        <span class="num0" style="display:block">${c ? Math.floor(c.pct*100) : 0}<small>%</small></span><span class="sub">${c ? `${fmtU(chTotal(c.c), c.c.unit)} / ${fmtU(c.c.target, c.c.unit)}` : 'Aucun défi en cours'}</span></span>
+        <span class="ring">${homeRing(c ? c.pct : 0, 86, 6, 'var(--h-def)', 'var(--h-def)', 'hRingD')}${homeIcon(c ? c.c.id : 'defi', 'var(--h-def)', 'ic')}</span></button>
+    </div></div>`;
 }
 /* Batterie de forme : se vide de vert (≥ 60) à jaune (35–59) puis rouge (< 35) */
 const battCol = v => v >= 60 ? 'var(--ok)' : v >= 35 ? 'var(--warn)' : 'var(--bad)';
