@@ -149,6 +149,18 @@ nav.tabs button .lbl{font:italic 800 12.5px/1 "Barlow Condensed","Arial Narrow",
 .tiles-home{margin-top:6px}
 .tiles-home .tile{aspect-ratio:auto;min-height:148px}
 .tiles-home .tile .tv{display:block;font-size:clamp(46px,14vw,70px);transform:scaleY(1.35);transform-origin:left top;margin:6px 0 calc(.86em * .35)}
+/* 0.19.1 — haut : halo fondu (plus de bord net sous la barre d'état) ; bas : l'accueil tient au-dessus de la barre d'onglets */
+.app{padding-top:max(16px,env(safe-area-inset-top))}
+.home::before{top:-60px;height:400px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 34%,#000 62%,transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 34%,#000 62%,transparent 100%)}
+.home{--hs:clamp(196px,calc(100svh - 570px),240px)}
+.home .hero{width:var(--hs);height:var(--hs);margin:0 auto 12px}
+.home .hero .num0{font-size:calc(var(--hs) * .56);margin:4px 0 2px}
+.home .hc .num0{font-size:clamp(64px,19vw,82px)}
+.home .hc.wide{padding:12px 16px}
+.home .hc.wide .num0{font-size:64px;margin:8px 0 4px}
+.home .ring{width:76px;height:76px}
+.home .ring .ic{width:30px;height:30px}
+nav.tabs .in{background:color-mix(in srgb,var(--card) 84%,transparent)}
 .pane-head{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .pane-head h2{font-size:26px;font-weight:700;text-transform:uppercase;flex:1}
 .pane-back{width:44px;height:44px;flex:none;border-radius:50%;border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -351,7 +363,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.19.0';
+const APP_VERSION = '0.19.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1602,7 +1614,7 @@ function homeHTML({ wk, sh, sc, ll, chs }){
   const ss = sportSessions(), hrs = days.map(d => ss.filter(x => x.date > addDays(d, -7) && x.date <= d).reduce((a, x) => a + x.min, 0)/60);
   const nrg = days.map(d => { try { return Health.score(d)?.v ?? null; } catch { return null; } });
   const dh = sh.cur - sh.prev, up = dh >= 0;
-  const tri = `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="${up ? 'M5 1l4 7H1z' : 'M5 9 1 2h8z'}" fill="${up ? 'var(--ok)' : 'var(--bad)'}"/></svg>`;
+  const arrow = `<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="${up ? 'M5 1l4 7H1z' : 'M5 9 1 2h8z'}" fill="${up ? 'var(--ok)' : 'var(--bad)'}"/></svg>`;
   const ev = sc ? sc.v : ll ? Math.round(ll.tsb) : '—', el = sc ? { ok:'Prêt', mid:'Correct', warn:'Prudence', bad:'Récupère' }[sc.level] : ll ? 'Forme (TSB)' : 'Santé non reliée';
   const c = activeChallenges().map(c => ({ c, pct: clamp(chTotal(c)/c.target, 0, 1) })).sort((a, b) => b.pct - a.pct)[0];
   const fmtU = (v, u) => u === 'min' ? (v < 1 ? `${Math.round(v*60)} s` : `${(Math.round(v*10)/10).toString().replace('.', ',')} min`) : `${Math.round(v)} ${u}`;
@@ -1612,7 +1624,7 @@ function homeHTML({ wk, sh, sc, ll, chs }){
       <span class="in"><span class="lab" style="color:var(--h-prog1)">Programme</span><span class="num0">${wk.done}<small>/${wk.total}</small></span><span class="sub">${triOn() ? `cette semaine · J-${Math.max(0, diffDays(t, tri().race.date))}` : 'cette semaine'}</span></span></button>
     <div class="grid">
       <button class="hc" data-pane="heures"><span class="top">${homeIcon('timer', 'var(--h-hrs)')}<span class="lab" style="color:var(--h-hrs)">Heures sport</span></span>
-        <span class="num0">${hi}${hf ? `,${hf}` : ''}<small>h</small></span><span class="sub">${tri}${up ? '+' : '−'}${fmtH(Math.abs(dh))} h vs 7 j</span>${homeSpark(hrs, 'var(--h-hrs)', 'hSpH')}</button>
+        <span class="num0">${hi}${hf ? `,${hf}` : ''}<small>h</small></span><span class="sub">${arrow}${up ? '+' : '−'}${fmtH(Math.abs(dh))} h vs 7 j</span>${homeSpark(hrs, 'var(--h-hrs)', 'hSpH')}</button>
       <button class="hc" data-pane="forme"><span class="top">${homeIcon('bolt', 'var(--h-nrg)')}<span class="lab" style="color:var(--h-nrg)">Énergie</span></span>
         <span class="num0">${ev}</span><span class="sub">${esc(el)}</span>${homeSpark(nrg, 'var(--h-nrg)', 'hSpE')}</button>
       <button class="hc wide" data-pane="defis"><span><span class="top"><span class="lab" style="color:var(--h-def)">Défi</span>${c ? `<span class="lab" style="color:var(--text)">${esc(c.c.name)}</span>` : ''}</span>
