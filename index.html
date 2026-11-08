@@ -305,6 +305,42 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 .sess .m{flex:1;min-width:0}
 .sess .m b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sess .st{flex:none;font-size:18px}
+.phase .ph-bar{position:relative;display:flex;gap:2px;height:22px;margin:10px 0 8px;border-radius:7px;overflow:visible}
+.ph-seg{opacity:.45;border-radius:4px;display:flex;align-items:center;justify-content:center;min-width:3px;overflow:hidden}
+.ph-seg span{font-size:10px;font-weight:600;color:#fff;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;padding:0 3px}
+.ph-seg.on{opacity:1}
+.ph-you{position:absolute;top:-5px;bottom:-5px;width:3px;margin-left:-1.5px;background:var(--text);border-radius:2px}
+.ph-now{font-size:14px} .ph-why{color:var(--accent);cursor:pointer;display:inline-block;margin-top:6px}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font:inherit;cursor:pointer}
+.recap{display:flex;align-items:center;gap:12px;width:100%;text-align:left;padding:14px;margin-bottom:12px;border-radius:16px;border:0;cursor:pointer;color:#fff;background:linear-gradient(120deg,#7c3aed,#ff8a4c)}
+.recap b{display:block;font-size:15px} .recap small{opacity:.85} .recap .rc-ic{font-size:26px} .recap>span:nth-child(2){flex:1}
+.recap.seen{background:var(--card);color:var(--text);border:1px solid var(--line)}
+#story{position:fixed;inset:0;z-index:1000;display:none;flex-direction:column;color:#fff;background:linear-gradient(160deg,#1e1b4b 0%,#3b0764 45%,#9a3412 100%);padding:calc(env(safe-area-inset-top,0px) + 14px) 18px calc(env(safe-area-inset-bottom,0px) + 18px)}
+#story.on{display:flex}
+.sty-prog{display:flex;gap:4px} .sty-prog i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden} .sty-prog i b{display:block;height:100%;width:0;background:#fff}
+.sty-prog i.past b{width:100%} .sty-prog i.cur b{width:100%;animation:styfill .5s ease-out}
+@keyframes styfill{from{width:0}}
+.sty-x{position:absolute;right:12px;top:calc(env(safe-area-inset-top,0px) + 22px);z-index:3;background:none;border:0;color:#fff;font-size:30px;line-height:1;cursor:pointer}
+.sty-s{display:none;flex:1;flex-direction:column;justify-content:center;overflow:auto;padding:24px 4px 10px;position:relative;z-index:2;pointer-events:none}
+.sty-s.on{display:flex} .sty-s [data-open],.sty-s [data-tri]{pointer-events:auto;cursor:pointer}
+.sty-k{text-transform:uppercase;letter-spacing:.08em;font-size:12px;opacity:.75;margin-bottom:8px}
+.sty-big{font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;font-size:92px;font-weight:700;line-height:.95} .sty-big small{font-size:40px}
+.sty-sub{font-size:18px;opacity:.9;margin-bottom:14px}
+.sty-h{font-size:26px;font-weight:700;margin:6px 0 12px}
+.sty-pill{align-self:flex-start;padding:4px 12px;border-radius:999px;font-weight:600;font-size:13px;margin-bottom:14px}
+.sty-bars{display:flex;flex-direction:column;gap:10px}
+.sty-row{display:grid;grid-template-columns:96px 1fr 58px;align-items:center;gap:8px;font-size:14px} .sty-row i{height:12px;border-radius:6px;background:rgba(255,255,255,.85);display:block} .sty-row b{text-align:right}
+.sty-list{display:flex;flex-direction:column;gap:6px}
+.sty-li{display:grid;grid-template-columns:38px 1fr 26px;gap:8px;align-items:center;padding:9px 10px;border-radius:10px;background:rgba(255,255,255,.1);font-size:14px}
+.sty-li small{display:block;opacity:.7;font-size:12px} .sty-li.missed,.sty-li.skipped{opacity:.6} .sty-li span:first-child{opacity:.7;font-size:12px;text-transform:uppercase}
+.sty-verdict{font-size:40px;font-weight:800;line-height:1.1;margin:4px 0 16px;text-shadow:0 1px 12px rgba(0,0,0,.25)}
+.sty-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px} .sty-kpis div{background:rgba(255,255,255,.12);border-radius:12px;padding:10px;text-align:center}
+.sty-kpis b{display:block;font-size:22px} .sty-kpis span{font-size:11px;opacity:.8}
+.sty-p{font-size:15px;line-height:1.45;margin:6px 0} .sty-m{opacity:.8;font-size:13px}
+.sty-key{display:flex;gap:12px;padding:12px;margin-bottom:8px;border-radius:14px;background:rgba(255,255,255,.12)} .sty-key b{display:block} .sty-key small{opacity:.8} .sty-key p{margin:4px 0 0;font-size:13px;opacity:.85}
+.sty-kd{width:40px;text-align:center;flex:none} .sty-kd span{font-size:11px;opacity:.75;text-transform:uppercase} .sty-kd b{font-size:24px;font-family:"Barlow Condensed","Arial Narrow",system-ui,sans-serif}
+.sty-nav{position:absolute;inset:0;display:flex;z-index:1} .sty-nav button{flex:1;background:none;border:0;cursor:pointer} .sty-nav .sty-prev{flex:.4}
+.sty-share{position:relative;z-index:3;align-self:center;background:rgba(255,255,255,.18);color:#fff;border:0}
 .sess.done{border-left:4px solid var(--ok)} .sess.skipped{opacity:.5} .sess.swapped{border-left:4px dashed var(--accent2)} .sess.swapped .m b{color:var(--text)} .adapt{margin:10px 0 4px} .sess.today{outline:2px solid var(--accent)}
 .sess.opt .m b::after{content:" · optionnelle";color:var(--muted);font-weight:400;font-size:12px}
 .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
@@ -377,7 +413,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.23.0';
+const APP_VERSION = '0.24.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1565,13 +1601,14 @@ function todayHTML(){
     { k:'heures', l:'Heures de sport', v:fmtH(sh.cur), u:'h', sub:`${sh.cur>=sh.prev?'+':'−'}${fmtH(Math.abs(sh.cur-sh.prev))} h vs 7 j précédents` },
     { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length ? [chs[0].name, ...chs.slice(1).map(x=>`${x.name} ${x.pct} %`)].join(' · ') : '' },
   ];
-  if (!TODAY_PANE) return h + homeHTML({ wk, sh, sc, ll, chs });
+  if (!TODAY_PANE) return h + recapBannerHTML() + homeHTML({ wk, sh, sc, ll, chs });
   const cur = tiles.find(x => x.k === TODAY_PANE);
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
   if (TODAY_PANE === 'heures') h += sportHoursHTML();
   if (TODAY_PANE === 'defis') h += challengesHTML();
   if (TODAY_PANE === 'forme') { const lc = loadCardHTML(); h += (Health.todayCard() || (lc ? '' : ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil).</p></div>`)) + lc + Health.progressCards(); }
   if (TODAY_PANE === 'prog') {
+  h += phaseHTML(true);
   h += arcsHTML(); let pre = '';
   for (const n of notes) pre += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
   window._coach = notes;
@@ -2113,7 +2150,7 @@ function calHTML(){
   const tweeks = {}; if (triOn()) for (const x of S.triPlan || []) { (tweeks[monday(x.date)] ||= []).push(x); weeks[monday(x.date)] ||= []; }
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
-  let h = monthHTML() + triBannerHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${(() => { const w = weekCount(); return `${w.done}/${w.total} cette semaine · ${w.left} à venir`; })()}</span></div>
+  let h = monthHTML() + phaseHTML() + triBannerHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${(() => { const w = weekCount(); return `${w.done}/${w.total} cette semaine · ${w.left} à venir`; })()}</span></div>
     <p class="muted small" style="margin:0">Touchez une séance pour la voir, la déplacer ou la changer (« j'ai fait autre chose ») : le programme s'adapte.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
@@ -2121,7 +2158,7 @@ function calHTML(){
     const list = weeks[k], tl = tweeks[k] || []; const done = list.filter(s=>s.status==='done' || (s.swap && s.swap.sp !== 'rest')).length + tl.filter(x => triStatus(x) === 'done' || (x.swap && x.swap.sp !== 'rest')).length;
     const tss = list.reduce((a,s)=>a+wTSS(s.workoutId),0), hd = list[0] || tl[0];
     const triVol = tl.length ? (() => { const sw = tl.filter(x => x.sport === 'swim').reduce((a, x) => a + triEst(x).m, 0), rn = tl.filter(x => x.sport === 'run').reduce((a, x) => a + triEst(x).sec, 0); return `${sw ? ` · 🏊 ${(sw/1000).toFixed(1).replace('.', ',')} km` : ''}${rn ? ` · 🏃 ${fmtDur(rn)}` : ''}`; })() : '';
-    h += `<div class="week" id="w-${k}"><div class="wh"><h3>Sem. ${hd.week+1} · ${esc(hd.block)}</h3><span class="tiny muted num">${fmtShort(k)} · ${done}/${list.length + tl.length}${tss ? ` · TSS ${tss}` : ''}${triVol}</span></div>`;
+    h += `<div class="week" id="w-${k}"><div class="wh"><h3>Sem. ${hd.week+1} · ${esc(hd.block)}</h3><span class="tiny muted num">${fmtShort(k)} · ${done}/${list.length + tl.length}${tss ? ` · TSS ${tss}` : ''}${triVol}${k <= t ? ` · <button class="linkbtn" data-story="${k}">📊 Bilan</button>` : ''}</span></div>`;
     const rows = [...list.map(s => ({ d: s.date, o: 0, s })), ...tl.map(x => ({ d: x.date, o: x.sport === 'swim' ? -1 : 1, x }))].sort((a, b) => a.d.localeCompare(b.d) || a.o - b.o);
     for (const { s, x } of rows) {
       if (x) { h += x.swap ? swapRowHTML('t', x) : triRowHTML(x); continue; }
@@ -2505,6 +2542,172 @@ function swapRowHTML(k, x){
     <div class="st">${x.status === 'done' ? '✅' : sw.sp === 'rest' ? '😴' : '🔄'}</div></div>`;
 }
 /* ===== /ADAPTATION ===== */
+/* ===== PHASES DU PROGRAMME + BILAN DE LA SEMAINE EN STORY (v0.24) ===== */
+// macro-cycle : chaque semaine de weekKinds() rangée dans une grande phase (les semaines allégées restent dans leur bloc)
+const PHASE_INFO = {
+  calib:{ l:'Calibration', c:'var(--z1)', d:"Test pour fixer ta FTP et tes zones ; tout le plan est calé dessus." },
+  base:{ l:'Base', c:'var(--z2)', d:"Sweet spot (88–94 % FTP) et force en cadence basse : beaucoup de temps près du seuil pour une fatigue modérée. On élargit le moteur aérobie." },
+  build1:{ l:'Build 1', c:'var(--z3)', d:"Du sweet spot vers le seuil (95–105 %) : intervalles plus longs et plus durs. C'est la phase où la FTP monte le plus." },
+  build2:{ l:'Build 2', c:'var(--z4)', d:"Seuil + VO2max (106–120 %) : on relève le plafond aérobie pour que le seuil puisse encore grimper." },
+  peak:{ l:'Peak', c:'var(--z5)', d:"VO2max et séances spécifiques : volume stable, intensité haute, on aiguise avant l'objectif." },
+  spec:{ l:'Spécifique', c:'var(--z5)', d:"Force en cadence basse, seuil long et tempo en côte : on prépare les cols de la course A." },
+  taper:{ l:'Affûtage', c:'var(--z6)', d:"Volume réduit d'environ 40 %, intensité conservée : la fatigue tombe, la forme monte." },
+  final:{ l:'Objectif', c:'var(--accent)', d:"Test final ou course : on récolte." },
+  bonus:{ l:'Consolidation', c:'var(--z1)', d:"Après l'objectif : maintien du seuil et du VO2max." },
+};
+function phaseOf(k, prev){
+  if (k.kind === 'calib') return 'calib';
+  if (k.kind === 'taper') return 'taper';
+  if (k.kind === 'final') return 'final';
+  if (k.kind === 'bonus') return 'bonus';
+  if (k.kind === 'load') return [ 'base', 'build1', 'build2', triOn() ? 'spec' : 'peak' ][k.bi ?? 0];
+  return prev || 'base'; // semaine allégée / fêtes : dans le bloc en cours
+}
+function phases(){
+  if (!S.profile) return null;
+  const ks = weekKinds(S.profile); let prev = null;
+  const weeks = ks.map(k => { const ph = phaseOf(k, prev); prev = ph; return { ...k, ph }; });
+  const segs = []; for (const w of weeks) { const l = segs[segs.length - 1]; if (l && l.ph === w.ph) l.weeks.push(w); else segs.push({ ph: w.ph, weeks: [w] }); }
+  const t = todayISO(), cur = weeks.find(w => t >= w.ws && t <= addDays(w.ws, 6)) || (t < weeks[0].ws ? weeks[0] : weeks[weeks.length - 1]);
+  return { weeks, segs, cur, seg: segs.find(s => s.weeks.includes(cur)) };
+}
+const weekRole = w => w.kind === 'recovery' ? (w.test ? 'Semaine allégée + retest FTP' : 'Semaine allégée : la progression se fait pendant la récup') : w.kind === 'holiday' ? 'Semaine des fêtes : maintien' : w.kind === 'load' ? `Semaine de charge ${(w.pos ?? 0) + 1}/3` : '';
+function phaseHTML(compact){
+  const P = phases(); if (!P) return '';
+  const { weeks, segs, cur, seg } = P, n = weeks.length, I = PHASE_INFO[cur.ph];
+  const iw = seg.weeks.indexOf(cur) + 1, nxt = segs[segs.indexOf(seg) + 1];
+  const bar = segs.map(s => `<div class="ph-seg ${s === seg ? 'on' : ''}" style="flex:${s.weeks.length};background:${PHASE_INFO[s.ph].c}" title="${esc(PHASE_INFO[s.ph].l)} · ${s.weeks.length} sem."><span>${s.weeks.length >= 3 ? esc(PHASE_INFO[s.ph].l) : ''}</span></div>`).join('');
+  const pos = (cur.i + 0.5)/n*100;
+  return `<div class="card phase"><div class="row between"><h2>Où j'en suis</h2><span class="tiny muted num">Sem. ${cur.i + 1}/${n}</span></div>
+    <div class="ph-bar">${bar}<i class="ph-you" style="left:${pos}%"></i></div>
+    <div class="ph-now"><b style="color:${I.c}">${esc(I.l)}</b> · semaine ${iw}/${seg.weeks.length} du bloc${weekRole(cur) ? ` · ${esc(weekRole(cur))}` : ''}</div>
+    ${compact ? '' : `<p class="small" style="margin:6px 0 0">${esc(I.d)}</p>`}
+    ${nxt ? `<p class="tiny muted" style="margin:6px 0 0">Ensuite : <b>${esc(PHASE_INFO[nxt.ph].l)}</b> dans ${seg.weeks.length - iw + 1} sem. (${fmtShort(nxt.weeks[0].ws)})</p>` : ''}
+    ${compact ? '' : `<span class="tiny ph-why" role="button" tabindex="0" data-i="periodisation">Quelle méthode ? ›</span>`}</div>`;
+}
+// ---- bilan de la semaine ----
+function weekReview(w0){
+  const w1 = addDays(w0, 6), t = todayISO(), inW = d => d >= w0 && d <= w1;
+  const P = phases(), wk = P?.weeks.find(w => w.ws === w0);
+  const L = loadSeries(), at = d => { let r = null; for (const x of L) { if (x.d <= d) r = x; else break; } return r; };
+  const end = w1 < t ? w1 : t, a0 = at(addDays(w0, -1)), a1 = at(end);
+  const real = L.filter(x => inW(x.d)).reduce((a, x) => a + x.tss, 0);
+  const items = [...S.plan.filter(s => inW(s.date)).map(s => ['b', s]), ...(triOn() ? (S.triPlan || []).filter(x => inW(x.date) && x.sport !== 'race').map(x => ['t', x]) : [])];
+  const mand = items.filter(([k, x]) => k === 't' ? x.kind === 'key' : mandatory(x));
+  const planned = mand.reduce((a, [k, x]) => a + pInfo(k, x).tss, 0);
+  const st = ([k, x]) => x.swap ? (x.swap.sp === 'rest' ? 'rest' : 'swap') : k === 't' ? triStatus(x) : x.status === 'done' ? 'done' : x.status === 'skipped' ? 'skipped' : x.date < t ? 'missed' : 'planned';
+  const keys = mand.filter(([k, x]) => pInfo(k, x).hard || (k === 'b' && WORKOUTS[x.workoutId].type === 'test'));
+  const keyDone = keys.filter(i => st(i) === 'done').length;
+  // par sport (tout ce qui a été fait, prévu ou non)
+  const bySp = {}; const addSp = (sp, min) => { bySp[sp] = (bySp[sp] || 0) + min; };
+  for (const a of S.activities) if (inW(a.date)) addSp('bike', (a.durationS || 0)/60);
+  for (const e of Health.extraWorkouts()) if (inW(e.date)) addSp(e.sport === 'walk' ? 'other' : e.sport, +e.w.duration_min || 0);
+  const nSess = S.activities.filter(a => inW(a.date) && (a.durationS || 0) >= 600).length + Health.extraWorkouts().filter(e => inW(e.date) && (+e.w.duration_min || 0) >= 10).length;
+  const ramp = a0 && a1 ? a1.ctl - a0.ctl : null, tsb = a1 ? a1.ctl - a1.atl : null, comp = planned ? real/planned : null;
+  // verdict : charge faite / prévue, montée de fitness (CTL / semaine), fraîcheur en fin de semaine
+  const easy = wk && ['recovery', 'taper', 'holiday', 'final'].includes(wk.kind);
+  let v = 'ok', why = [];
+  if (easy) {
+    if (comp != null && comp > 1.25) { v = 'over'; why.push(`tu as fait ${Math.round(comp*100)} % de la charge d'une semaine censée être allégée`); }
+    else why.push('semaine allégée respectée : la fatigue redescend, c\'est là que tu progresses');
+  } else {
+    if ((ramp != null && ramp > 8) || (tsb != null && tsb < -30) || (comp != null && comp > 1.3)) { v = 'over'; }
+    else if ((comp != null && comp < 0.75) || (ramp != null && ramp < 1 && comp != null && comp < 0.9)) { v = 'under'; }
+    if (comp != null) why.push(`${Math.round(comp*100)} % de la charge prévue`);
+    if (ramp != null) why.push(`fitness ${ramp >= 0 ? '+' : '−'}${Math.abs(ramp).toFixed(1).replace('.', ',')} CTL (cible +3 à +7 en semaine de charge)`);
+    if (tsb != null && tsb < -30) why.push(`forme à ${Math.round(tsb)} : fatigue élevée`);
+  }
+  if (keys.length) why.push(`${keyDone}/${keys.length} séance${keys.length > 1 ? 's' : ''} clé${keys.length > 1 ? 's' : ''} faite${keyDone > 1 ? 's' : ''}`);
+  // FTP : trajectoire linéaire départ → objectif
+  const p = S.profile, f0 = S.ftpHistory[0]?.ftp || p.ftp, d0 = S.ftpHistory[0]?.date || p.startDate;
+  const exp = Math.round(f0 + (p.goalFtp - f0) * clamp(diffDays(d0, end)/Math.max(1, diffDays(d0, p.goalDate)), 0, 1));
+  return { w0, w1, wk, real: Math.round(real), planned, comp, ramp, tsb, ctl: a1?.ctl, keys, keyDone, items, st, bySp, nSess, v, why, ftpNow: ftp(), ftpExp: exp };
+}
+function nextKeys(w0){
+  const w1 = addDays(w0, 6), inW = d => d >= w0 && d <= w1;
+  const c = [...S.plan.filter(s => inW(s.date) && mandatory(s) && s.status === 'planned').map(s => ({ k:'b', x:s })),
+    ...(triOn() ? (S.triPlan || []).filter(x => inW(x.date) && x.status !== 'skipped' && x.kind !== 'optional' && x.sport !== 'race').map(x => ({ k:'t', x })) : [])];
+  const score = ({ k, x }) => k === 'b' && WORKOUTS[x.workoutId].type === 'test' ? 0 : pInfo(k, x).hard ? (k === 'b' ? 1 : 2) : 5;
+  const pick = c.sort((a, b) => score(a) - score(b) || a.x.date.localeCompare(b.x.date)).slice(0, 3).sort((a, b) => a.x.date.localeCompare(b.x.date));
+  return pick.map(({ k, x }) => { const i = pInfo(k, x), W = k === 't' ? triWorkout(x) : WORKOUTS[x.workoutId];
+    return { k, x, i, goal: W.goal, meta: k === 'b' ? `${fmtDur(i.sec)} · TSS ${i.tss}${mainStep(x.workoutId) ? ` · ${watts(mainStep(x.workoutId).p, ftp(), sAdj(x))} W` : ''}` : `${fmtDur(i.sec)} · ${x.sport === 'swim' ? triEst(x).m + ' m' : '~' + (triEst(x).m/1000).toFixed(1).replace('.', ',') + ' km'}` }; });
+}
+const SP_L = { bike:['🚴','Vélo'], run:['🏃','Course'], swim:['🏊','Nat'], strength:['🏋️','Renfo'], mobility:['🧘','Mobilité'], other:['⏱️','Autre'] };
+const ST_IC = { done:'✅', swap:'🔄', rest:'😴', skipped:'⏭️', missed:'😞', planned:'·', swapped:'🔄' };
+function storySlides(w0){
+  const R = weekReview(w0), P = phases(), nw0 = addDays(w0, 7), nwk = P?.weeks.find(w => w.ws === nw0), NK = nextKeys(nw0);
+  const ph = R.wk ? PHASE_INFO[R.wk.ph] : null, totH = Object.values(R.bySp).reduce((a, m) => a + m, 0)/60;
+  const V = { ok:{ t:'On track', e:'🎯', c:'var(--ok)', s:'Charge dans les clous : continue comme ça.' }, over:{ t:'Tu charges trop', e:'🔥', c:'var(--bad)', s:'Lève le pied en début de semaine prochaine : la fatigue doit retomber avant la prochaine séance clé.' }, under:{ t:'Pas assez', e:'🪫', c:'var(--warn)', s:'Moins de charge que prévu. Pas de rattrapage en bloc : fais les séances clés de la semaine prochaine, c\'est ce qui compte.' } }[R.v];
+  const sps = Object.entries(R.bySp).filter(([, m]) => m >= 5).sort((a, b) => b[1] - a[1]);
+  const maxM = Math.max(1, ...sps.map(([, m]) => m));
+  const s1 = `<div class="sty-k">Semaine ${R.wk ? R.wk.i + 1 : ''} · ${fmtShort(R.w0)} → ${fmtShort(R.w1)}</div>
+    <div class="sty-big">${String(totH.toFixed(1)).replace('.', ',')}<small> h</small></div><div class="sty-sub">${R.nSess} séance${R.nSess > 1 ? 's' : ''} · ≈ ${R.real} TSS</div>
+    ${ph ? `<div class="sty-pill" style="background:${ph.c}">${esc(ph.l)}${R.wk.kind !== 'load' && weekRole(R.wk) ? ' · allégée' : ''}</div>` : ''}
+    <div class="sty-bars">${sps.map(([sp, m]) => `<div class="sty-row"><span>${SP_L[sp]?.[0] || '⏱️'} ${SP_L[sp]?.[1] || sp}</span><i style="width:${Math.round(m/maxM*100)}%"></i><b class="num">${fmtDur(m*60)}</b></div>`).join('') || '<p>Aucune séance enregistrée.</p>'}</div>`;
+  const list = R.items.filter(([k, x]) => k === 't' ? x.kind === 'key' || x.swap : mandatory(x) || x.status === 'done').sort((a, b) => a[1].date.localeCompare(b[1].date));
+  const s2 = `<div class="sty-k">Le programme</div><div class="sty-h">${R.items.filter(i => ['done','swap'].includes(R.st(i))).length}/${list.length} séances</div>
+    <div class="sty-list">${list.map(i => { const [k, x] = i, inf = pInfo(k, x), s = R.st(i);
+      return `<div class="sty-li ${s}"><span class="num">${DOW[dowMon(x.date)]}</span><span>${x.swap ? `${SWAP_SP[x.swap.sp].ic} ${esc(x.swap.note || x.swap.l || SWAP_SP[x.swap.sp].l)}<small> au lieu de ${esc(inf.name)}</small>` : `${inf.ic} ${esc(inf.name)}`}</span><b>${ST_IC[s] || ''}</b></div>`; }).join('')}</div>`;
+  const s3 = `<div class="sty-k">Bilan</div><div class="sty-verdict" style="color:${V.c}">${V.e}<br>${V.t}</div>
+    <div class="sty-kpis"><div><b class="num">${R.comp != null ? Math.round(R.comp*100) + ' %' : '—'}</b><span>charge prévue</span></div><div><b class="num">${R.ramp != null ? (R.ramp >= 0 ? '+' : '−') + Math.abs(R.ramp).toFixed(1).replace('.', ',') : '—'}</b><span>fitness (CTL)</span></div><div><b class="num">${R.tsb != null ? Math.round(R.tsb) : '—'}</b><span>forme (TSB)</span></div></div>
+    <p class="sty-p">${esc(R.why.join(' · '))}.</p><p class="sty-p"><b>${esc(V.s)}</b></p>
+    <p class="sty-p sty-m">FTP ${R.ftpNow} W · trajectoire vers ${S.profile.goalFtp} W : ${R.ftpExp} W attendus à ce stade${R.ftpNow >= R.ftpExp ? ' ✓' : ` (écart ${R.ftpExp - R.ftpNow} W, le prochain test tranchera)`}.</p>`;
+  const nph = nwk ? PHASE_INFO[nwk.ph] : null;
+  const s4 = `<div class="sty-k">Semaine prochaine${nwk ? ` · sem. ${nwk.i + 1}` : ''}</div>
+    ${nph ? `<div class="sty-pill" style="background:${nph.c}">${esc(nph.l)}</div><p class="sty-p sty-m">${esc(weekRole(nwk) || nph.d)}</p>` : ''}
+    <div class="sty-h">${NK.length ? `Les ${NK.length} séances clés` : 'Rien de prévu'}</div>
+    ${NK.map(o => `<div class="sty-key" ${o.k === 't' ? `data-tri="${o.x.id}"` : `data-open="${o.x.id}"`}><div class="sty-kd"><span>${DOW[dowMon(o.x.date)]}</span><b class="num">${parseD(o.x.date).getDate()}</b></div><div><b>${o.i.ic} ${esc(o.i.name)}</b><small class="num">${esc(o.meta)}</small><p>${esc(o.goal)}</p></div></div>`).join('')}
+    <p class="sty-p sty-m">Le reste de la semaine : endurance facile et récup, sans forcer.</p>`;
+  return [s1, s2, s3, s4];
+}
+// semaine à résumer : le dimanche (dès 17 h) et le lundi, la semaine qui se termine / vient de se terminer
+function recapWeek(){
+  const t = todayISO(), dow = dowMon(t), h = new Date().getHours();
+  if (dow === 6 && h >= 17) return monday(t);
+  if (dow === 0) return addDays(monday(t), -7);
+  return null;
+}
+function recapBannerHTML(){
+  const w0 = recapWeek(); if (!w0 || !S.profile || w0 < monday(S.profile.startDate)) return '';
+  const seen = S.settings.storySeen === w0;
+  return `<button class="recap ${seen ? 'seen' : ''}" data-story="${w0}"><span class="rc-ic">📊</span><span><b>${seen ? 'Revoir le bilan de la semaine' : 'Ton bilan de la semaine est prêt'}</b><small>Charge, verdict, séances clés à venir</small></span><span>›</span></button>`;
+}
+let STORY = null;
+function openStory(w0){
+  const slides = storySlides(w0);
+  let el = document.getElementById('story'); if (!el) { el = document.createElement('div'); el.id = 'story'; document.body.appendChild(el); }
+  STORY = { w0, i: 0, n: slides.length };
+  el.innerHTML = `<div class="sty-prog">${slides.map((_, i) => `<i data-n="${i}"><b></b></i>`).join('')}</div><button class="sty-x" aria-label="Fermer">×</button>
+    ${slides.map((s, i) => `<section class="sty-s" data-s="${i}">${s}</section>`).join('')}
+    <div class="sty-nav"><button class="sty-prev" aria-label="Précédent"></button><button class="sty-next" aria-label="Suivant"></button></div>
+    <button class="btn sm sty-share">Partager</button>`;
+  el.classList.add('on'); document.body.style.overflow = 'hidden';
+  if (S.settings.storySeen !== w0 && w0 === recapWeek()) { S.settings.storySeen = w0; save(); }
+  showSlide(0);
+}
+function showSlide(i){
+  const el = document.getElementById('story'); if (!el || !STORY) return;
+  STORY.i = clamp(i, 0, STORY.n - 1);
+  el.querySelectorAll('.sty-s').forEach(s => s.classList.toggle('on', +s.dataset.s === STORY.i));
+  el.querySelectorAll('.sty-prog i').forEach(b => b.className = +b.dataset.n < STORY.i ? 'past' : +b.dataset.n === STORY.i ? 'cur' : '');
+}
+function closeStory(){ const el = document.getElementById('story'); if (el) el.classList.remove('on'); document.body.style.overflow = ''; STORY = null; render(); }
+function storyText(w0){
+  const R = weekReview(w0), NK = nextKeys(addDays(w0, 7));
+  const V = { ok:'On track 🎯', over:'Je charge trop 🔥', under:'Pas assez 🪫' }[R.v];
+  return `FTP Builder · semaine du ${fmtShort(R.w0)}\n${R.nSess} séances · ≈ ${R.real} TSS\n${V} : ${R.why.join(' · ')}\nÀ venir : ${NK.map(o => `${DOW[dowMon(o.x.date)]} ${o.i.name}`).join(' · ')}`;
+}
+document.addEventListener('click', e => {
+  const s = e.target.closest('[data-story]'); if (s) { e.preventDefault(); openStory(s.dataset.story); return; }
+  const st = e.target.closest('#story'); if (!st) return;
+  if (e.target.closest('.sty-x')) { closeStory(); return; }
+  if (e.target.closest('.sty-share')) { const txt = storyText(STORY.w0); if (navigator.share) navigator.share({ text: txt }).catch(() => {}); else navigator.clipboard?.writeText(txt).then(() => toast('Bilan copié')); return; }
+  const k = e.target.closest('[data-open],[data-tri]'); if (k) { closeStory(); return; } // l'autre écouteur ouvre la fiche
+  if (e.target.closest('.sty-prev')) showSlide(STORY.i - 1);
+  else if (e.target.closest('.sty-next')) { if (STORY.i === STORY.n - 1) closeStory(); else showSlide(STORY.i + 1); }
+}, true);
+document.addEventListener('keydown', e => { if (!STORY) return; if (e.key === 'Escape') closeStory(); if (e.key === 'ArrowRight') showSlide(STORY.i + 1); if (e.key === 'ArrowLeft') showSlide(STORY.i - 1); });
+/* ===== /PHASES + BILAN ===== */
 function triBannerHTML(){
   if (triOn()) { const T = tri(), d = diffDays(todayISO(), T.race.date), next = (S.triPlan || []).filter(x => x.date >= todayISO() && triStatus(x) === 'planned');
     return `<div class="card tri-banner"><div class="row between"><h2 style="margin:0">🏁 ${esc(T.race.name)}</h2><span class="num" style="font-size:22px;font-weight:700">J-${d}</span></div>
@@ -2936,6 +3139,11 @@ const HealthImport = (() => {
 const lastLoad = () => { const L = loadSeries(); return L[L.length-1] || null; };
 const scale = (rows, v) => `<div class="infoscale">${rows.map(([lo,hi,lab,txt]) => `<div class="${v!=null && v>=lo && v<hi ? 'on':''}"><b>${lab}</b><span>${txt}</span></div>`).join('')}</div>`;
 const INFO = {
+  periodisation: () => ({ t:'La méthode du plan vélo', body:`<p><b>Périodisation par blocs de 4 semaines</b> : 3 semaines de charge progressive puis 1 semaine allégée (schéma 3:1). L'adaptation se fait pendant la récupération, pas pendant l'effort.</p>
+      <p><b>Progression des intensités</b> : Base (sweet spot 88–94 % FTP, force en cadence basse) → Build 1 (seuil 95–105 %) → Build 2 (seuil + VO2max) → Peak / Spécifique, puis affûtage d'une semaine avant le test final ou la course. Dans chaque bloc, la même famille de séance s'allonge ou se durcit d'une semaine à l'autre (surcharge progressive).</p>
+      <p><b>Mesure</b> : zones de Coggan en % de FTP, test rampe (FTP = 75 % de la meilleure minute) ou 20 min (95 %), retest toutes les ~6 semaines pour recaler les watts. Charge en TSS ; fitness (CTL, 42 j) et fatigue (ATL, 7 j) selon le modèle impulsion-réponse de Banister.</p>
+      <p><b>Ce que dit la recherche, honnêtement</b> : le sweet spot est très rentable quand le temps est compté (≈ 6–8 h / semaine), mais beaucoup d'études sur des athlètes d'endurance favorisent une répartition <b>polarisée</b> (≈ 80 % facile, 20 % dur). Le plan s'en rapproche avec 2–3 séances clés par semaine, le reste en endurance facile. En mode triathlon, les sorties longues et les blocs nat / course augmentent la part facile.</p>
+      <p class="muted">Aucun plan ne garantit un résultat : les tests disent si la trajectoire tient.</p>` }),
   ctl: () => { const l = lastLoad(); const v = l ? Math.round(l.ctl) : null;
     const L = loadSeries(); const w = L.length > 7 ? Math.round(l.ctl - L[L.length-8].ctl) : null;
     return { t:'Fitness (CTL)', body:`<p>Ton <b>niveau d'entraînement de fond</b> : la moyenne de ta charge quotidienne sur les <b>42 derniers jours</b> (6 semaines). Plus il monte, plus ton corps est habitué à encaisser du travail. C'est lui qui porte la progression de ta FTP.</p>
