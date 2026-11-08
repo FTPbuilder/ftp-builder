@@ -305,7 +305,7 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 .sess .m{flex:1;min-width:0}
 .sess .m b{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .sess .st{flex:none;font-size:18px}
-.sess.done{border-left:4px solid var(--ok)} .sess.skipped{opacity:.5} .sess.today{outline:2px solid var(--accent)}
+.sess.done{border-left:4px solid var(--ok)} .sess.skipped{opacity:.5} .sess.swapped{border-left:4px dashed var(--accent2)} .sess.swapped .m b{color:var(--text)} .adapt{margin:10px 0 4px} .sess.today{outline:2px solid var(--accent)}
 .sess.opt .m b::after{content:" · optionnelle";color:var(--muted);font-weight:400;font-size:12px}
 .tag{display:inline-block;padding:1px 8px;border-radius:6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
 .bar{height:10px;background:var(--bg2);border-radius:99px;overflow:hidden}
@@ -377,7 +377,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.22.0';
+const APP_VERSION = '0.23.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -762,7 +762,7 @@ function triDone(x){
   const ws = Health.extraWorkouts().filter(e => e.date === x.date && e.sport === x.sport && (+e.w.duration_min || 0) >= (x.wid === 'brick' ? 8 : 15));
   return ws[0] || null;
 }
-function triStatus(x){ if (x.status === 'skipped') return 'skipped'; if (triDone(x)) return 'done'; return x.date < todayISO() && x.sport !== 'race' ? 'missed' : 'planned'; }
+function triStatus(x){ if (x.swap) return 'swapped'; if (x.status === 'skipped') return 'skipped'; if (triDone(x)) return 'done'; return x.date < todayISO() && x.sport !== 'race' ? 'missed' : 'planned'; }
 const TRI_IC = { swim:'🏊', run:'🏃', race:'🏁' };
 /* ===== /TRIATHLON ===== */
 
@@ -1495,18 +1495,19 @@ $('#tabs').addEventListener('click', e => { const b = e.target.closest('button[d
 // séances de la semaine en cours (vélo + nat / course) : faites / prévues, et tout ce qui reste à venir
 function weekCount(){
   const t = todayISO(), w0 = monday(t), w1 = addDays(w0, 6), inW = d => d >= w0 && d <= w1;
-  const bike = S.plan.filter(s => s.status !== 'skipped' && inW(s.date) && mandatory(s));
-  let done = bike.filter(s => s.status === 'done').length, total = bike.length;
+  const refs = swapRefs(), swOk = x => x.swap && x.swap.sp !== 'rest';
+  const bike = S.plan.filter(s => (s.status !== 'skipped' || swOk(s)) && inW(s.date) && mandatory(s));
+  let done = bike.filter(s => s.status === 'done' || swOk(s)).length, total = bike.length;
   // sorties vélo hors plan comptées comme séances (case « compter comme une séance ») : elles remplissent d'abord une séance vélo encore ouverte
-  const bikeOpen = bike.filter(s => s.status === 'planned').length, bikeX = S.activities.filter(a => !a.planId && a.countAsSession && inW(a.date)).length;
+  const bikeOpen = bike.filter(s => s.status === 'planned').length, bikeX = S.activities.filter(a => !a.planId && a.countAsSession && inW(a.date) && !refs.has('a:' + a.id)).length;
   done += bikeX; total += Math.max(0, bikeX - bikeOpen);
   if (triOn()) for (const sp of ['swim', 'run']) {
     // nat / course : une séance faite un autre jour que prévu (ou avant la création du plan) remplit un créneau ouvert de la semaine, sinon s'ajoute
-    const tp = (S.triPlan || []).filter(x => x.sport === sp && x.status !== 'skipped' && inW(x.date));
-    const okDates = new Set(tp.filter(x => triStatus(x) === 'done').map(x => x.date));
-    const extra = new Set(Health.extraWorkouts().filter(e => e.sport === sp && inW(e.date) && e.date <= t && (+e.w.duration_min || 0) >= 15 && !okDates.has(e.date)).map(e => e.date)).size;
-    const open = tp.length - okDates.size;
-    done += okDates.size + extra; total += tp.length + Math.max(0, extra - open);
+    const tp = (S.triPlan || []).filter(x => x.sport === sp && (x.status !== 'skipped' || swOk(x)) && inW(x.date));
+    const okDates = new Set(tp.filter(x => triStatus(x) === 'done').map(x => x.date)), nSw = tp.filter(swOk).length;
+    const extra = new Set(Health.extraWorkouts().filter(e => e.sport === sp && inW(e.date) && e.date <= t && (+e.w.duration_min || 0) >= 15 && !okDates.has(e.date) && !refs.has('w:' + e.w.start_at)).map(e => e.date)).size;
+    const open = tp.length - okDates.size - nSw;
+    done += okDates.size + nSw + extra; total += tp.length + Math.max(0, extra - open);
   }
   const left = S.plan.filter(s => s.status === 'planned' && s.date >= t && mandatory(s)).length + (triOn() ? (S.triPlan || []).filter(x => x.date >= t && triStatus(x) === 'planned').length : 0);
   return { done: Math.min(done, total), total, left };
@@ -2113,17 +2114,18 @@ function calHTML(){
   const keys = Object.keys(weeks).sort();
   const total = S.plan.length, mand = S.plan.filter(mandatory).length;
   let h = monthHTML() + triBannerHTML() + `<div class="card"><div class="row between"><h2>Programme</h2><span class="muted small">${(() => { const w = weekCount(); return `${w.done}/${w.total} cette semaine · ${w.left} à venir`; })()}</span></div>
-    <p class="muted small" style="margin:0">Touchez une séance pour voir les watts, l'exporter, la déplacer ou la remplacer.</p>
+    <p class="muted small" style="margin:0">Touchez une séance pour la voir, la déplacer ou la changer (« j'ai fait autre chose ») : le programme s'adapte.</p>
     <div class="row" style="margin-top:10px"><button class="btn sm" id="jumpToday">Aller à cette semaine</button><button class="btn sm" data-add="1">+ Ajouter une séance</button><button class="btn sm" data-absence="1">✈︎ Absence / vacances</button></div>
     ${absencesHTML()}</div>`;
   for (const k of keys) {
-    const list = weeks[k], tl = tweeks[k] || []; const done = list.filter(s=>s.status==='done').length + tl.filter(x => triStatus(x) === 'done').length;
+    const list = weeks[k], tl = tweeks[k] || []; const done = list.filter(s=>s.status==='done' || (s.swap && s.swap.sp !== 'rest')).length + tl.filter(x => triStatus(x) === 'done' || (x.swap && x.swap.sp !== 'rest')).length;
     const tss = list.reduce((a,s)=>a+wTSS(s.workoutId),0), hd = list[0] || tl[0];
     const triVol = tl.length ? (() => { const sw = tl.filter(x => x.sport === 'swim').reduce((a, x) => a + triEst(x).m, 0), rn = tl.filter(x => x.sport === 'run').reduce((a, x) => a + triEst(x).sec, 0); return `${sw ? ` · 🏊 ${(sw/1000).toFixed(1).replace('.', ',')} km` : ''}${rn ? ` · 🏃 ${fmtDur(rn)}` : ''}`; })() : '';
     h += `<div class="week" id="w-${k}"><div class="wh"><h3>Sem. ${hd.week+1} · ${esc(hd.block)}</h3><span class="tiny muted num">${fmtShort(k)} · ${done}/${list.length + tl.length}${tss ? ` · TSS ${tss}` : ''}${triVol}</span></div>`;
     const rows = [...list.map(s => ({ d: s.date, o: 0, s })), ...tl.map(x => ({ d: x.date, o: x.sport === 'swim' ? -1 : 1, x }))].sort((a, b) => a.d.localeCompare(b.d) || a.o - b.o);
     for (const { s, x } of rows) {
-      if (x) { h += triRowHTML(x); continue; }
+      if (x) { h += x.swap ? swapRowHTML('t', x) : triRowHTML(x); continue; }
+      if (s.swap) { h += swapRowHTML('b', s); continue; }
       const W = WORKOUTS[s.workoutId], d = parseD(s.date);
       h += `<div class="sess ${s.status} ${s.date===t?'today':''} ${s.kind==='optional'?'opt':''}" data-open="${s.id}">
         <div class="d"><span>${DOW[dowMon(s.date)]}</span><b class="num">${d.getDate()}</b></div>
@@ -2330,18 +2332,179 @@ function triDlg(id){
     <h2 style="margin:6px 0">${TRI_IC[x.sport]} ${esc(W.name)}</h2><p class="muted small">${esc(W.goal)}</p>
     ${x.sport === 'race' ? `<div class="note ok">${daysLeft > 0 ? `J-${daysLeft}` : daysLeft === 0 ? "C'est aujourd'hui !" : 'Course passée'} · ${esc(T_raceLine())}</div>`
       : `<div class="grid3" style="margin:8px 0"><div class="kpi"><div class="v num" style="font-size:22px">${fmtDur(E.sec)}</div><div class="l">Durée estimée</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? E.m + ' m' : '~' + (E.m/1000).toFixed(1).replace('.', ',') + ' km'}</div><div class="l">Distance</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? fmtPace(tri().css) : fmtPace(tri().runThr)}</div><div class="l">${x.sport === 'swim' ? 'CSS /100 m' : 'Seuil /km'}</div></div></div>`}
+    ${adaptHTML('t', x)}
     ${triStepsHTML(x, W)}
     ${stt === 'done' ? `<div class="note ok" style="margin-top:10px">✅ Faite : ${esc(done.w.type)} · ${fmtDur(done.w.duration_min*60)}${done.w.distance_km ? ` · ${x.sport === 'swim' ? Math.round(done.w.distance_km*1000) + ' m' : (+done.w.distance_km).toFixed(1).replace('.', ',') + ' km'}` : ''}</div>` : stt === 'missed' ? `<div class="note warn" style="margin-top:10px">Pas de séance de ${x.sport === 'swim' ? 'nat' : 'course'} trouvée ce jour-là.</div>` : ''}
     ${x.sport !== 'race' ? `<div class="row" style="margin-top:12px;flex-wrap:wrap">
+      <button class="btn" data-swap="t:${x.id}">🔄 ${x.swap ? 'Modifier le remplacement' : 'Changer de séance'}</button>
       ${done ? `<button class="btn" data-ssess="w:${esc(done.w.start_at)}">Voir la séance faite</button>` : ''}
       <label class="small" style="display:flex;gap:6px;align-items:center">Déplacer au <input type="date" id="triMove" value="${x.date}" style="width:auto"></label>
-      <button class="btn ghost sm" id="triSkip">${x.status === 'skipped' ? 'Rétablir' : 'Sauter'}</button></div>` : ''}
+      ${x.swap ? '' : `<button class="btn ghost sm" id="triSkip">${x.status === 'skipped' ? 'Rétablir' : 'Sauter'}</button>`}</div>` : ''}
     <p class="tiny muted" style="margin-top:10px">Allures calculées sur ta CSS (${fmtPace(tri().css)} /100 m) et ton seuil course (${fmtPace(tri().runThr)} /km) · <a href="#" id="triEdit">modifier</a></p>`);
   $('#triEdit').onclick = e => { e.preventDefault(); triSetupDlg(); };
   if ($('#triSkip')) $('#triSkip').onclick = () => { x.status = x.status === 'skipped' ? 'planned' : 'skipped'; save(); render(); triDlg(id); };
   if ($('#triMove')) $('#triMove').onchange = e => { const d = e.target.value; if (!d) return; x.date = d; S.triPlan.sort((a, b) => a.date.localeCompare(b.date)); save(); render(); toast(`Séance déplacée au ${fmtDate(d)}`); triDlg(id); };
 }
 document.addEventListener('click', e => { const r = e.target.closest('[data-tri]'); if (r) triDlg(r.dataset.tri); const s = e.target.closest('[data-trisetup]'); if (s) triSetupDlg(); });
+/* ===== ADAPTATION : « j'ai fait autre chose », recaser, alléger (v0.23) ===== */
+// une séance prévue (vélo 'b' ou nat/course 't') peut être remplacée par ce qui a vraiment été fait (ou sera fait) :
+// x.swap = { sp, min, rpe, tss, l, ref, note } ; la séance prévue passe en 'skipped' sauf si l'activité choisie lui est déjà rattachée
+const qsa = sel => [...document.querySelectorAll(sel)];
+const SWAP_SP = { bike_out:{ ic:'🚴', l:'Vélo dehors' }, bike_in:{ ic:'🏠', l:'Home trainer libre' }, run:{ ic:'🏃', l:'Course' }, swim:{ ic:'🏊', l:'Natation' }, strength:{ ic:'🏋️', l:'Renfo' }, mobility:{ ic:'🧘', l:'Mobilité / yoga' }, other:{ ic:'⏱️', l:'Autre sport' }, rest:{ ic:'😴', l:'Repos' } };
+const SWAP_IF = { bike_out:0.7, bike_in:0.72, run:0.78, swim:0.72, strength:0.6, mobility:0.4, other:0.65, rest:0 };
+// charge estimée : TSS mesuré si l'activité vient d'un import, sinon durée × IF² (IF tiré du RPE quand il est donné)
+const swapTSS = sw => sw.sp === 'rest' ? 0 : sw.tss != null ? sw.tss : Math.round((sw.min || 0)/60 * Math.pow(sw.rpe ? Math.min(0.95, 0.5 + sw.rpe*0.04) : (SWAP_IF[sw.sp] || 0.6), 2) * 100);
+const pItem = (k, id) => k === 't' ? (S.triPlan || []).find(x => x.id === id) : S.plan.find(x => x.id === id);
+const triHard = x => ['qual', 'long'].includes(x.wid) && x.ph !== 'recov' && x.ph !== 'taper';
+function pInfo(k, x){
+  if (k === 't') { const W = triWorkout(x), E = triEst(x, W), hard = triHard(x);
+    return { sport: x.sport, ic: TRI_IC[x.sport], name: W.name, sec: E.sec, tss: Math.round(E.sec/3600 * Math.pow(hard ? 0.82 : 0.7, 2) * 100), hard, key: x.kind === 'key' }; }
+  const W = WORKOUTS[x.workoutId];
+  return { sport:'bike', ic:'🚴', name: W.name, sec: wDur(x.workoutId), tss: wTSS(x.workoutId), hard: isHard(x.workoutId), key: mandatory(x), type: W.type };
+}
+const swapSpOf = (sport, indoor) => sport === 'bike' ? (indoor ? 'bike_in' : 'bike_out') : sport === 'walk' ? 'other' : SWAP_SP[sport] ? sport : 'other';
+// ce qui a été enregistré un jour donné (activités vélo de l'app + séances Apple Santé / Intervals)
+function dayDone(date){
+  const out = S.activities.filter(a => a.date === date).map(a => ({ sp: isIndoor(a) ? 'bike_in' : 'bike_out', min: Math.round((a.durationS || 0)/60), tss: a.tss ?? null, l: a.name, ref: 'a:' + a.id }));
+  for (const e of Health.extraWorkouts()) if (e.date === date) out.push({ sp: swapSpOf(e.sport, e.sport === 'bike' && Health.bikeIndoor(e.w)), min: Math.round(+e.w.duration_min || 0), tss: e.tss ?? null, l: e.w.type || 'Séance', ref: 'w:' + e.w.start_at });
+  return out.filter(o => o.min >= 10);
+}
+const swapRefs = () => new Set([...S.plan, ...(S.triPlan || [])].map(x => x.swap?.ref).filter(Boolean));
+function applySwap(k, x, sw){
+  sw = { ...sw }; sw.tss = swapTSS(sw);
+  const keep = k === 'b' && x.activityId && sw.ref === 'a:' + x.activityId; // l'activité déjà rattachée : on ne fait que renommer
+  if (k === 'b' && x.activityId && !keep) { const a = S.activities.find(y => y.id === x.activityId); if (a) { a.planId = null; a.linkManual = true; } x.activityId = null; }
+  if (!keep) { sw.prev = x.status; x.status = 'skipped'; }
+  x.swap = sw;
+}
+function undoSwap(k, x){ if (x.status === 'skipped' && x.swap?.prev !== 'skipped') x.status = 'planned'; delete x.swap; }
+// séances (vélo + nat/course) encore au programme un jour donné
+const dayLoad = (date, except) => [...S.plan.filter(s => s.date === date && s.status !== 'skipped' && s.id !== except).map(s => ({ k:'b', x:s, i:pInfo('b', s) })),
+  ...(triOn() ? (S.triPlan || []).filter(x => x.date === date && x.status !== 'skipped' && x.id !== except && x.sport !== 'race').map(x => ({ k:'t', x, i:pInfo('t', x) })) : [])];
+// créneau pour recaser une séance clé : ≤ 3 jours, pas d'absence, pas le même sport le même jour, 2 séances max par jour, 48 h entre deux séances dures
+function findSlot(k, x){
+  const info = pInfo(k, x), t = todayISO(), end = k === 't' ? tri().race.date : S.profile.endDate;
+  const base = x.date < t ? t : addDays(x.date, 1);
+  for (let j = 0; j <= 3; j++) {
+    const d = addDays(base, j); if (d > end || diffDays(x.date, d) > 4) break;
+    if ((S.profile.absences || []).some(a => d >= a.from && d <= a.to)) continue;
+    if (k === 't' && d === tri().race.date) continue;
+    const L = dayLoad(d, x.id);
+    if (L.length >= 2 || L.some(o => o.i.sport === info.sport && o.i.key)) continue;
+    if (k === 'b' && S.profile.days?.[parseD(d).getDay()]?.avail === false && L.length) continue;
+    if (info.hard && [-1, 0, 1].some(o => dayLoad(addDays(d, o), x.id).some(y => y.i.hard))) continue;
+    return d;
+  }
+  return null;
+}
+function weekLoadHTML(date){
+  const w0 = monday(date), w1 = addDays(w0, 6), inW = d => d >= w0 && d <= w1, t = todayISO();
+  const all = [...S.plan.filter(s => inW(s.date)).map(s => ['b', s]), ...(triOn() ? (S.triPlan || []).filter(x => inW(x.date) && x.sport !== 'race').map(x => ['t', x]) : [])];
+  let plan = 0, real = 0;
+  for (const [k, x] of all) {
+    if (x.status === 'skipped' && !x.swap) continue;
+    const i = pInfo(k, x); plan += i.tss;
+    if (x.swap) real += swapTSS(x.swap);
+    else if (k === 'b' && x.status === 'done') real += S.activities.find(a => a.id === x.activityId)?.tss ?? i.tss;
+    else if (k === 't' && triStatus(x) === 'done') real += triDone(x)?.tss ?? i.tss;
+  }
+  if (!plan) return '';
+  const past = all.filter(([, x]) => x.date <= t).reduce((a, [k, x]) => a + (x.status === 'skipped' && !x.swap ? 0 : pInfo(k, x).tss), 0);
+  const r = past ? real/past : 1;
+  return `<p class="tiny muted" style="margin:8px 0 0">Charge de la semaine : ≈ ${real} TSS faits sur ${past} prévus à ce jour (${plan} sur la semaine)${past ? ` · ${r >= 0.85 && r <= 1.15 ? 'dans les clous' : r < 0.85 ? 'en dessous' : 'au-dessus'}` : ''}.</p>`;
+}
+// bloc « Adapter » affiché dans la fiche d'une séance remplacée ou manquée
+function adaptHTML(k, x){
+  if (k === 't' && x.sport === 'race') return '';
+  const t = todayISO(), info = pInfo(k, x), sw = x.swap;
+  const missed = !sw && x.date < t && (k === 't' ? triStatus(x) === 'missed' : x.status === 'planned');
+  if (!sw && !missed) return '';
+  const recased = [...S.plan, ...(S.triPlan || [])].find(y => y.recasedFrom === x.id);
+  const msgs = [], btns = [];
+  let covered = false;
+  if (sw) {
+    const st = swapTSS(sw), same = info.sport === 'bike' ? sw.sp.startsWith('bike') : sw.sp === info.sport;
+    covered = same && st >= info.tss*0.7 && !(info.hard && sw.sp === 'bike_out' && info.type !== 'end');
+    if (sw.sp === 'rest') msgs.push(['warn', `Repos à la place de « ${info.name} ».${info.key ? ' Séance clé : à recaser si un créneau propre existe, sinon on passe.' : ' Séance secondaire : rien à rattraper.'}`]);
+    else if (covered) msgs.push(['ok', `Bien remplacée : même sport, charge comparable (≈ ${st} TSS contre ${info.tss} prévus). Rien à rattraper.`]);
+    else if (same && info.hard) msgs.push(['warn', `Le volume est là (≈ ${st} TSS), mais pas le travail d'intensité de « ${info.name} ».${info.key ? ' Tu peux le recaser si la semaine le permet.' : ''}`]);
+    else msgs.push(['warn', `${SWAP_SP[sw.sp].l} (≈ ${st} TSS) ne remplace pas « ${info.name} » : ${same ? 'charge bien plus faible' : 'autre sport'}.${info.key ? ' Séance clé : à recaser si possible.' : ' Séance secondaire : rien à rattraper.'}`]);
+    // grosse substitution : alléger la prochaine séance dure dans les 48 h
+    if (st > info.tss*1.3 + 15) {
+      const nx = [1, 2].flatMap(o => dayLoad(addDays(x.date, o))).find(o => o.i.hard && o.x.status === 'planned');
+      if (nx) { const ez = nx.k === 'b' ? neighbor(nx.x.workoutId, -1) : null;
+        msgs.push(['warn', `Charge plus forte que prévu : ${nx.i.ic} ${nx.i.name} arrive le ${fmtDate(nx.x.date)}.${ez ? '' : ' Écoute les jambes à l\'échauffement, quitte à passer en version souple.'}`]);
+        if (ez) btns.push(`<button class="btn sm" data-sx="easier" data-sid="${nx.x.id}">⬇ Alléger : ${esc(WORKOUTS[ez].name)} le ${fmtShort(nx.x.date)}</button>`); }
+    }
+  } else msgs.push(['warn', `« ${info.name} » n'a pas été faite${info.key ? '' : ' (séance secondaire, rien à rattraper)'}.`]);
+  if (!covered && info.key && !recased && x.date >= addDays(t, -3)) {
+    const d = findSlot(k, x);
+    if (d) btns.push(`<button class="btn sm primary" data-recase="${k}:${x.id}:${d}">↪ Recaser ${DOW[dowMon(d)].toLowerCase()} ${fmtShort(d)}</button>`);
+    else msgs.push(['', `Pas de créneau propre dans les 3 jours (48 h entre deux séances dures, 2 séances max par jour) : on la laisse tomber, ne l'empile pas.`]);
+  }
+  if (recased) msgs.push(['ok', `Recasée le ${fmtDate(recased.date)}.`]);
+  if (missed) btns.push(`<button class="btn sm" data-swap="${k}:${x.id}">🔄 J'ai fait autre chose</button><button class="btn sm ghost" data-drop="${k}:${x.id}">Laisser tomber</button>`);
+  return `<div class="adapt">${msgs.map(([c, m]) => `<div class="note ${c}" style="margin:0 0 6px">${esc(m)}</div>`).join('')}${btns.length ? `<div class="row" style="gap:6px;flex-wrap:wrap">${btns.join('')}</div>` : ''}${weekLoadHTML(x.date)}</div>`;
+}
+const reopen = (k, id) => k === 't' ? triDlg(id) : sessionDlg(id);
+function swapDlg(k, id){
+  const x = pItem(k, id); if (!x) return;
+  const info = pInfo(k, x), past = x.date <= todayISO(), sw0 = x.swap || {};
+  const refs = swapRefs(); const det = dayDone(x.date).filter(o => !refs.has(o.ref) || o.ref === sw0.ref);
+  let cur = { sp: sw0.sp || (k === 't' ? x.sport : 'bike_out'), min: sw0.min || Math.round(info.sec/60), rpe: sw0.rpe || '', note: sw0.note || '', ref: sw0.ref || null, tss: sw0.ref ? sw0.tss : null, l: sw0.l || null };
+  const opts = k === 'b' ? Object.entries(WORKOUTS).map(([w, W]) => `<option value="${w}" ${w === x.workoutId ? 'selected' : ''}>${esc(W.name)} · ${fmtDur(wDur(w))}</option>`).join('') : '';
+  openDlg(`<span class="muted small">${fmtDate(x.date)} · prévu : ${info.ic} ${esc(info.name)}</span>
+    <h2 style="margin:6px 0">Changer de séance</h2>
+    <p class="muted small" style="margin:0 0 10px">${past ? "Qu'as-tu fait à la place ?" : 'Que vas-tu faire à la place ?'} Le programme s'adapte ensuite (recaser, alléger la suite).</p>
+    ${det.length ? `<div class="small muted" style="margin-bottom:4px">Enregistré ce jour-là</div><div class="seg" id="swDet" style="margin-bottom:10px">${det.map((o, i) => `<button type="button" data-i="${i}" class="${o.ref === cur.ref ? 'on' : ''}">${SWAP_SP[o.sp].ic} ${esc(o.l)} · ${fmtDur(o.min*60)}</button>`).join('')}</div>` : ''}
+    <div class="small muted" style="margin-bottom:4px">${det.length ? 'Ou à la main' : 'Activité'}</div>
+    <div class="seg" id="swSp">${Object.entries(SWAP_SP).map(([s, o]) => `<button type="button" data-v="${s}" class="${s === cur.sp && !cur.ref ? 'on' : ''}">${o.ic} ${o.l}</button>`).join('')}</div>
+    <div id="swF"><div class="grid2" style="margin-top:6px"><div><label class="f">Durée (min)</label><input type="number" id="swMin" min="5" max="600" inputmode="numeric" value="${cur.min}"></div>
+    <div><label class="f">Ressenti (RPE 1–10)</label><input type="number" id="swRpe" min="1" max="10" inputmode="numeric" value="${cur.rpe}" placeholder="optionnel"></div></div>
+    <label class="f">Note</label><input id="swNote" value="${esc(cur.note)}" placeholder="ex. sortie longue dehors, circuit gainage…"></div>
+    <div class="row" style="margin-top:14px;gap:6px"><button class="btn primary" id="swOk">Valider</button>${x.swap ? `<button class="btn ghost" id="swUndo">Revenir à « ${esc(info.name)} »</button>` : ''}</div>
+    ${k === 'b' ? `<details class="more" style="margin-top:14px"><summary>Ou une autre séance home trainer du programme</summary><div class="row" style="margin-top:8px"><select id="swW" style="flex:1">${opts}</select><button class="btn" id="swWOk">Remplacer</button></div></details>` : ''}`);
+  const sync = () => { $('#swF').style.display = cur.sp === 'rest' ? 'none' : ''; qsa('#swSp button').forEach(b => b.classList.toggle('on', !cur.ref && b.dataset.v === cur.sp)); qsa('#swDet button').forEach(b => b.classList.toggle('on', det[+b.dataset.i].ref === cur.ref)); };
+  qsa('#swSp button').forEach(b => b.onclick = () => { cur = { ...cur, sp: b.dataset.v, ref: null, tss: null, l: null }; sync(); });
+  qsa('#swDet button').forEach(b => b.onclick = () => { const o = det[+b.dataset.i]; cur = { ...cur, ...o }; $('#swMin').value = o.min; sync(); });
+  sync();
+  $('#swOk').onclick = () => {
+    const min = +$('#swMin').value || 0, rpe = Math.min(10, Math.max(0, +$('#swRpe').value || 0)) || null;
+    if (cur.sp !== 'rest' && min < 5) { toast('Indique une durée'); return; }
+    if (cur.ref && min !== cur.min) { cur.tss = null; } // durée corrigée à la main : charge réestimée
+    applySwap(k, x, { sp: cur.sp, min: cur.sp === 'rest' ? 0 : min, rpe, note: $('#swNote').value.trim() || null, ref: cur.ref, tss: cur.ref ? cur.tss : null, l: cur.ref ? cur.l : null });
+    save(); render(); toast(cur.sp === 'rest' ? 'Noté : repos' : `Remplacée par : ${SWAP_SP[cur.sp].l}`); reopen(k, id);
+  };
+  if ($('#swUndo')) $('#swUndo').onclick = () => { undoSwap(k, x); save(); render(); toast('Séance prévue rétablie'); reopen(k, id); };
+  if ($('#swWOk')) $('#swWOk').onclick = () => { if (x.swap) undoSwap(k, x); x.origWorkoutId ||= x.workoutId; x.workoutId = $('#swW').value; delete x.adj; save(); render(); toast(`Séance remplacée : ${WORKOUTS[x.workoutId].name}`); sessionDlg(id); };
+}
+function recase(k, id, d){
+  const x = pItem(k, id); if (!x) return;
+  if (x.swap || x.date < todayISO() || x.status !== 'planned') { // la trace d'origine reste ; une copie part sur le nouveau créneau
+    const c = { ...x, id: uid(), date: d, status: 'planned', recasedFrom: x.id }; delete c.swap; delete c.activityId; delete c.adj;
+    c.week = Math.floor(diffDays(monday(S.profile.startDate), d)/7);
+    if (k === 't') { S.triPlan.push(c); S.triPlan.sort((a, b) => a.date.localeCompare(b.date)); if (!x.swap) x.status = 'skipped'; }
+    else { S.plan.push(c); S.plan.sort((a, b) => a.date.localeCompare(b.date)); if (!x.swap) x.status = 'skipped'; }
+  } else { x.date = d; (k === 't' ? S.triPlan : S.plan).sort((a, b) => a.date.localeCompare(b.date)); }
+  save(); render(); toast(`Recasée ${DOW[dowMon(d)].toLowerCase()} ${fmtDate(d)}`); reopen(k, id);
+}
+document.addEventListener('click', e => {
+  const sw = e.target.closest('[data-swap]'), rc = e.target.closest('[data-recase]'), dr = e.target.closest('[data-drop]');
+  if (sw) { e.stopPropagation(); const [k, id] = sw.dataset.swap.split(':'); swapDlg(k, id); }
+  else if (rc) { e.stopPropagation(); const [k, id, d] = rc.dataset.recase.split(':'); recase(k, id, d); }
+  else if (dr) { e.stopPropagation(); const [k, id] = dr.dataset.drop.split(':'); const x = pItem(k, id); if (x) { x.status = 'skipped'; save(); render(); toast('Séance laissée de côté'); reopen(k, id); } }
+}, true);
+// ligne du programme pour une séance remplacée
+function swapRowHTML(k, x){
+  const sw = x.swap, o = SWAP_SP[sw.sp], info = pInfo(k, x), t = todayISO();
+  const name = sw.sp === 'rest' ? 'Repos' : sw.note || sw.l || o.l;
+  const meta = `${sw.sp === 'rest' ? '' : `${fmtDur(sw.min*60)} · ≈ TSS ${swapTSS(sw)} · `}au lieu de ${info.ic} ${esc(info.name)}`;
+  return `<div class="sess swapped ${x.date === t ? 'today' : ''}" ${k === 't' ? `data-tri="${x.id}"` : `data-open="${x.id}"`}>
+    <div class="d"><span>${DOW[dowMon(x.date)]}</span><b class="num">${parseD(x.date).getDate()}</b></div>
+    <div class="m"><b>${o.ic} ${esc(name)}</b><span class="tiny muted">${meta}</span></div>
+    <div class="st">${x.status === 'done' ? '✅' : sw.sp === 'rest' ? '😴' : '🔄'}</div></div>`;
+}
+/* ===== /ADAPTATION ===== */
 function triBannerHTML(){
   if (triOn()) { const T = tri(), d = diffDays(todayISO(), T.race.date), next = (S.triPlan || []).filter(x => x.date >= todayISO() && triStatus(x) === 'planned');
     return `<div class="card tri-banner"><div class="row between"><h2 style="margin:0">🏁 ${esc(T.race.name)}</h2><span class="num" style="font-size:22px;font-weight:700">J-${d}</span></div>
@@ -3805,11 +3968,13 @@ function sessionDlg(id){
     <h2 style="margin:6px 0">${esc(W.name)}</h2><p class="muted small">${esc(W.goal)}</p>
     ${profileBars(s.workoutId)}
     <div class="row small muted" style="margin:8px 0"><span class="num">${fmtDur(wDur(s.workoutId))}</span>·<span class="num">TSS ≈ ${wTSS(s.workoutId)}</span>·<span>FTP ${ftp()} W${adj()!==1?` (ajust. ${Math.round((adj()-1)*1000)/10} %)`:''}</span></div>
-    ${adjustHTML(s)}
+    ${adaptHTML('b', s)}
+    ${s.swap ? '' : adjustHTML(s)}
     ${stepsTable(s.workoutId, sAdj(s))}
     ${act ? `<div class="note ok" style="margin-top:12px">Réalisée : ${fmtDur(act.durationS)}${act.np?` · NP ${act.np} W`:''}${act.avgHr?` · ${act.avgHr} bpm`:''}${act.feel?.rpe?` · RPE ${act.feel.rpe}`:''}</div>${evalHTML(act, s)}${ActChart.html(act, s)}` : ''}
-    <div class="row" style="margin-top:14px">
-      ${s.status === 'done' ? `<button class="btn primary" data-act="${act?.id}">Voir l'activité</button>` : Cloud.icu?.connected ? `<span class="tiny muted">Envoyée sur l'Edge via Intervals.icu, validée automatiquement après la synchro.</span>` : `<button class="btn primary" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>`}
+    <div class="row" style="margin-top:14px;gap:6px;flex-wrap:wrap">
+      <button class="btn" data-swap="b:${s.id}">🔄 ${s.swap ? 'Modifier le remplacement' : 'Changer de séance'}</button>
+      ${s.swap && s.status !== 'done' ? '' : s.status === 'done' ? `<button class="btn primary" data-act="${act?.id}">Voir l'activité</button>` : Cloud.icu?.connected ? `<span class="tiny muted">Envoyée sur l'Edge via Intervals.icu, validée automatiquement après la synchro.</span>` : `<button class="btn primary" data-export="${s.id}">Envoyer sur l'Edge (.fit)</button>`}
     </div>
     ${W.type==='test' && s.status==='planned' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}
     <details class="more" style="margin-top:14px"><summary>⋯ Autres actions : saisir, déplacer, remplacer, passer</summary>
