@@ -62,7 +62,7 @@ if (sat) { await pg.evaluate(id => triDlg(id), sat); await pg.waitForTimeout(150
   await pg.locator('#dlg [data-drop]').tap(); await pg.waitForTimeout(150);
   assert(await pg.evaluate(id => S.triPlan.find(y => y.id === id).status, sat) === 'skipped', 'laisser tomber'); }
 // persistance
-await pg.reload(); await pg.waitForTimeout(300);
+await pg.reload(); await pg.waitForFunction(() => window.S && S.plan && S.plan.length > 0); await pg.waitForTimeout(300);
 assert(await pg.evaluate(bk => !bk || S.plan.find(s => s.id === bk)?.swap?.sp === 'bike_out', bk), 'remplacement conservé après rechargement');
 assert(!errs.length, 'aucune erreur JS ' + errs.join(' | '));
 await b.close();
