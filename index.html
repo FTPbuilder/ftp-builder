@@ -1763,7 +1763,7 @@ const Recomp = (() => {
     ['amplitude', /\b(amplitude|ampli|allonge|glisse)\b/], ['educ', /\b(edu|educ|educatifs?|technique)\b/],
     ['echauff', /\b(echauffement|echauff|echauf)\b/], ['calme', /\b(calme|souple|facile|recup|recuperation|cool|lent|tranquille|ral)\b/],
   ];
-  const TAGS = [['pull', /\bpull\b/], ['plaquettes', /\bplaquettes?\b/], ['palmes', /\bpalmes?\b/], ['tuba', /\btuba\b/], ['jambes', /\b(jambes|battements|planche)\b/],
+  const TAGS = [['pull', /\bpull\b/], ['plaquettes', /\bplaquettes?\b/], ['palmes', /\bpalmes?\b/], ['tuba', /\btuba\b/], ['jambes', /\b(jambes|battements|planche)\b/], ['chevilles', /\b(chevill\w*|elastiques?)\b/],
     ['brasse', /\bbrasse\b/], ['dos', /\bdos\b/], ['pap', /\b(pap|papillon)\b/], ['4n', /\b4\s*n(ages)?\b/]];
   const INT_L = { max:'à fond', rapide:'rapide', amplitude:'amplitude', educ:'éducatifs', echauff:'échauffement', calme:'calme', moyen:'' };
   const intOf = t => { for (const [k, re] of INT) if (re.test(t)) return k; return null; };
@@ -1774,7 +1774,8 @@ const Recomp = (() => {
 
   // une ligne -> liste d'items (un item = ce qui se nage d'une traite, avec ses morceaux et le repos qui suit)
   function parseLine(raw, sport){
-    let t = norm(raw).replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim();
+    // « 500pull », « 4x100plaquettes », « 10sec » : on décolle chiffres et lettres
+    let t = norm(raw).replace(/[()]/g, ' ').replace(/(\d)([a-z])/g, '$1 $2').replace(/\s+/g, ' ').trim();
     if (!t) return [];
     t = t.replace(/\ba\s*\d+\s*['’´′]\s*\d{2}\b(\s*\/\s*km)?/g, ' '); // allure cible « à 4'05 » : ignorée
     // séries en temps (course) : « 3x10 min seuil », « 15 min échauffement »
@@ -1894,7 +1895,9 @@ const Recomp = (() => {
     return out;
   }
   function fmtSec(x){ x = Math.round(x); const m = Math.floor(x/60), r = x % 60; return m ? (r ? `${m}'${String(r).padStart(2, '0')}` : `${m} min`) : `${r} s`; }
-  return { fmtSec, parse, align, summarize, keyOf, pieceLabel, INT_L, stream };
+  // lignes non vides dont aucun bloc n'a été tiré (signalées à l'écran, sinon l'écart de distance part en silence)
+  const unparsed = (text, sport) => String(text || '').split(/\n|;/).filter(l => l.trim() && !parseLine(l, sport).length).map(l => l.trim());
+  return { fmtSec, parse, unparsed, align, summarize, keyOf, pieceLabel, INT_L, stream };
 })();
 /* ===== /RECOMP ===== */
 /* ----- Recomposition : écran, enregistrement, suivi par bloc ----- */
@@ -1962,12 +1965,14 @@ async function recompDlg(ref){
     const text = $('#rcText').value.trim(); if (!text) { out.innerHTML = `<div class="note warn">Écris ta séance, une ligne par bloc.</div>`; return; }
     const items = Recomp.parse(text, sp);
     if (!items.length) { out.innerHTML = `<div class="note warn">Je n'ai reconnu aucun bloc : commence chaque ligne par une distance (« 200 ») ou une série (« 4x100 »).</div>`; return; }
+    const skip = Recomp.unparsed(text, sp);
+    const skipNote = skip.length ? `<div class="note warn" style="margin:0 0 8px">Ligne${skip.length > 1 ? 's' : ''} non reconnue${skip.length > 1 ? 's' : ''}, ignorée${skip.length > 1 ? 's' : ''} : ${skip.map(l => `« ${esc(l)} »`).join(', ')}. Commence par une distance (« 200 pull ») ou une série (« 4x100 »).</div>` : '';
     const res = laps?.s ? Recomp.align(items, laps) : null;
     const ts = Math.floor(Date.parse(ref.slice(2))/1000);
-    if (!res) { out.innerHTML = `<p class="small">${items.length} bloc${items.length > 1 ? 's' : ''} reconnu${items.length > 1 ? 's' : ''} · ${items.reduce((s, i) => s + i.d, 0)} m prévus</p>` + items.map(i => `<div class="hist"><div style="flex:1">${esc(i.pieces.map(Recomp.pieceLabel).join(' + '))} <span class="tiny muted">${esc(i.rep || '')}</span></div></div>`).join(''); return; }
+    if (!res) { out.innerHTML = skipNote + `<p class="small">${items.length} bloc${items.length > 1 ? 's' : ''} reconnu${items.length > 1 ? 's' : ''} · ${items.reduce((s, i) => s + i.d, 0)} m prévus</p>` + items.map(i => `<div class="hist"><div style="flex:1">${esc(i.pieces.map(Recomp.pieceLabel).join(' + '))} <span class="tiny muted">${esc(i.rep || '')}</span></div></div>`).join(''); return; }
     last = { sport: sp, date: x.date, ts, text, planned: res.planned, measured: res.measured, rows: rcRows(sp, res), sum: Recomp.summarize(sp, res), at: Date.now() };
     const gap = res.allDist ? res.measured - res.planned : 0;
-    out.innerHTML = `<p class="small" style="margin:0 0 4px"><b>${items.length} blocs</b> · ${res.planned} m prévus · ${res.measured} m mesurés${res.allDist && Math.abs(gap) > 0.05*res.planned ? ` <span class="muted">(écart ${gap > 0 ? '+' : ''}${gap} m réparti sur les blocs)</span>` : ''}</p>
+    out.innerHTML = skipNote + `<p class="small" style="margin:0 0 4px"><b>${items.length} blocs</b> · ${res.planned} m prévus · ${res.measured} m mesurés${res.allDist && Math.abs(gap) > 0.05*res.planned ? ` <span class="muted">(écart ${gap > 0 ? '+' : ''}${gap} m réparti sur les blocs)</span>` : ''}</p>
       ${rcRowsHTML(sp, last.rows, ts)}
       <div class="row" style="margin-top:10px"><button class="btn primary" id="rcSave">Enregistrer</button></div>`;
     $('#rcSave').onclick = () => { (S.recomp ||= {})[ref] = last; save(); render(); toast('Séance recomposée enregistrée'); sportSessionDlg(ref); };

@@ -38,6 +38,18 @@ assert(Math.abs(r200.sec/r200.md*100 - 91) < 3, `allure 200 rapide ≈ 1'31 /100
 const p75 = res.items[8].pieces;
 assert(p75[0].hr > p75[1].hr && Math.abs(p75[0].sec/p75[0].md*100 - 74) < 8, '75 à fond puis 25 calme découpés dans le même bloc');
 
+// nat du 9/11 : « 500pull » collé, chevilles ; la montre ne s'arrête qu'après 950 m puis 2000 m
+const n9 = Recomp.parse("500pull\n100pull chevill\n350 free\n1050 pull\n200 free", 'swim');
+assert(n9.length === 5 && n9.reduce((s, x) => s + x.d, 0) === 2200 && n9[1].pieces[0].tags.join() === 'pull,chevilles', '« 500pull » / « 100pull chevill » reconnus (2200 m)');
+assert(Recomp.unparsed("500 pull\nnotes du coach\n200", 'swim').join() === 'notes du coach', 'ligne non reconnue signalée');
+{ const t = [0], d = [0]; let T = 0, D = 0;
+  const go = (m, sec) => { const n = Math.round(sec/3); for (let k = 0; k < n; k++) { T += 3; D += m/n; t.push(T); d.push(+D.toFixed(1)); } };
+  const rest = sec => { for (let k = 0; k < sec/3; k++) { T += 3; t.push(T); d.push(+D.toFixed(1)); } };
+  go(500, 480); go(100, 105); go(350, 336); rest(95); go(1050, 1009); rest(88); go(200, 177);
+  const r9 = Recomp.align(n9, { v:2, intervals:[], s:{ t, d } });
+  assert(r9.items.map(x => x.md).join() === '500,100,350,1050,200' && r9.items[2].snapped && r9.items[3].snapped, `blocs calés sur les arrêts montre (${r9.items.map(x => x.md)})`);
+  assert(Math.abs(r9.items[3].sec - 1009) < 6, '1050 pull ≈ 16\'49 comme la montre'); }
+
 // écran
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
