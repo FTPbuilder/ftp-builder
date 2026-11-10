@@ -413,7 +413,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.24.1';
+const APP_VERSION = '0.24.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -4666,6 +4666,8 @@ const Cloud = (() => {
     for (const row of data) {
       const a0 = row.activity, st = row.streams || {};
       if (S.activities.some(x => x.stravaId === row.strava_id)) { await sb.from('strava_inbox').update({ imported:true }).eq('id', row.id); continue; }
+      // démarrage accidentel (quelques secondes, aucune distance) : ignoré
+      if ((a0.moving_time || 0) < 60 && (a0.distance || 0) < 200) { await sb.from('strava_inbox').update({ imported:true }).eq('id', row.id); continue; }
       const start = Math.floor(Date.parse(a0.start_date)/1000);
       const time = st.time || [];
       const records = time.map((t, i) => ({ t: start + t, pw: st.watts?.[i] ?? null, hr: st.heartrate?.[i] ?? null, cad: st.cadence?.[i] ?? null,
