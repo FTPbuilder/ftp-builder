@@ -141,10 +141,10 @@ nav.tabs button .lbl{font:italic 800 12.5px/1 "Barlow Condensed","Arial Narrow",
 .home .ring>svg:first-child{position:absolute;inset:0}
 .home .ring .ic{width:34px;height:34px}
 @keyframes homeIn{from{opacity:0;transform:translateY(8px)}}
-.home .hero,.home .hc{animation:homeIn .4s cubic-bezier(.3,1.2,.5,1) backwards}
-.home .hc:nth-child(1){animation-delay:.05s}.home .hc:nth-child(2){animation-delay:.1s}.home .hc:nth-child(3){animation-delay:.15s}
+.home.arrive .hero,.home.arrive .hc{animation:homeIn .4s cubic-bezier(.3,1.2,.5,1) backwards}
+.home.arrive .hc:nth-child(1){animation-delay:.05s}.home.arrive .hc:nth-child(2){animation-delay:.1s}.home.arrive .hc:nth-child(3){animation-delay:.15s}
 @keyframes ringIn{from{stroke-dasharray:0 9999}}
-.home .harc{animation:ringIn .9s cubic-bezier(.3,.9,.3,1) backwards .1s}
+.home.arrive .harc{animation:ringIn .9s cubic-bezier(.3,.9,.3,1) backwards .1s}
 @media (prefers-reduced-motion:reduce){.home .hero,.home .hc,.home .harc{animation:none}}
 .tiles-home{margin-top:6px}
 .tiles-home .tile{aspect-ratio:auto;min-height:148px}
@@ -464,7 +464,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.28.0';
+const APP_VERSION = '0.28.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1564,10 +1564,14 @@ function render(){
   if (TAB === 'profile') bindQuestionnaire(false);
   moveTabPill();
   if (TAB === 'today' && TODAY_PANE === 'prog') bindArcs();
-  // la vague ne joue qu'en arrivant sur l'accueil, pas à chaque rafraîchissement
-  const onHome = !!document.querySelector('.home'); if (onHome && !_homeShown) homeWave(); _homeShown = onHome;
+  // l'entrée de l'accueil (cartes + vague) ne joue qu'en arrivant, pas à chaque rafraîchissement.
+  // Si un rafraîchissement tombe pendant l'entrée (synchro au démarrage…), elle continue là où elle en était.
+  const home = document.querySelector('.home'), now = performance.now();
+  if (home && !_homeShown) _homeT0 = now;
+  if (home && now - _homeT0 < 2000) { if (!_homeShown) home.classList.add('arrive'); homeWave(_homeT0); }
+  _homeShown = !!home;
 }
-let _homeShown = false;
+let _homeShown = false, _homeT0 = -1e9;
 let _pillReady = false;
 function moveTabPill(){
   const pill = $('#tabPill'), b = document.querySelector('#tabs button.on'); if (!pill || !b) return;
@@ -1733,7 +1737,7 @@ function homeSpark(vals, col, id){
 }
 /* « La vague » : à l'arrivée sur l'accueil, chaque point des courbes se lève l'un après l'autre
    depuis le bas, dépasse un peu sa valeur puis s'y pose — comme une ola dans un stade. */
-function homeWave(){
+function homeWave(t0){
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   document.querySelectorAll('.home .spark[data-pts]').forEach((svg, k) => {
     const pts = svg.dataset.pts.split(' ').map(p => p.split(',').map(Number)), n = pts.length, Hh = SPARK_H;
@@ -1749,8 +1753,8 @@ function homeWave(){
       D.setAttribute('cy', ly.toFixed(1)); D.style.opacity = el > delay0 + step*(n - 1) ? 1 : 0;
       if (el < total && svg.isConnected) requestAnimationFrame(t => frame(t, t0));
     };
-    frame(performance.now(), performance.now()); // pose les points en bas tout de suite, sans flash
-    requestAnimationFrame(t => frame(t, performance.now()));
+    frame(performance.now(), t0); // pose la vague là où elle en est, avant le premier affichage
+    requestAnimationFrame(t => frame(t, t0));
   });
 }
 function homeHTML({ wk, sh, sc, ll, chs }){

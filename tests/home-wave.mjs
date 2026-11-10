@@ -29,5 +29,14 @@ await pg.locator('.home .grid').screenshot({ path: out + '/wave-mid.png' });
 const replay = await pg.$$eval('.home .spark', x => x.map(s => { const p = s.dataset.pts.split(' ').map(q => q.split(',').map(Number)); return homeSparkD(p) === s.querySelector('.sp-l').getAttribute('d'); }));
 assert(replay.every(v => !v), 'la vague joue en arrivant sur Aujourd\'hui (courbes en mouvement)');
 await pg.waitForTimeout(1800); assert(JSON.stringify(await ys()) === JSON.stringify(end), 'et se repose au même endroit');
+// rafraîchissement pendant la vague (synchro au démarrage) : pas de saut
+await pg.tap('button[data-tab="cal"]'); await pg.waitForTimeout(150); await pg.tap('button[data-tab="today"]'); await pg.waitForTimeout(400);
+const jump = await pg.evaluate(() => { const g = () => [...document.querySelectorAll('.home .spark .sp-l')].map(p => p.getAttribute('d')); const a = g(); render(); const b2 = g();
+  const pts = [...document.querySelectorAll('.home .spark')].map(s => homeSparkD(s.dataset.pts.split(' ').map(q => q.split(',').map(Number))));
+  const nums = d => d.match(/-?[\d.]+/g).map(Number); const diff = a.map((d, i) => Math.max(...nums(d).map((v, j) => Math.abs(v - nums(b2[i])[j]))));
+  return { diff, final: b2.some((d, i) => d === pts[i]), arrive: document.querySelector('.home').classList.contains('arrive') }; });
+console.log('écart max au rafraîchissement :', jump.diff.map(v => v.toFixed(1)).join(' / '));
+assert(!jump.final && jump.diff.every(v => v < 6), 'un rafraîchissement pendant la vague ne la fait pas sauter');
+assert(!jump.arrive, 'les cartes ne rejouent pas leur entrée au rafraîchissement');
 assert(!errs.length, 'aucune erreur JS ' + errs.join(' | '));
 await b.close();
