@@ -464,7 +464,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.27.0';
+const APP_VERSION = '0.27.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -4481,13 +4481,14 @@ function confirmReset(){ const now = Date.now(); if (now - _resetArm < 4000) ret
 /* ============ cloud : Supabase (compte, synchro) + Strava ============ */
 const Cloud = (() => {
   const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' } }) : null;
-  let session = null, pushTimer = null, strava = { connected: false }, busy = false;
+  let session = null, pushTimer = null, strava = { connected: false }, busy = false, ready = false; // ready : compte et connexions vérifiés (le guide attend ce moment)
   const appUrl = () => location.origin + location.pathname;
   const user = () => session?.user || null;
 
   async function init(){
-    if (!sb) return;
+    if (!sb) { ready = true; render(); return; }
     const { data } = await sb.auth.getSession(); session = data.session;
+    if (!session) { ready = true; render(); }
     sb.auth.onAuthStateChange((ev, s) => { const was = !!session; session = s; if (s && !was) afterLogin(); if (!s && was) { strava = { connected:false }; render(); } });
     await handleStravaReturn();
     await handleIcuReturn();
@@ -4496,8 +4497,9 @@ const Cloud = (() => {
   async function afterLogin(){
     await pull();
     await refreshStrava();
-    await importInbox();
     await refreshIcu();
+    ready = true; render(); // connexions connues : le guide peut s'afficher juste
+    await importInbox();
     if (icu.connected) await autoIcu();
     await Health.load(sb);
     render();
@@ -4823,7 +4825,7 @@ const Cloud = (() => {
     else if (a.dataset.feelact) feelDlg(a.dataset.feelact);
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) { importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); autoIcu(); } });
-  return { init, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, connectIcuOAuth, connectStrava, authDlg, get icu(){ return icu; }, get strava(){ return strava; }, get user(){ return user(); }, get sb(){ return sb; } };
+  return { init, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, connectIcuOAuth, connectStrava, authDlg, get ready(){ return ready; }, get icu(){ return icu; }, get strava(){ return strava; }, get user(){ return user(); }, get sb(){ return sb; } };
 })();
 
 /* ============ Communauté : amis et défis partagés (FTP / renfo) ============ */
@@ -5139,15 +5141,16 @@ function guideHTML(compact){
       ${!x.done || !compact ? `<div class="small muted" style="margin-top:2px">${x.d}</div>${x.btn && !x.done ? `<div class="row" style="margin-top:8px">${x.btn}</div>` : ''}` : ''}</div></div>`).join('');
   return `<div class="card guide"><div class="row between"><h2>Bien démarrer</h2><span class="chip num">${done}/${st.length}</span></div>
     <div class="bar" style="margin:0 0 12px"><i style="width:${Math.round(done / st.length * 100)}%"></i></div>${rows}
-    ${compact ? `<div class="row between" style="margin-top:6px"><button class="btn sm ghost" data-guide="off">Masquer</button><span class="tiny muted">Toujours dispo dans Profil</span></div>` : ''}</div>`;
+    ${compact ? `<div class="row between" style="margin-top:6px;align-items:center"><label style="display:flex;gap:8px;align-items:center;min-height:44px;cursor:pointer"><input type="checkbox" id="guideOffBox" style="width:auto;min-height:0"><span class="small">Ne plus afficher</span></label><span class="tiny muted">Toujours dispo dans Profil</span></div>` : ''}</div>`;
 }
 // carte d'accueil : tant qu'une étape essentielle manque et que la carte n'a pas été masquée
 function guideCardHTML(){
-  if (S.settings.guideOff) return '';
-  return guideSteps().some(x => x.must && !x.done) ? guideHTML(true) : guideHTML('line');
+  if (!Cloud.ready || S.settings.guideOff) return '';
+  return guideSteps().every(x => x.done) ? '' : guideHTML(true);
 }
 // Profil : guide complet tant qu'il reste une étape, sinon une ligne
-const guideProfileHTML = () => guideSteps().every(x => x.done) ? guideHTML('line') : guideHTML(false);
+const guideProfileHTML = () => !Cloud.ready ? '' : guideSteps().every(x => x.done) ? guideHTML('line') : guideHTML(false);
+document.addEventListener('change', e => { if (e.target.id !== 'guideOffBox' || !e.target.checked) return; S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil'); });
 document.addEventListener('click', e => { const g = e.target.closest('[data-guide]'); if (!g) return;
   if (g.dataset.guide === 'off') { S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil'); }
   else if (g.dataset.guide === 'open') openDlg(guideHTML(false) + (S.settings.guideOff ? `<button class="btn sm" data-guide="on">Réafficher sur Aujourd'hui</button>` : ''));
