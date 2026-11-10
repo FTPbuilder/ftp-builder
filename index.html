@@ -347,6 +347,8 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 .bar{height:10px;background:var(--bg2);border-radius:99px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px}
 .note{background:color-mix(in srgb,var(--accent) 12%,var(--card));border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line));border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px}
+.guide-line{cursor:pointer;padding:12px 16px}
+dialog .guide{background:none;border:0;box-shadow:none;padding:0;margin:0}
 .guide .gstep{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
 .guide .gstep:first-of-type{border-top:0}
 .guide .gnum{flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--bg2);border:1px solid var(--line)}
@@ -418,7 +420,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.25.1';
+const APP_VERSION = '0.25.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -2963,7 +2965,7 @@ function regenerateFuture(){
   S.plan = [...keep, ...fresh].sort((a,b)=>a.date.localeCompare(b.date));
 }
 function profileHTML(){
-  return guideHTML(false) + Cloud.accountHTML() + Health.settingsHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
+  return guideProfileHTML() + Cloud.accountHTML() + Health.settingsHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>
     <div class="row between" style="margin-top:8px"><button class="btn danger sm" id="reset">Tout effacer</button><a class="small" href="confidentialite.html">Politique de confidentialité</a></div></div>
@@ -4786,7 +4788,8 @@ function guideSteps(){
     { k:'acct', must:true, done: !!C.user, t:'Ton compte', d:"Sauvegarde dans le cloud et synchro entre ton téléphone et ton ordi. Indispensable pour les connexions ci-dessous.",
       btn: C.user ? null : `<button class="btn sm primary" data-auth="open">Créer mon compte</button>` },
     { k:'icu', must:true, done: icuOn, t:'Intervals.icu + ta montre', tag:'recommandé',
-      d:`La meilleure version de l'app : <b>vélo, course et natation</b> avec le détail tour par tour (recomposition de séance), ton bien-être, et tes séances planifiées envoyées vers ta montre ou ton compteur.<ol class="tiny" style="padding-left:18px;margin:6px 0 0"><li>Crée un compte gratuit sur <a href="https://intervals.icu" target="_blank" rel="noopener">intervals.icu</a>.</li><li>Dans Intervals › Réglages › <b>Connexions</b>, relie ta montre (Garmin, Coros, Suunto, Wahoo, Polar…).</li><li>Reviens ici et connecte Intervals.icu.</li></ol>`,
+      d:`La meilleure version de l'app : <b>vélo, course et natation</b> avec le détail tour par tour (recomposition de séance), ton bien-être, et tes séances planifiées envoyées vers ta montre ou ton compteur.<ol class="tiny" style="padding-left:18px;margin:6px 0 0"><li>Crée un compte gratuit sur <a href="https://intervals.icu" target="_blank" rel="noopener">intervals.icu</a>.</li><li>Dans Intervals › Réglages › <b>Connexions</b>, relie ta montre (Garmin, Coros, Suunto, Wahoo, Polar…).</li><li>Reviens ici et connecte Intervals.icu.</li></ol>
+        <div class="tiny muted" style="margin-top:8px"><b>Selon ta montre :</b><br>⌚ <b>Garmin</b> : séances + sommeil, VFC, FC repos et poids arrivent tous par Intervals.<br>⌚ <b>Coros, Polar, Suunto, Wahoo</b> : séances complètes ; sommeil et VFC parfois partiels selon la marque.<br>⌚ <b>Apple Watch</b> : Intervals ne lit pas Apple Santé. Envoie tes séances vers Intervals avec une app de synchro (ex. HealthFit), et ton sommeil/VFC avec le Raccourci Apple Santé ci-dessous.</div>`,
       btn: icuOn ? null : C.user ? `<button class="btn sm primary" data-icu="oauth">${ICU_CLIENT_ID ? 'Se connecter avec Intervals.icu' : 'Connecter Intervals.icu'}</button>` : '' },
     { k:'strava', done: !!C.strava?.connected, t:'Strava', tag:'option',
       d:"Tes sorties <b>vélo</b> (puissance, FC, cadence, GPS) dès qu'elles arrivent sur Strava. Pratique si ta montre n'est pas reliée à Intervals ; sinon Intervals suffit. Les doublons sont fusionnés.",
@@ -4800,6 +4803,8 @@ function guideSteps(){
 }
 function guideHTML(compact){
   const st = guideSteps(), done = st.filter(x => x.done).length;
+  // tout est fait : une ligne à toucher pour revoir le guide (pratique pour le montrer à quelqu'un)
+  if (compact === 'line') return `<div class="card guide guide-line" data-guide="open" role="button" tabindex="0"><div class="row between" style="align-items:center"><div><b>Bien démarrer</b> <span class="tiny muted">· ${done}/${st.length} ✓</span><div class="tiny muted">Revoir le guide (ou le montrer à un pote)</div></div><span class="muted" aria-hidden="true">›</span></div></div>`;
   const rows = st.map((x, i) => `<div class="gstep${x.done ? ' done' : ''}"><span class="gnum" aria-hidden="true">${x.done ? '✓' : i + 1}</span><div style="flex:1;min-width:0">
       <b>${esc(x.t)}</b>${x.tag ? ` <span class="chip tiny">${esc(x.tag)}</span>` : ''}${x.done ? ' <span class="tiny muted">· fait</span>' : ''}
       ${!x.done || !compact ? `<div class="small muted" style="margin-top:2px">${x.d}</div>${x.btn && !x.done ? `<div class="row" style="margin-top:8px">${x.btn}</div>` : ''}` : ''}</div></div>`).join('');
@@ -4810,11 +4815,14 @@ function guideHTML(compact){
 // carte d'accueil : tant qu'une étape essentielle manque et que la carte n'a pas été masquée
 function guideCardHTML(){
   if (S.settings.guideOff) return '';
-  return guideSteps().some(x => x.must && !x.done) ? guideHTML(true) : '';
+  return guideSteps().some(x => x.must && !x.done) ? guideHTML(true) : guideHTML('line');
 }
+// Profil : guide complet tant qu'il reste une étape, sinon une ligne
+const guideProfileHTML = () => guideSteps().every(x => x.done) ? guideHTML('line') : guideHTML(false);
 document.addEventListener('click', e => { const g = e.target.closest('[data-guide]'); if (!g) return;
   if (g.dataset.guide === 'off') { S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil'); }
-  else if (g.dataset.guide === 'open') openDlg(guideHTML(false)); });
+  else if (g.dataset.guide === 'open') openDlg(guideHTML(false) + (S.settings.guideOff ? `<button class="btn sm" data-guide="on">Réafficher sur Aujourd'hui</button>` : ''));
+  else if (g.dataset.guide === 'on') { S.settings.guideOff = false; save(); closeDlg(); render(); toast("Guide réaffiché sur Aujourd'hui"); } });
 
 /* ============ Apple Santé (via le Raccourci iOS) ============ */
 const Health = (() => {
