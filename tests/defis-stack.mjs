@@ -1,8 +1,9 @@
 // Défis : 2 carrés (défis partagés / amis), pile Squats / Chaise / Mobilité, routines 5/10/20 min et lecteur guidé
 const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
-const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark' });
-const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
+const b = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader'] }); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark' });
+const pg = await ctx.newPage();
+const THREE_LOCAL = process.env.THREE_JS; if (THREE_LOCAL) await pg.route('**/three@0.147.0/build/three.min.js', r => r.fulfill({ path: THREE_LOCAL, contentType: 'text/javascript' })); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.install({ time: new Date('2026-11-10T20:00:00+01:00') });
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '260'); await pg.fill('[name=startDate]', '2026-10-21');
@@ -21,11 +22,11 @@ r.mcards = await pg.locator('.mcard').count();
 await pg.click('[data-mobdur="5"]'); r.mob5 = await pg.locator('.mcard').first().innerText();
 await pg.screenshot({ path: out + '/mobilite.png', fullPage: true });
 await pg.click('.mcard[data-mobopen=swim]'); await pg.waitForTimeout(150); r.list = (await pg.locator('#dlg').innerText()).replace(/\n+/g, ' | ');
-r.thumbs = await pg.locator('#dlg svg.manim').count(); await pg.screenshot({ path: out + '/swim-list.png' });
+await pg.waitForFunction(() => [...document.querySelectorAll('#dlg img[data-m3]')].every(i => i.src.startsWith('data:')), null, { timeout: 30000 }); r.thumbs = await pg.locator('#dlg img[data-m3]').count(); await pg.screenshot({ path: out + '/swim-list.png' });
 await pg.click('#dlg [data-mobgo=swim]'); await pg.waitForTimeout(100);
-await pg.clock.runFor(46000); r.p1 = await pg.locator('#mpName').innerText(); r.anim = await pg.locator('#mpAnim svg.manim[data-ex=scap_cars]').count();
+await pg.click('#mpSkip'); await pg.clock.runFor(1500); await pg.waitForTimeout(500); r.p1 = await pg.locator('#mpName').innerText(); r.anim = await pg.locator('#mpAnim canvas').count();
 await pg.screenshot({ path: out + '/player.png' });
-await pg.clock.runFor(300000); await pg.waitForTimeout(100);
+for (let k = 0; k < 4; k++) await pg.click('#mpSkip'); await pg.waitForTimeout(200);
 r.log = await pg.evaluate(() => FTPB.S.mobility);
 r.after = await pg.locator('.dcard.open').innerText();
 console.log(JSON.stringify(r, null, 1));

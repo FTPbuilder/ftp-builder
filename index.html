@@ -284,8 +284,9 @@ dialog.fs3d{background:#0a1020}
 .manim{--mb:#d3dbe8;--mb2:#6f7b91;display:block;width:100%;height:100%}
 @media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .manim{--mb:#7d889c;--mb2:#b9c1ce}}
 :root[data-theme="light"] .manim{--mb:#7d889c;--mb2:#b9c1ce}
-.mpanim{height:190px;margin:6px 0;border-radius:18px;background:var(--bg2);padding:6px}
-.mthumb{flex:0 0 72px;width:72px;height:72px;border-radius:12px;background:var(--bg2);padding:2px}
+.mpanim{height:210px;margin:6px 0;border-radius:18px;background:#e9ebf2;overflow:hidden}
+.mthumb{flex:0 0 72px;width:72px;height:72px;border-radius:12px;background:#e9ebf2;overflow:hidden}
+.mthumb img{width:100%;height:100%;object-fit:cover;display:block}
 .mthumb text{display:none}
 .mcard{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:var(--card);border:1px solid var(--line);cursor:pointer}
 .mcard:hover{border-color:var(--tint)}
@@ -3541,6 +3542,104 @@ const MobAnim = (() => {
   return { has, svg, start, S };
 })();
 
+/* ============ mobilité : mannequin 3D animé (three.js) ============ */
+const Mannequin = (() => {
+  const URL3 = 'https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js';
+  let lib = null, R = null, cur = null, raf = 0;
+  const load = () => lib ||= (window.THREE ? Promise.resolve() : new Promise((ok, ko) => { const s = document.createElement('script'); s.src = URL3; s.onload = ok; s.onerror = () => { lib = null; ko(new Error('3D indisponible')); }; document.head.appendChild(s); }));
+  const ease = x => (1 - Math.cos(Math.PI * x)) / 2, sstep = (a, b, x) => { const k = Math.min(1, Math.max(0, (x - a) / (b - a))); return k * k * (3 - 2 * k); };
+  function build(){
+    const T = THREE, r = new T.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    r.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2)); r.shadowMap.enabled = true; r.shadowMap.type = T.PCFSoftShadowMap;
+    r.outputEncoding = T.sRGBEncoding; r.toneMapping = T.ACESFilmicToneMapping; r.toneMappingExposure = 1.1;
+    const sc = new T.Scene(), BG = 0xe9ebf2; sc.background = new T.Color(BG); sc.fog = new T.Fog(BG, 5, 11);
+    sc.add(new T.HemisphereLight(0xffffff, 0xaeb3c4, 0.8));
+    const key = new T.DirectionalLight(0xffffff, 1.25); key.position.set(2.2, 4.2, 3); key.castShadow = true; key.shadow.mapSize.set(1024, 1024); key.shadow.radius = 5; key.shadow.bias = -0.0004;
+    Object.assign(key.shadow.camera, { left: -1.6, right: 1.6, top: 2.4, bottom: -1, near: 0.5, far: 12 }); sc.add(key);
+    const rim = new T.DirectionalLight(0xdde4ff, 0.55); rim.position.set(-3, 2.5, -2.5); sc.add(rim);
+    const floor = new T.Mesh(new T.PlaneGeometry(40, 40), new T.ShadowMaterial({ opacity: 0.18 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; sc.add(floor);
+    const yoga = new T.Mesh(new T.BoxGeometry(0.62, 0.012, 1.8), new T.MeshStandardMaterial({ color: 0x2f3138, roughness: 0.95 })); yoga.position.y = 0.006; yoga.receiveShadow = true; sc.add(yoga);
+    const wood = new T.MeshStandardMaterial({ color: 0xe4ddd2, roughness: 0.7 }), wallM = new T.MeshStandardMaterial({ color: 0xf3f2ef, roughness: 0.95 });
+    const door = new T.Group(); sc.add(door);
+    const jamb = new T.Mesh(new T.BoxGeometry(0.1, 2.15, 0.16), wood); jamb.position.set(0.6, 1.075, -0.1); jamb.castShadow = jamb.receiveShadow = true; door.add(jamb);
+    const wall = new T.Mesh(new T.BoxGeometry(1.6, 2.15, 0.12), wallM); wall.position.set(1.45, 1.075, -0.1); wall.receiveShadow = true; door.add(wall);
+    const cam = new T.PerspectiveCamera(30, 1.5, 0.1, 30);
+    const skin = new T.MeshStandardMaterial({ color: 0xd9b9a0, roughness: 0.6 }), cloth = new T.MeshStandardMaterial({ color: 0x24262c, roughness: 0.85 });
+    const hair = new T.MeshStandardMaterial({ color: 0x3b2c24, roughness: 0.8 }), hi = new T.MeshStandardMaterial({ color: 0xff8a4c, roughness: 0.55, emissive: 0x5a2208 });
+    for (const m of [skin, cloth, hair, hi, wood, wallM, yoga.material]) m.color.convertSRGBToLinear(); hi.emissive.convertSRGBToLinear();
+    const G = (p, x, y, z) => { const g = new T.Group(); g.position.set(x, y, z); g.userData.rest = g.position.clone(); p.add(g); return g; };
+    const shadow = m => { m.castShadow = true; m.receiveShadow = true; return m; };
+    const ell = (p, sx, sy, sz, m, x = 0, y = 0, z = 0) => { const me = shadow(new T.Mesh(new T.SphereGeometry(1, 32, 24), m)); me.scale.set(sx, sy, sz); me.position.set(x, y, z); p.add(me); return me; };
+    const cap = (p, rad, len, m, y) => { const me = shadow(new T.Mesh(new T.CapsuleGeometry(rad, len, 8, 20), m)); me.position.y = y; p.add(me); return me; };
+    const root = new T.Group(); sc.add(root);
+    const J = { root, sh: [], el: [], hand: [], hip: [], kn: [], an: [], scap: [], arm: [] };
+    J.pelvis = G(root, 0, 0.995, 0); ell(J.pelvis, 0.155, 0.11, 0.105, cloth, 0, 0.01);
+    J.spine = G(J.pelvis, 0, 0.08, 0); ell(J.spine, 0.13, 0.12, 0.09, skin, 0, 0.07);
+    J.chest = G(J.spine, 0, 0.15, 0); ell(J.chest, 0.17, 0.17, 0.105, cloth, 0, 0.11); ell(J.chest, 0.2, 0.07, 0.09, cloth, 0, 0.2);
+    J.neck = G(J.chest, 0, 0.28, 0); const neckM = cap(J.neck, 0.043, 0.06, skin, 0.03);
+    J.head = G(J.neck, 0, 0.075, 0); ell(J.head, 0.084, 0.11, 0.096, skin, 0, 0.1); ell(J.head, 0.088, 0.085, 0.092, hair, 0, 0.145, -0.018); ell(J.head, 0.045, 0.045, 0.045, hair, 0, 0.12, -0.105); ell(J.head, 0.014, 0.022, 0.018, skin, 0, 0.085, 0.094);
+    for (const s of [1, -1]) {
+      const sh = G(J.chest, s * 0.19, 0.215, 0); ell(sh, 0.05, 0.052, 0.05, skin, 0, -0.01);
+      const up = cap(sh, 0.043, 0.24, skin, -0.14); const el = G(sh, 0, -0.29, 0); const fo = cap(el, 0.036, 0.2, skin, -0.12);
+      const hd = G(el, 0, -0.265, 0); const hm = ell(hd, 0.033, 0.07, 0.022, skin, 0, -0.045);
+      J.sh.push(sh); J.el.push(el); J.hand.push(hd); J.arm.push([up, fo, hm]);
+      const hp = G(J.pelvis, s * 0.088, -0.06, 0); cap(hp, 0.064, 0.32, cloth, -0.2); const kn = G(hp, 0, -0.43, 0); cap(kn, 0.05, 0.32, cloth, -0.19);
+      const an = G(kn, 0, -0.43, 0); ell(an, 0.042, 0.032, 0.115, skin, 0, -0.04, 0.055); J.hip.push(hp); J.kn.push(kn); J.an.push(an);
+      J.scap.push(ell(J.chest, 0.042, 0.078, 0.012, hi, s * 0.09, 0.16, -0.103));
+    }
+    const ring = new T.LineLoop(new T.BufferGeometry().setFromPoints(Array.from({ length: 96 }, (_, i) => { const a = 2 * Math.PI * i / 96; return new T.Vector3(0, -Math.cos(a) * 0.56, Math.sin(a) * 0.56); })), new T.LineDashedMaterial({ color: 0xff8a4c, dashSize: 0.03, gapSize: 0.025, transparent: true, opacity: 0.95 }));
+    ring.computeLineDistances(); sc.add(ring);
+    R = { T, r, sc, cam, J, yoga, door, ring, neckM, mats: { skin, cloth, hi } };
+  }
+  const V = (x, y, z) => new THREE.Vector3(x, y, z);
+  function aim(g, dir, twist = 0){ const T = THREE; g.parent.updateMatrixWorld(true); const qp = new T.Quaternion(); g.parent.getWorldQuaternion(qp);
+    g.quaternion.copy(qp.invert().multiply(new T.Quaternion().setFromUnitVectors(V(0, -1, 0), dir.clone().normalize()))); if (twist) g.rotateY(twist); g.updateMatrixWorld(true); }
+  const wpos = g => { g.updateMatrixWorld(true); return g.getWorldPosition(V(0, 0, 0)); };
+  function reset(){
+    const { J } = R; J.root.position.set(0, 0, 0); J.root.rotation.set(0, 0, 0);
+    J.root.traverse(o => { if (o.isGroup && o !== J.root) { o.rotation.set(0, 0, 0); o.quaternion.identity(); if (o.userData.rest) o.position.copy(o.userData.rest); } });
+    for (let i = 0; i < 2; i++) { J.sh[i].rotation.z = (i ? -1 : 1) * 0.07; J.el[i].rotation.x = -0.12; J.arm[i].forEach(m => m.material = R.mats.skin); J.scap[i].visible = false; J.hand[i].scale.set(1, 1, 1); }
+    R.neckM.material = R.mats.skin; R.yoga.rotation.y = 0; R.yoga.position.set(0, 0.006, 0); R.door.visible = false; R.yoga.visible = true; R.ring.visible = false;
+  }
+  const HL = i => R.J.arm[i].forEach(m => m.material = R.mats.hi);
+  const EX = {
+    neck_cars:{ per:8, key:0.25, cam:[[0.6, 1.66, 1.6], [0, 1.47, 0]], f:t => { const { J } = R, th = 2 * Math.PI * t, c = Math.cos(th);
+      J.neck.rotation.x = 0.42 * c; J.neck.rotation.z = 0.42 * Math.sin(th); J.head.rotation.x = 0.25 * c; J.head.rotation.z = 0.2 * Math.sin(th); R.neckM.material = R.mats.hi; } },
+    scap_cars:{ per:6, key:0.15, cam:[[-0.5, 1.66, -1.95], [0, 1.32, 0]], f:t => { const { J } = R, th = 2 * Math.PI * t, up = Math.cos(th), back = Math.sin(th);
+      for (let i = 0; i < 2; i++) { const s = i ? -1 : 1, sh = J.sh[i], sp = J.scap[i];
+        sh.position.set(s * (0.19 - 0.022 * back), 0.215 + 0.04 * up, -0.035 * back + 0.02 * Math.max(0, -back));
+        sp.visible = true; sp.position.set(s * (0.09 - 0.03 * back), 0.16 + 0.04 * up, -0.103); sp.rotation.z = s * 0.25 * up; } } },
+    shoulder_cars:{ per:12, key:0.25, cam:[[2.75, 1.3, 0.5], [0, 1.16, 0.12]], f:t => { const { J } = R, u = t < 0.5 ? ease(2 * t) : 1 - ease(2 * t - 1), ph = 350 * u * Math.PI / 180;
+      HL(0); J.hand[0].scale.set(1, 0.72, 1.3); J.el[0].rotation.x = 0;
+      aim(J.sh[0], V(0.06, -Math.cos(ph), Math.sin(ph)), -Math.PI * 0.85 * sstep(2.5, 4.2, ph));
+      R.ring.visible = true; R.ring.position.copy(wpos(J.sh[0])); R.ring.position.x += 0.06; } },
+    open_book:{ per:7, key:0.5, cam:[[0.45, 2.05, 2.15], [-0.05, 0.22, 0.05]], f:t => { const { J } = R, s = ease(t < 0.5 ? 2 * t : 2 - 2 * t), a = 0.12 + 2.85 * s;
+      J.root.rotation.z = Math.PI / 2; J.root.position.set(0.8, 0.165, 0); R.yoga.rotation.y = Math.PI / 2; R.yoga.position.set(-0.05, 0.006, 0.2);
+      for (let i = 0; i < 2; i++) { J.hip[i].rotation.x = -1.45; J.kn[i].rotation.x = 1.55; }
+      J.hip[0].position.z = 0.03; J.spine.rotation.y = 0.3 * s; J.chest.rotation.y = 0.75 * s; J.neck.rotation.z = -0.25; J.head.rotation.y = 0.55 * s; J.head.rotation.x = 0.1;
+      aim(J.sh[1], V(0, 0.02, 1)); J.el[1].rotation.x = 0; J.el[0].rotation.x = 0;
+      HL(0); aim(J.sh[0], V(0, Math.sin(a), Math.cos(a))); } },
+    pec_wall:{ per:7, key:0.5, cam:[[-0.55, 2.35, 2.5], [0.25, 1.15, 0]], f:t => { const { J } = R, s = ease(t < 0.5 ? 2 * t : 2 - 2 * t);
+      R.door.visible = true; R.yoga.visible = false; J.root.rotation.y = -0.75 * s; J.root.position.z = 0.04 * s; J.head.rotation.y = -0.15 * s;
+      const E = V(0.52, 1.46, 0.0), S0 = wpos(J.sh[0]); HL(0);
+      aim(J.sh[0], E.clone().sub(S0)); J.el[0].rotation.set(0, 0, 0); aim(J.el[0], V(0, 1, 0)); } },
+  };
+  function pose(id, t){ reset(); EX[id].f(t); const [p, l] = EX[id].cam; R.cam.position.set(...p); R.cam.lookAt(...l); }
+  function size(w, h){ R.r.setSize(w, h, false); R.cam.aspect = w / h; R.cam.updateProjectionMatrix(); }
+  async function mount(el, id){
+    await load(); if (!R) build(); cur = { el, id, t0: performance.now() };
+    const cv = R.r.domElement; cv.style.cssText = 'width:100%;height:100%;display:block'; el.innerHTML = ''; el.appendChild(cv);
+    const w = el.clientWidth || 320, h = el.clientHeight || 210; size(w, h);
+    if (!raf) { const tick = now => { if (!cur || !cv.isConnected) { raf = 0; return; } const e = EX[cur.id]; pose(cur.id, ((now - cur.t0) / 1000 / e.per) % 1); R.r.render(R.sc, R.cam); raf = requestAnimationFrame(tick); }; raf = requestAnimationFrame(tick); }
+  }
+  const cache = {};
+  async function thumb(id){ if (cache[id]) return cache[id]; await load(); if (!R) build(); if (cur && R.r.domElement.isConnected) return null;
+    size(240, 240); pose(id, EX[id].key); R.r.render(R.sc, R.cam); return cache[id] = R.r.domElement.toDataURL('image/jpeg', 0.86); }
+  async function fillThumbs(root = document){ for (const img of root.querySelectorAll('img[data-m3]')) { try { const u = await thumb(img.dataset.m3); if (u) img.src = u; } catch(e){ img.replaceWith(document.createRange().createContextualFragment(MobAnim.svg(img.dataset.m3))); } } }
+  const stop = () => { cur = null; };
+  return { has: id => !!EX[id], mount, thumb, fillThumbs, stop, pose, EX, get R(){ return R; } };
+})();
+
 /* ============ mobilité : routines natation / vélo / course (5, 10, 20 min) ============
    CARs (Controlled Articular Rotations, Functional Range Conditioning) : rotations actives, lentes, gainées, en bout d'amplitude.
    Étirements tenus < 60 s par muscle avant l'effort (Behm et al. 2016, APNM 41:1-11) ; dynamique en échauffement. */
@@ -3612,13 +3711,13 @@ const Mobility = (() => {
     openDlg(`<span class="muted small">${s.focus}</span><h2 style="margin:4px 0 8px">${s.ic} Mobilité ${s.l.toLowerCase()}</h2>
       <div class="seg" style="margin:0 0 10px">${[5,10,20].map(m => `<button type="button" data-mobdurdlg="${m}" data-sp="${sp}" class="${m === d ? 'on' : ''}">${m} min</button>`).join('')}</div>
       <p class="small muted" style="margin:0 0 10px">${s.note}</p>
-      <div>${s.r[d].map(([id, sec], i) => { const x = X[id]; return `<div class="hist" style="align-items:flex-start">${MobAnim.has(id) ? `<span class="mthumb">${MobAnim.svg(id)}</span>` : `<span class="num muted" style="width:18px">${i + 1}</span>`}<div style="flex:1;min-width:0"><b>${x[0]}${x[3] ? ' <span class="tiny muted">(chaque côté)</span>' : ''}</b> <span class="chip tiny">${TAG[x[1]]}</span><div class="tiny muted">${x[2]}</div></div><b class="num small">${fmtS(sec)}</b></div>`; }).join('')}</div>
+      <div>${s.r[d].map(([id, sec], i) => { const x = X[id]; return `<div class="hist" style="align-items:flex-start">${Mannequin.has(id) ? `<span class="mthumb"><img data-m3="${id}" alt=""></span>` : MobAnim.has(id) ? `<span class="mthumb">${MobAnim.svg(id)}</span>` : `<span class="num muted" style="width:18px">${i + 1}</span>`}<div style="flex:1;min-width:0"><b>${x[0]}${x[3] ? ' <span class="tiny muted">(chaque côté)</span>' : ''}</b> <span class="chip tiny">${TAG[x[1]]}</span><div class="tiny muted">${x[2]}</div></div><b class="num small">${fmtS(sec)}</b></div>`; }).join('')}</div>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-mobgo="${sp}">▶ Démarrer (${d} min)</button><button class="btn ghost" data-mobdone="${sp}">Déjà faite</button></div>`);
-    MobAnim.start();
+    MobAnim.start(); Mannequin.fillThumbs($('#dlg'));
   }
   // lecteur guidé : un exercice à la fois, compte à rebours, changement de côté à mi-temps
   let P = null;
-  function stop(){ if (P) { clearInterval(P.iv); try { P.wl?.release(); } catch(e){} P = null; } }
+  function stop(){ Mannequin.stop(); if (P) { clearInterval(P.iv); try { P.wl?.release(); } catch(e){} P = null; } }
   function play(sp){
     stop(); const s = SP[sp], d = dur(), list = s.r[d];
     P = { sp, d, list, i:0, left:list[0][1], paused:false, iv:null, wl:null };
@@ -3631,7 +3730,7 @@ const Mobility = (() => {
     const tot = list.reduce((a, x) => a + x[1], 0);
     const draw = () => { if (!P) return; const [id, sec] = list[P.i], x = X[id], el = sec - P.left;
       $('#mpTop').textContent = `${s.ic} ${s.l} · ${d} min · ${P.i + 1}/${list.length}`; $('#mpName').textContent = x[0];
-      $('#mpTag').innerHTML = `<span class="chip tiny">${TAG[x[1]]}</span>`; if (P.shown !== P.i) { P.shown = P.i; $('#mpAnim').innerHTML = MobAnim.svg(id); $('#mpAnim').classList.toggle('hidden', !MobAnim.has(id)); MobAnim.start(); } $('#mpT').textContent = `${Math.floor(P.left/60)}:${pad(P.left % 60)}`;
+      $('#mpTag').innerHTML = `<span class="chip tiny">${TAG[x[1]]}</span>`; if (P.shown !== P.i) { P.shown = P.i; const box = $('#mpAnim'); box.classList.toggle('hidden', !Mannequin.has(id) && !MobAnim.has(id)); if (Mannequin.has(id)) Mannequin.mount(box, id).catch(() => { box.innerHTML = MobAnim.svg(id); MobAnim.start(); }); else { Mannequin.stop(); box.innerHTML = MobAnim.svg(id); MobAnim.start(); } } $('#mpT').textContent = `${Math.floor(P.left/60)}:${pad(P.left % 60)}`;
       $('#mpSide').textContent = x[3] ? (el < sec/2 ? 'Côté 1' : 'Côté 2 — change de côté') : '';
       $('#mpCue').textContent = x[2]; $('#mpNext').textContent = list[P.i + 1] ? `Ensuite : ${X[list[P.i + 1][0]][0]}` : 'Dernier exercice';
       const doneSec = list.slice(0, P.i).reduce((a, y) => a + y[1], 0) + el; $('#mpBar').style.width = `${doneSec/tot*100}%`;
