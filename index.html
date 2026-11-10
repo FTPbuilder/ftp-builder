@@ -5515,7 +5515,7 @@ Cloud.init().catch(e => console.warn('cloud', e));
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 // mise à jour : iOS garde parfois l'ancienne page en cache ; on vérifie la version en ligne et on recharge une fois si elle a changé
 async function checkUpdate(){
-  if (location.protocol !== 'https:') return;
+  if (location.protocol !== 'https:' || /[?&](code|state|error)=/.test(location.search) || location.hash.includes('access_token')) return; // jamais pendant un retour de connexion
   try {
     const txt = await (await fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store' })).text();
     const v = (txt.match(/const APP_VERSION = '([\d.]+)'/) || [])[1];
