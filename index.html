@@ -462,7 +462,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.26.0';
+const APP_VERSION = '0.26.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -4837,7 +4837,7 @@ const Tour = (() => {
     const t = todayISO(), p = S.profile;
     const xs = (S.plan || []).filter(s => s.status === 'planned' && s.date >= t).slice(0, 3);
     if (!xs.length) return [['Mar', 'Seuil 3 × 10 min', 'Séance clé · 60 min', '248 W', 4], ['Jeu', 'VO2max 5 × 3 min', 'Séance clé · 55 min', '295 W', 5], ['Sam', 'Endurance longue', 'Optionnelle · 2 h', '165 W', 2]];
-    return xs.map(s => { const W = WORKOUTS[s.workoutId], m = mainStep(s.workoutId), pct = m ? m.p : 65, test = W.type === 'test';
+    return xs.map(s => { const W = WORKOUTS[s.workoutId], m = flat(W.steps).filter(x => (x.int || 'active') === 'active' && !x.max).sort((a, b) => b.d - a.d)[0], pct = m ? m.p : 65, test = W.type === 'test'; // bloc le plus long (pas les sprints)
       return [DOW[dowMon(s.date)], W.name, `${test ? 'Test' : mandatory(s) ? 'Séance clé' : 'Optionnelle'} · ${fmtDur(wDur(s.workoutId))}`, test ? 'jusqu’au bout' : `${Math.round(ftp()*pct/100)} W`, test ? 6 : zoneOf(pct)]; });
   }
   const S_ = [
