@@ -347,6 +347,11 @@ dialog.fs .fshint{display:none;text-align:center;font-size:12px;color:var(--mute
 .bar{height:10px;background:var(--bg2);border-radius:99px;overflow:hidden}
 .bar i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:99px}
 .note{background:color-mix(in srgb,var(--accent) 12%,var(--card));border:1px solid color-mix(in srgb,var(--accent) 40%,var(--line));border-radius:12px;padding:12px 14px;margin-bottom:12px;font-size:14px}
+.guide .gstep{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.guide .gstep:first-of-type{border-top:0}
+.guide .gnum{flex:0 0 26px;height:26px;border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;background:var(--bg2);border:1px solid var(--line)}
+.guide .gstep.done .gnum{background:var(--ok);border-color:var(--ok);color:#fff}
+.guide .gstep.done b{opacity:.75}
 .note.ok{background:color-mix(in srgb,var(--ok) 12%,var(--card));border-color:color-mix(in srgb,var(--ok) 40%,var(--line))}
 .note.warn{background:color-mix(in srgb,var(--warn) 12%,var(--card));border-color:color-mix(in srgb,var(--warn) 45%,var(--line))}
 .note.bad{background:color-mix(in srgb,var(--bad) 12%,var(--card));border-color:color-mix(in srgb,var(--bad) 40%,var(--line))}
@@ -413,11 +418,13 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.24.2';
+const APP_VERSION = '0.25.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
-const STRAVA_CLIENT_ID = '295896'; // strava.com/settings/api > Client ID (public ; le secret reste côté Supabase)
+const STRAVA_CLIENT_ID = '295896';
+const ICU_CLIENT_ID = ''; // intervals.icu › Réglages › Apps › Manage App (après validation) ; vide = connexion par clé API
+const ICU_SCOPE = 'ACTIVITY:READ,WELLNESS:READ,CALENDAR:WRITE,SETTINGS:READ'; // strava.com/settings/api > Client ID (public ; le secret reste côté Supabase)
 const LS_KEY = 'ftpb_state_v1';
 
 /* ============ utilitaires ============ */
@@ -1601,7 +1608,7 @@ function todayHTML(){
     { k:'heures', l:'Heures de sport', v:fmtH(sh.cur), u:'h', sub:`${sh.cur>=sh.prev?'+':'−'}${fmtH(Math.abs(sh.cur-sh.prev))} h vs 7 j précédents` },
     { k:'defis', l:'Défis', v:chPct, u:'%', sub:chs.length ? [chs[0].name, ...chs.slice(1).map(x=>`${x.name} ${x.pct} %`)].join(' · ') : '' },
   ];
-  if (!TODAY_PANE) return h + recapBannerHTML() + homeHTML({ wk, sh, sc, ll, chs });
+  if (!TODAY_PANE) return h + guideCardHTML() + recapBannerHTML() + homeHTML({ wk, sh, sc, ll, chs });
   const cur = tiles.find(x => x.k === TODAY_PANE);
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
   if (TODAY_PANE === 'heures') h += sportHoursHTML();
@@ -2879,7 +2886,7 @@ function qHTML(p, onboarding){
 }
 function onboardingHTML(){
   return `<div class="onb"><div class="hero"><h1>FTP<b>·</b>Builder</h1><p class="muted">Réponds à quelques questions : je construis ton plan de séances jusqu'à ton test final, avec les watts exacts à envoyer sur ton Edge.</p></div>${qHTML(_draft ||= defaultProfile(), true)}
-    <div class="card"><h3>Déjà des données ?</h3><div class="row"><button class="btn sm" data-auth="open">Se connecter</button><button class="btn sm" id="importJsonOnb">Restaurer une sauvegarde JSON</button></div></div><p class="tiny muted" style="text-align:center"><a href="confidentialite.html">Politique de confidentialité</a></p></div>`;
+    <div class="card"><h3>Déjà des données ?</h3><div class="row"><button class="btn sm" data-auth="open">Se connecter</button><button class="btn sm" data-guide="open">Comment ça marche ?</button><button class="btn sm" id="importJsonOnb">Restaurer une sauvegarde JSON</button></div></div><p class="tiny muted" style="text-align:center"><a href="confidentialite.html">Politique de confidentialité</a></p></div>`;
 }
 let _draft = null;
 function readForm(base){
@@ -2956,7 +2963,7 @@ function regenerateFuture(){
   S.plan = [...keep, ...fresh].sort((a,b)=>a.date.localeCompare(b.date));
 }
 function profileHTML(){
-  return Cloud.accountHTML() + Health.settingsHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
+  return guideHTML(false) + Cloud.accountHTML() + Health.settingsHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>
     <div class="row between" style="margin-top:8px"><button class="btn danger sm" id="reset">Tout effacer</button><a class="small" href="confidentialite.html">Politique de confidentialité</a></div></div>
@@ -4436,6 +4443,7 @@ const Cloud = (() => {
     const { data } = await sb.auth.getSession(); session = data.session;
     sb.auth.onAuthStateChange((ev, s) => { const was = !!session; session = s; if (s && !was) afterLogin(); if (!s && was) { strava = { connected:false }; render(); } });
     await handleStravaReturn();
+    await handleIcuReturn();
     if (session) await afterLogin();
   }
   async function afterLogin(){
@@ -4518,6 +4526,28 @@ const Cloud = (() => {
     S.icuPushed = Object.fromEntries([...items.map(s => [s.id, s.date]), ...titems.map(x => ['t-' + x.id, x.date])]);
     S.icuPushSig = sig; save();
     return r.created || events.length;
+  }
+  // « Se connecter avec Intervals.icu » (OAuth) : plus besoin de copier une clé API
+  function connectIcuOAuth(){
+    if (!ICU_CLIENT_ID) { TAB = 'profile'; render(); return toast('Colle ta clé API Intervals.icu dans la carte Compte'); }
+    if (!user()) { authDlg(); return toast('Crée d’abord ton compte FTP Builder'); }
+    const u = new URL('https://intervals.icu/oauth/authorize');
+    u.search = new URLSearchParams({ client_id: ICU_CLIENT_ID, redirect_uri: appUrl(), scope: ICU_SCOPE, state: 'icu' });
+    location.href = u.toString();
+  }
+  async function handleIcuReturn(){
+    const q = new URLSearchParams(location.search);
+    if (q.get('state') !== 'icu') return;
+    history.replaceState(null, '', appUrl());
+    if (q.get('error')) return toast('Connexion Intervals.icu annulée');
+    if (!session) return toast('Connecte-toi puis relance la connexion Intervals.icu');
+    try {
+      const r = await icuCall({ action:'oauth', code: q.get('code'), redirect_uri: appUrl() });
+      const a = r.athlete || {};
+      toast(`Intervals.icu connecté${a.name ? ' : ' + a.name : ''} ✅`);
+      if (a.ftp && a.ftp !== ftp()) S.icuFtpHint = a.ftp;
+      S.icuBackfill = 0; save(); // premier passage : 4 mois d'historique
+    } catch(e) { toast('Intervals : ' + e.message); }
   }
   async function connectIcu(){
     const k = ($('#icuKey')?.value || '').trim();
@@ -4702,8 +4732,12 @@ const Cloud = (() => {
         ? `<p class="small muted" style="margin:0 0 8px">Connecté${icu.athlete_name ? ` : <b style="color:var(--text)">${esc(icu.athlete_name)}</b>` : ''} (${esc(icu.athlete_id)})${icu.last_sync_at ? ` · dernière synchro ${new Date(icu.last_sync_at).toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'})}` : ''}.<br>Tes sorties Garmin arrivent toutes seules à l'ouverture de l'app, et tes 4 prochaines semaines de séances sont envoyées dans ton calendrier Intervals.</p>
            ${S.icuFtpHint && S.icuFtpHint !== ftp() ? `<div class="note" style="margin:0 0 8px">FTP réglée dans Intervals : <b>${S.icuFtpHint} W</b>, ici : <b>${ftp()} W</b>. Mets la même valeur des deux côtés (Intervals › Réglages › Vélo), sinon les zones et la charge différeront.</div>` : ''}
            <div class="row"><button class="btn" data-icu="sync">Synchroniser maintenant</button><button class="btn" data-icu="push">Renvoyer le plan</button><button class="btn sm ghost" data-icu="off">Déconnecter</button></div>`
-        : `<p class="small muted" style="margin:0 0 8px">Récupère automatiquement tes sorties Garmin (puissance, FC) et envoie tes séances planifiées vers Intervals, puis Garmin Connect et ton Edge. Clé API : <a href="https://intervals.icu/settings" target="_blank" rel="noopener">intervals.icu/settings</a> › Developer Settings, tout en bas.</p>
-           <div class="row"><input type="password" id="icuKey" placeholder="Clé API Intervals.icu" autocomplete="off" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px"><button class="btn primary" id="icuConnect" data-icu="on">Connecter</button></div>`}
+        : (() => { const keyRow = `<div class="row"><input type="password" id="icuKey" placeholder="Clé API Intervals.icu" autocomplete="off" style="flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px"><button class="btn ${ICU_CLIENT_ID ? '' : 'primary'}" id="icuConnect" data-icu="on">Connecter</button></div>`;
+            const keyHelp = `Clé API : <a href="https://intervals.icu/settings" target="_blank" rel="noopener">intervals.icu/settings</a> › Developer Settings, tout en bas.`;
+            return `<p class="small muted" style="margin:0 0 8px">La meilleure source pour l'app : tes 3 sports avec le détail tour par tour (recomposition nat/course), le bien-être, et tes séances planifiées envoyées vers ta montre ou ton compteur. Relie d'abord ta montre à Intervals.icu (Réglages › Connexions : Garmin, Coros, Suunto, Wahoo, Polar…).</p>
+              ${ICU_CLIENT_ID ? `<button class="btn primary" data-icu="oauth" style="width:100%">Se connecter avec Intervals.icu</button>
+                <details style="margin-top:10px"><summary class="small muted" style="cursor:pointer">Ou avec une clé API</summary><p class="tiny muted" style="margin:6px 0">${keyHelp}</p>${keyRow}</details>`
+              : `<p class="small muted" style="margin:0 0 8px">${keyHelp}</p>${keyRow}`}`; })()}
       <h3 style="margin-top:16px">Strava</h3>
       ${strava.connected
         ? `<p class="small muted" style="margin:0 0 8px">Connecté (athlète ${esc(strava.athlete)}). Chaque nouvelle sortie vélo arrive toute seule ; ouvre l'app pour l'intégrer.</p><div class="row"><button class="btn" data-strava="sync">Synchroniser maintenant</button><button class="btn sm ghost" data-strava="off">Déconnecter Strava</button></div>`
@@ -4728,6 +4762,7 @@ const Cloud = (() => {
   document.addEventListener('click', e => {
     const a = e.target.closest('[data-auth],[data-strava],[data-feelact],[data-icu]'); if (!a) return;
     if (a.dataset.icu === 'on') { connectIcu(); return; }
+    if (a.dataset.icu === 'oauth') { connectIcuOAuth(); return; }
     if (a.dataset.icu === 'sync') { autoIcu(true); toast('Synchronisation Intervals…'); return; }
     if (a.dataset.icu === 'push') { pushPlan(true).then(n => toast(`${n} séance${n>1?'s':''} envoyée${n>1?'s':''} à Intervals.icu`)).catch(err => toast('Intervals : ' + err.message)); return; }
     if (a.dataset.icu === 'off') { icuCall({ action:'disconnect' }).then(() => { icu = { connected:false }; render(); toast('Intervals.icu déconnecté'); }); return; }
@@ -4739,8 +4774,47 @@ const Cloud = (() => {
     else if (a.dataset.feelact) feelDlg(a.dataset.feelact);
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) { importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); autoIcu(); } });
-  return { init, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, get icu(){ return icu; }, get user(){ return user(); }, get sb(){ return sb; } };
+  return { init, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, connectIcuOAuth, connectStrava, authDlg, get icu(){ return icu; }, get strava(){ return strava; }, get user(){ return user(); }, get sb(){ return sb; } };
 })();
+
+/* ============ Guide de démarrage ============ */
+// étapes cochées automatiquement selon ce qui est connecté ; carte sur Aujourd'hui tant que l'essentiel manque (masquable), toujours dans Profil
+function guideSteps(){
+  const C = Cloud, icuOn = !!C.icu?.connected, ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  return [
+    { k:'plan', must:true, done: !!S.profile, t:'Ton plan', d:"Le questionnaire a construit ton plan jusqu'à ton test final. Tu peux le retoucher dans Profil." },
+    { k:'acct', must:true, done: !!C.user, t:'Ton compte', d:"Sauvegarde dans le cloud et synchro entre ton téléphone et ton ordi. Indispensable pour les connexions ci-dessous.",
+      btn: C.user ? null : `<button class="btn sm primary" data-auth="open">Créer mon compte</button>` },
+    { k:'icu', must:true, done: icuOn, t:'Intervals.icu + ta montre', tag:'recommandé',
+      d:`La meilleure version de l'app : <b>vélo, course et natation</b> avec le détail tour par tour (recomposition de séance), ton bien-être, et tes séances planifiées envoyées vers ta montre ou ton compteur.<ol class="tiny" style="padding-left:18px;margin:6px 0 0"><li>Crée un compte gratuit sur <a href="https://intervals.icu" target="_blank" rel="noopener">intervals.icu</a>.</li><li>Dans Intervals › Réglages › <b>Connexions</b>, relie ta montre (Garmin, Coros, Suunto, Wahoo, Polar…).</li><li>Reviens ici et connecte Intervals.icu.</li></ol>`,
+      btn: icuOn ? null : C.user ? `<button class="btn sm primary" data-icu="oauth">${ICU_CLIENT_ID ? 'Se connecter avec Intervals.icu' : 'Connecter Intervals.icu'}</button>` : '' },
+    { k:'strava', done: !!C.strava?.connected, t:'Strava', tag:'option',
+      d:"Tes sorties <b>vélo</b> (puissance, FC, cadence, GPS) dès qu'elles arrivent sur Strava. Pratique si ta montre n'est pas reliée à Intervals ; sinon Intervals suffit. Les doublons sont fusionnés.",
+      btn: C.strava?.connected || !C.user || !STRAVA_CLIENT_ID ? null : `<button class="btn sm" data-strava="on" style="background:#fc4c02;border-color:#fc4c02;color:#fff">Connecter Strava</button>` },
+    ...(ios ? [{ k:'health', done: !!Health.H?.token?.last, t:'Apple Santé', tag:'option iPhone',
+      d:"Un Raccourci iOS envoie chaque jour sommeil, VFC, FC repos et poids : c'est ce qui calcule ton énergie du jour.",
+      btn: `<a class="btn sm" href="raccourci.html">Installer le raccourci</a>` }] : []),
+    { k:'recomp', done: Object.keys(S.recomp || {}).length > 0, t:'Recompose une séance nat ou course', tag:'astuce',
+      d:"Touche une séance dans Aujourd'hui › Heures de sport › 🧩 Recomposer, puis écris-la comme sur ton carnet (« 12x400 rapide 1'30 récup ») : l'app retrouve chaque bloc et suit ta progression bloc par bloc." },
+  ];
+}
+function guideHTML(compact){
+  const st = guideSteps(), done = st.filter(x => x.done).length;
+  const rows = st.map((x, i) => `<div class="gstep${x.done ? ' done' : ''}"><span class="gnum" aria-hidden="true">${x.done ? '✓' : i + 1}</span><div style="flex:1;min-width:0">
+      <b>${esc(x.t)}</b>${x.tag ? ` <span class="chip tiny">${esc(x.tag)}</span>` : ''}${x.done ? ' <span class="tiny muted">· fait</span>' : ''}
+      ${!x.done || !compact ? `<div class="small muted" style="margin-top:2px">${x.d}</div>${x.btn && !x.done ? `<div class="row" style="margin-top:8px">${x.btn}</div>` : ''}` : ''}</div></div>`).join('');
+  return `<div class="card guide"><div class="row between"><h2>Bien démarrer</h2><span class="chip num">${done}/${st.length}</span></div>
+    <div class="bar" style="margin:0 0 12px"><i style="width:${Math.round(done / st.length * 100)}%"></i></div>${rows}
+    ${compact ? `<div class="row between" style="margin-top:6px"><button class="btn sm ghost" data-guide="off">Masquer</button><span class="tiny muted">Toujours dispo dans Profil</span></div>` : ''}</div>`;
+}
+// carte d'accueil : tant qu'une étape essentielle manque et que la carte n'a pas été masquée
+function guideCardHTML(){
+  if (S.settings.guideOff) return '';
+  return guideSteps().some(x => x.must && !x.done) ? guideHTML(true) : '';
+}
+document.addEventListener('click', e => { const g = e.target.closest('[data-guide]'); if (!g) return;
+  if (g.dataset.guide === 'off') { S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil'); }
+  else if (g.dataset.guide === 'open') openDlg(guideHTML(false)); });
 
 /* ============ Apple Santé (via le Raccourci iOS) ============ */
 const Health = (() => {

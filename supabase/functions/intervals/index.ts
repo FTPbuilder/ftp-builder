@@ -1,5 +1,7 @@
 // Liaison Intervals.icu (JWT Supabase requis). La clé API reste côté serveur.
 //  { action:"connect", apiKey }            -> vérifie la clé, enregistre le compte
+//  { action:"oauth", code, redirect_uri }  -> « Se connecter avec Intervals.icu » : échange le code OAuth contre un jeton (secrets ICU_CLIENT_ID / ICU_CLIENT_SECRET)
+//     le jeton est rangé dans api_key avec le préfixe « oauth: » (envoyé en Bearer) ; les clés API restent acceptées
 //  { action:"sync", days? }                -> activités (toutes les sorties vélo -> ext_inbox avec leurs flux ; autres sports -> health_workouts) + tracés GPS (activity_tracks) + intervalles course/natation (workout_laps) + wellness
 //  { action:"push", events:[…], remove:[…] } -> envoie/maj des séances planifiées dans le calendrier Intervals (-> Garmin Connect)
 //  { action:"disconnect" }
@@ -13,7 +15,8 @@ const BASE = "https://intervals.icu/api/v1";
 const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
 
 async function icu(key: string, path: string, init: RequestInit = {}) {
-  const r = await fetch(BASE + path, { ...init, headers: { Authorization: "Basic " + btoa("API_KEY:" + key), "User-Agent": "Mozilla/5.0 (FTP Builder)", Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) } });
+  const authz = key.startsWith("oauth:") ? "Bearer " + key.slice(6) : "Basic " + btoa("API_KEY:" + key);
+  const r = await fetch(BASE + path, { ...init, headers: { Authorization: authz, "User-Agent": "Mozilla/5.0 (FTP Builder)", Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) } });
   const txt = await r.text();
   if (!r.ok) throw new Error(`Intervals ${r.status} ${txt.slice(0, 160)}`);
   try { return JSON.parse(txt); } catch { return txt; }
@@ -158,17 +161,41 @@ Deno.serve(async (req) => {
     if (!user) return json({ error: "Non connecté" }, 401);
     const body = await req.json().catch(() => ({}));
 
+    // enregistre le compte à partir d'une clé API ou d'un jeton OAuth (« oauth:… »)
+    const saveAccount = async (key: string, fallback?: { id?: unknown; name?: unknown }) => {
+      let ath: Record<string, unknown> = {};
+      try { ath = await icu(key, "/athlete/0"); } catch (e) { if (!fallback?.id) throw e; }
+      const id = ath.id ?? fallback?.id, name = ath.name ?? fallback?.name ?? null;
+      const ride = ((ath.sportSettings ?? []) as { types?: string[]; ftp?: number; lthr?: number; max_hr?: number }[]).find((s) => (s.types ?? []).includes("Ride"));
+      await db.from("intervals_accounts").upsert({ user_id: user.id, athlete_id: String(id), athlete_name: name, api_key: key });
+      return json({ connected: true, athlete: { id, name, ftp: ride?.ftp ?? null, lthr: ride?.lthr ?? null, max_hr: ride?.max_hr ?? null, weight: ath.icu_weight ?? ath.weight ?? null } });
+    };
+
     if (body.action === "connect") {
       const key = String(body.apiKey ?? "").trim();
       if (key.length < 10) return json({ error: "Clé API invalide" }, 400);
-      const ath = await icu(key, "/athlete/0");
-      const ride = (ath.sportSettings ?? []).find((s: { types?: string[] }) => (s.types ?? []).includes("Ride"));
-      await db.from("intervals_accounts").upsert({ user_id: user.id, athlete_id: String(ath.id), athlete_name: ath.name ?? null, api_key: key });
-      return json({ connected: true, athlete: { id: ath.id, name: ath.name, ftp: ride?.ftp ?? null, lthr: ride?.lthr ?? null, max_hr: ride?.max_hr ?? null, weight: ath.icu_weight ?? ath.weight ?? null } });
+      return await saveAccount(key);
+    }
+
+    if (body.action === "oauth") {
+      const cid = Deno.env.get("ICU_CLIENT_ID"), secret = Deno.env.get("ICU_CLIENT_SECRET");
+      if (!cid || !secret) return json({ error: "Connexion Intervals.icu pas encore configurée (secrets ICU_CLIENT_ID / ICU_CLIENT_SECRET)" }, 500);
+      const code = String(body.code ?? "");
+      if (!code) return json({ error: "Code OAuth manquant" }, 400);
+      const form = new URLSearchParams({ client_id: cid, client_secret: secret, code, grant_type: "authorization_code", ...(body.redirect_uri ? { redirect_uri: String(body.redirect_uri) } : {}) });
+      const r = await fetch("https://intervals.icu/api/oauth/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json", "User-Agent": "Mozilla/5.0 (FTP Builder)" }, body: form });
+      const txt = await r.text();
+      let tok: Record<string, unknown> = {}; try { tok = JSON.parse(txt); } catch { /* texte brut */ }
+      if (!r.ok || !tok.access_token) return json({ error: `Intervals OAuth ${r.status} ${txt.slice(0, 160)}` }, 400);
+      return await saveAccount("oauth:" + String(tok.access_token), tok.athlete as { id?: unknown; name?: unknown });
     }
 
     const { data: acc } = await db.from("intervals_accounts").select("*").eq("user_id", user.id).maybeSingle();
-    if (body.action === "disconnect") { await db.from("intervals_accounts").delete().eq("user_id", user.id); return json({ connected: false }); }
+    if (body.action === "disconnect") {
+      // jeton OAuth : on le révoque aussi chez Intervals (best effort)
+      if (acc && String(acc.api_key).startsWith("oauth:")) { try { await icu(acc.api_key, "/disconnect-app", { method: "DELETE" }); } catch (e) { console.warn("disconnect-app", e); } }
+      await db.from("intervals_accounts").delete().eq("user_id", user.id); return json({ connected: false });
+    }
     if (!acc) return json({ error: "Intervals.icu non connecté" }, 400);
     const key = acc.api_key as string;
 
