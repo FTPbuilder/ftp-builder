@@ -266,6 +266,24 @@ dialog.fs3d{background:#0a1020}
 .climbs.stack .climb + .climb{margin-top:-26px;box-shadow:0 -6px 16px rgba(0,0,0,.10)}
 .more{width:100%;margin-top:10px;justify-content:center}
 .chhead{cursor:pointer;border-radius:8px}.chhead:hover b{color:var(--accent)}
+/* défis : 2 carrés (défis partagés / amis) + pile de cartes */
+.dsq{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.dsq button{aspect-ratio:1;border-radius:24px;background:var(--card);border:1px solid var(--line);padding:16px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;color:var(--text);cursor:pointer;position:relative;font:inherit;box-shadow:var(--shadow,none)}
+.dsq button.on{border-color:var(--sq);box-shadow:inset 0 0 0 1px var(--sq)}
+.dsq svg{width:26px;height:26px}
+.dsq .big{font-size:clamp(48px,15vw,64px);font-weight:800;line-height:1;letter-spacing:-.02em}
+.dsq .lab{font-weight:700;font-size:15px;line-height:1.2}
+.dsq .badge{position:absolute;top:14px;right:14px;background:var(--accent);color:#fff;border-radius:999px;font-size:12px;font-weight:700;padding:3px 9px}
+.dstack{display:flex;flex-direction:column;margin-top:12px}
+.dcard{--tint:var(--accent);position:relative;border-radius:20px;padding:14px;background:color-mix(in srgb,var(--tint) 14%,var(--card));border:1px solid color-mix(in srgb,var(--tint) 42%,var(--line))}
+.dcard:not(:last-child){padding-bottom:36px}
+.dcard + .dcard{margin-top:-22px;box-shadow:0 -6px 16px rgba(0,0,0,.18)}
+.dcard.shut{cursor:pointer}.dcard.shut:hover{border-color:var(--tint)}
+.dcard .bar i{background:var(--tint)}
+.mcards{display:flex;flex-direction:column;gap:10px}
+.mcard{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:var(--card);border:1px solid var(--line);cursor:pointer}
+.mcard:hover{border-color:var(--tint)}
+.mcard .mic{font-size:26px;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:color-mix(in srgb,var(--tint) 18%,var(--bg2))}
 .climbs.stack .climb:not(:last-child) .cstat{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .climb > *{flex-shrink:0}
 .gdot{display:inline-block;width:9px;height:9px;border-radius:50%;vertical-align:baseline;margin:0 2px 0 6px}
@@ -3374,26 +3392,6 @@ const activeChallenges = () => challenges().filter(c => !c.archived);
 const CH_UNIT = { squats:'squats', reps:'répétitions', min:'de chaise' };
 const chTotal = c => Object.values(c.entries).reduce((a,b)=>a+b,0);
 const fmtCh = (c, v) => c.unit === 'min' ? (v >= 60 ? `${Math.floor(v/60)} h ${pad(Math.round(v%60))}` : `${(+v.toFixed(1)).toLocaleString('fr-FR')} min`) : Math.round(v).toLocaleString('fr-FR');
-function challengesHTML(){
-  const t = todayISO();
-  return `<div class="card"><div class="row between"><h2>Mes défis</h2><span class="muted small">jusqu'au ${fmtShort(activeChallenges()[0]?.end || todayISO())}</span></div>` + activeChallenges().map(c => {
-    const done = chTotal(c), pct = clamp(done/c.target*100, 0, 100);
-    const totalDays = Math.max(diffDays(c.start, c.end) + 1, 1), elapsed = clamp(diffDays(c.start, t) + 1, 0, totalDays);
-    const expected = c.target * elapsed / totalDays, ahead = done - expected;
-    const left = Math.max(c.target - done, 0), daysLeft = Math.max(diffDays(t, c.end) + 1, 1);
-    const perDay = left / daysLeft, today = c.entries[t] || 0;
-    const stCol = ahead >= 0 ? 'var(--ok)' : ahead > -c.target*0.03 ? 'var(--warn)' : 'var(--bad)';
-    return `<div style="margin-top:14px">
-      <div class="row between chhead" data-chedit="${c.id}" role="button" tabindex="0" title="Voir le détail"><b>${esc(c.name)}${c.shared ? ' <span class="chip tiny">entre amis</span>' : ''} <span class="muted" style="font-weight:400">›</span></b><span class="num small"><b>${fmtCh(c, done)}</b> / ${fmtCh(c, c.target)} · ${Math.floor(pct)} %</span></div>
-      <div class="bar" style="margin:8px 0;position:relative"><i style="width:${pct}%"></i><span title="Rythme prévu" style="position:absolute;top:-3px;bottom:-3px;left:${clamp(expected/c.target*100,0,100)}%;width:2px;background:var(--text);opacity:.5"></span></div>
-      <div class="tiny muted">Aujourd'hui : <b style="color:var(--text)">${fmtCh(c, today)}</b> · objectif du jour ~${fmtCh(c, perDay)} · <span style="color:${stCol}">${ahead >= 0 ? `${fmtCh(c, ahead)} d'avance` : `${fmtCh(c, -ahead)} de retard`}</span></div>
-      <div class="row" style="margin-top:8px;gap:6px">${c.step.map(s => `<button class="btn sm" data-chadd="${c.id}" data-v="${s}">+${s}${c.unit==='min'?' min':''}</button>`).join('')}
-        <input type="text" inputmode="decimal" id="chIn-${c.id}" placeholder="${c.unit==='min'?'min':'nb'}" style="width:76px;min-height:32px;padding:4px 8px">
-        <button class="btn sm primary" data-chadd="${c.id}">Ajouter</button>
-        <button class="btn sm ghost" data-chedit="${c.id}">Détail</button></div>
-    </div>`;
-  }).join('') + `</div>` + archivedChallengesHTML();
-}
 function archivedChallengesHTML(){
   const arch = challenges().filter(c => c.archived);
   if (!arch.length) return '';
@@ -3443,6 +3441,150 @@ document.addEventListener('click', e => {
   const ed = e.target.closest('[data-chedit]'); if (ed) chEditDlg(ed.dataset.chedit);
   const ti = e.target.closest('[data-toggleindoor]'); if (ti) { const a = S.activities.find(x => x.id === ti.dataset.toggleindoor); if (a) { a.indoor = !isIndoor(a); save(); activityDlg(a.id); render(); } }
 });
+
+let DSEL = null; // carte ouverte dans la pile « Mes défis »
+const CH_TINT = { bulgares:'var(--accent)', squats:'var(--accent)', chaise:'var(--h-def)', mobilite:'var(--h-prog1)' };
+function challengesHTML(){
+  const t = todayISO(), act = activeChallenges();
+  const cards = act.map(c => {
+    const done = chTotal(c), pct = clamp(done/c.target*100, 0, 100);
+    const totalDays = Math.max(diffDays(c.start, c.end) + 1, 1), elapsed = clamp(diffDays(c.start, t) + 1, 0, totalDays);
+    const expected = c.target * elapsed / totalDays, ahead = done - expected;
+    const left = Math.max(c.target - done, 0), daysLeft = Math.max(diffDays(t, c.end) + 1, 1);
+    const perDay = left / daysLeft, today = c.entries[t] || 0;
+    const stCol = ahead >= 0 ? 'var(--ok)' : ahead > -c.target*0.03 ? 'var(--warn)' : 'var(--bad)';
+    return { id:c.id, tint: CH_TINT[c.id] || (c.shared ? 'var(--h-prog2)' : 'var(--accent)'),
+      head:(open) => `<div class="row between${open ? ' chhead' : ''}"${open ? ` data-chedit="${c.id}" role="button" tabindex="0" title="Voir le détail"` : ''}><b>${esc(c.name)}${c.shared ? ' <span class="chip tiny">entre amis</span>' : ''} <span class="muted" style="font-weight:400">›</span></b><span class="num small"><b>${fmtCh(c, done)}</b> / ${fmtCh(c, c.target)} · ${Math.floor(pct)} %</span></div>
+        <div class="bar" style="margin:8px 0;position:relative"><i style="width:${pct}%"></i><span title="Rythme prévu" style="position:absolute;top:-3px;bottom:-3px;left:${clamp(expected/c.target*100,0,100)}%;width:2px;background:var(--text);opacity:.5"></span></div>`,
+      body:`<div class="tiny muted">Aujourd'hui : <b style="color:var(--text)">${fmtCh(c, today)}</b> · objectif du jour ~${fmtCh(c, perDay)} · <span style="color:${stCol}">${ahead >= 0 ? `${fmtCh(c, ahead)} d'avance` : `${fmtCh(c, -ahead)} de retard`}</span></div>
+      <div class="row" style="margin-top:8px;gap:6px">${c.step.map(s => `<button class="btn sm" data-chadd="${c.id}" data-v="${s}">+${s}${c.unit==='min'?' min':''}</button>`).join('')}
+        <input type="text" inputmode="decimal" id="chIn-${c.id}" placeholder="${c.unit==='min'?'min':'nb'}" style="width:76px;min-height:32px;padding:4px 8px">
+        <button class="btn sm primary" data-chadd="${c.id}">Ajouter</button>
+        <button class="btn sm ghost" data-chedit="${c.id}">Détail</button></div>` };
+  });
+  cards.push(Mobility.card());
+  if (!cards.some(x => x.id === DSEL)) DSEL = cards[0].id;
+  return `<div class="card"><div class="row between"><h2>Mes défis</h2><span class="muted small">jusqu'au ${fmtShort(act[0]?.end || todayISO())}</span></div>
+    <div class="dstack">${cards.map(x => { const open = x.id === DSEL;
+      return `<div class="dcard${open ? ' open' : ' shut'}" style="--tint:${x.tint}"${open ? '' : ` data-dsel="${x.id}" role="button" tabindex="0" aria-label="Ouvrir ${x.id}"`}>${x.head(open)}${open ? `<div class="dbody">${x.body}</div>` : ''}</div>`; }).join('')}</div></div>` + archivedChallengesHTML();
+}
+document.addEventListener('click', e => { const s = e.target.closest('[data-dsel]'); if (s) { DSEL = s.dataset.dsel; render(); } });
+
+/* ============ mobilité : routines natation / vélo / course (5, 10, 20 min) ============
+   CARs (Controlled Articular Rotations, Functional Range Conditioning) : rotations actives, lentes, gainées, en bout d'amplitude.
+   Étirements tenus < 60 s par muscle avant l'effort (Behm et al. 2016, APNM 41:1-11) ; dynamique en échauffement. */
+const Mobility = (() => {
+  const X = {
+    neck_cars:['CARs cou','CARs',"Menton rentré, dessine le plus grand cercle possible avec la tête, très lentement. 2 tours par sens, épaules immobiles."],
+    scap_cars:['CARs omoplates','CARs',"Bras le long du corps, tout le corps gainé à ~30 % : monte, recule, descends puis avance les omoplates en cercle. 3 tours par sens."],
+    shoulder_cars:['CARs épaule','CARs',"Poing serré, corps gainé. Bras tendu, monte devant puis au-dessus de la tête, tourne la paume vers l'extérieur et descends derrière en allant le plus loin possible. Retour par le même chemin. 2–3 reps par sens.",1],
+    spine_cars:['CARs colonne','CARs',"Debout, genoux souples : enroule la colonne vertèbre par vertèbre, puis inclinaison, extension, autre inclinaison. Lent, 2 tours par sens."],
+    hip_cars:['CARs hanche','CARs',"À quatre pattes ou debout, gainé : monte le genou devant, ouvre sur le côté, tourne vers l'arrière, ramène. Le bassin ne bouge pas. 2–3 tours par sens.",1],
+    knee_cars:['CARs genou','CARs',"Debout, cuisse tenue à l'horizontale et immobile : tourne le tibia vers l'intérieur puis l'extérieur, puis petits cercles lents.",1],
+    ankle_cars:['CARs cheville','CARs',"Tibia immobile, dessine le plus grand cercle possible avec le pied. 3 tours par sens et par pied."],
+    foot_cars:['CARs orteils & pied','CARs',"Écarte, lève et plie les orteils, puis cercles lents du pied. Réveille l'appui avant de courir."],
+    cat_cow:['Chat-vache segmentaire','dyn',"À quatre pattes, arrondis puis creuse le dos en partant du bassin, une vertèbre après l'autre."],
+    open_book:['Livre ouvert','dyn',"Couché sur le côté, genoux à 90° : ouvre le bras du dessus vers le sol derrière toi en suivant la main des yeux. Expire en ouvrant.",1],
+    thread_needle:['Thread the needle','dyn',"À quatre pattes, glisse un bras sous l'autre jusqu'à poser l'épaule, puis ouvre vers le plafond. Alterne."],
+    wall_slides:['Anges au mur','dyn',"Dos, tête et bras contre le mur, monte et descends les bras sans décoller le bas du dos."],
+    streamline:['Flèche au mur','stat',"Dos au mur, bras tendus au-dessus de la tête, mains l'une sur l'autre ; serre les côtes pour coller le bas du dos. 20 s, relâche, recommence."],
+    pec_wall:['Pectoraux au mur','stat',"Avant-bras contre un montant de porte, coude à hauteur d'épaule, tourne le buste à l'opposé. Doux, jamais de douleur.",1],
+    lat_prayer:['Grand dorsal en prière','stat',"À genoux, mains loin devant au sol, fesses vers les talons, poitrine vers le sol."],
+    sleeper:['Sleeper stretch','stat',"Couché sur l'épaule, bras à 90°, l'autre main pousse doucement l'avant-bras vers le sol. Tu dois sentir l'arrière de l'épaule, jamais l'avant.",1],
+    band_er:['Rotations externes élastique','renfo',"Coude collé au corps (serviette roulée sous le bras), tourne l'avant-bras vers l'extérieur, 3 s pour revenir. 2 × 12 par bras."],
+    ankle_pf:['Assis sur les talons','stat',"À genoux, dessus des pieds à plat, assieds-toi sur les talons ; soulève un peu les genoux pour étirer le cou-de-pied (battements)."],
+    knee_wall:['Genou au mur','dyn',"Pied à 10 cm du mur, talon au sol : avance le genou jusqu'à toucher le mur sans décoller le talon. Recule le pied si c'est facile.",1],
+    calf_wall:['Mollets au mur','stat',"Mains au mur, jambe arrière tendue talon au sol, puis genou plié (soléaire). Chaque côté.",1],
+    ninety:['Transitions 90/90','dyn',"Assis, une jambe à 90° devant et l'autre à 90° sur le côté, bascule les genoux d'un côté à l'autre, buste droit."],
+    hip_flexor:['Fente basse (psoas)','stat',"Genou arrière au sol, serre la fesse arrière et rentre le bassin, avance un peu ; bras du même côté vers le haut.",1],
+    quad_couch:['Couch stretch','stat',"Genou arrière contre un mur ou un canapé, pied en hauteur, l'autre pied devant. Fesse serrée, redresse le buste petit à petit.",1],
+    ham_hinge:['Ischios en charnière','stat',"Talon posé sur une marche, jambe tendue, dos plat : bascule le bassin vers l'avant jusqu'à sentir l'arrière de cuisse.",1],
+    glute_fig4:['Fessier en figure 4','stat',"Sur le dos, cheville sur le genou opposé, tire la cuisse vers toi.",1],
+    cobra:['Cobra','dyn',"À plat ventre, mains sous les épaules, décolle la poitrine en gardant le bassin au sol. 5 reps de 5 s."],
+    worlds:["World's greatest stretch",'dyn',"Grande fente, main intérieure au sol, coude vers la cheville, puis ouvre le bras vers le ciel. Alterne les côtés."],
+    leg_swings:['Balancés de jambe','dyn',"En appui au mur : 10 balancés avant-arrière puis 10 latéraux par jambe, amplitude croissante.",1],
+    hip_open_walk:['Ouverture de hanche marchée','dyn',"En marchant, monte le genou, ouvre-le vers l'extérieur et pose. Puis l'inverse (de l'extérieur vers l'intérieur)."],
+    lunge_matrix:['Lunge matrix','dyn',"Fente avant, latérale puis en rotation (pied à 45° vers l'arrière), en alternant les jambes. Contrôlé, buste droit."],
+  };
+  const SP = {
+    swim:{ ic:'🏊', l:'Natation', focus:'Épaules, thoracique, chevilles · CARs', note:"À sec avant la piscine ou le soir. Les CARs travaillent l'amplitude active : lent, gainé, sans tricher avec les articulations voisines. Le travail des rotateurs externes équilibre la rotation interne très sollicitée par le crawl.",
+      r:{ 5:[['neck_cars',45],['scap_cars',45],['shoulder_cars',90],['open_book',60],['pec_wall',60]],
+          10:[['neck_cars',45],['scap_cars',45],['shoulder_cars',120],['spine_cars',60],['open_book',60],['thread_needle',60],['pec_wall',60],['lat_prayer',45],['sleeper',60],['ankle_pf',45]],
+          20:[['neck_cars',60],['scap_cars',60],['shoulder_cars',150],['spine_cars',90],['cat_cow',60],['open_book',90],['thread_needle',60],['wall_slides',60],['streamline',50],['pec_wall',90],['lat_prayer',60],['sleeper',60],['band_er',120],['hip_cars',90],['ankle_pf',60],['ankle_cars',40]] } },
+    bike:{ ic:'🚴', l:'Vélo', focus:'Hanches, ischios, dos et cou', note:"Idéal après la séance ou une journée assise : la position sur le vélo ferme la hanche et arrondit le haut du dos. Tiens les étirements sans forcer.",
+      r:{ 5:[['hip_cars',60],['hip_flexor',60],['open_book',60],['ham_hinge',60],['neck_cars',60]],
+          10:[['neck_cars',45],['spine_cars',60],['cat_cow',45],['cobra',45],['hip_cars',60],['hip_flexor',60],['quad_couch',60],['ham_hinge',60],['glute_fig4',60],['ninety',60],['ankle_cars',45]],
+          20:[['neck_cars',60],['scap_cars',60],['spine_cars',90],['cat_cow',60],['cobra',60],['thread_needle',60],['pec_wall',60],['hip_cars',90],['ninety',90],['hip_flexor',90],['quad_couch',90],['ham_hinge',90],['glute_fig4',90],['worlds',90],['ankle_cars',60],['calf_wall',60]] } },
+    run:{ ic:'🏃', l:'Course à pied', focus:'Chevilles, hanches, chaîne arrière · dynamique', note:"Utilisable en échauffement : mouvements dynamiques d'abord, étirements tenus courts (moins de 60 s par muscle) pour ne pas perdre en réactivité.",
+      r:{ 5:[['ankle_cars',45],['leg_swings',60],['hip_cars',60],['lunge_matrix',75],['knee_wall',60]],
+          10:[['ankle_cars',45],['knee_wall',60],['calf_wall',45],['leg_swings',60],['hip_cars',60],['hip_open_walk',60],['lunge_matrix',90],['worlds',60],['ninety',60],['hip_flexor',60]],
+          20:[['foot_cars',60],['ankle_cars',60],['knee_wall',90],['calf_wall',60],['knee_cars',60],['hip_cars',90],['leg_swings',90],['hip_open_walk',60],['lunge_matrix',120],['worlds',90],['ninety',90],['hip_flexor',90],['quad_couch',60],['ham_hinge',60],['glute_fig4',60],['spine_cars',60]] } },
+  };
+  const TAG = { CARs:'CARs', dyn:'dynamique', stat:'étirement', renfo:'renfo' };
+  const log = () => (S.mobility ||= []);
+  const dur = () => S.mobDur || 10;
+  const fmtS = s => s >= 60 ? `${Math.floor(s/60)} min${s % 60 ? ` ${pad(s % 60)}` : ''}` : `${s} s`;
+  const weekMin = () => { const t = todayISO(), from = addDays(t, -6); return log().filter(x => x.date >= from).reduce((a, x) => a + x.min, 0); };
+  function card(){
+    const w = weekMin(), n7 = log().filter(x => x.date >= addDays(todayISO(), -6)).length, d = dur();
+    const last = sp => { const l = log().filter(x => x.sport === sp).sort((a, b) => b.ts - a.ts)[0]; return l ? `faite ${l.date === todayISO() ? "aujourd'hui" : `le ${fmtShort(l.date)}`}` : 'jamais faite'; };
+    return { id:'mobilite', tint:CH_TINT.mobilite,
+      head:() => `<div class="row between"><b>Mobilité <span class="muted" style="font-weight:400">›</span></b><span class="num small"><b>${w}</b> min · ${n7} routine${n7 > 1 ? 's' : ''} sur 7 j</span></div>
+        <div class="tiny muted" style="margin:8px 0">Routines courtes par sport, inspirées des CARs.</div>`,
+      body:`<div class="seg" id="mobDur" style="margin:4px 0 10px">${[5,10,20].map(m => `<button type="button" data-mobdur="${m}" class="${m === d ? 'on' : ''}">${m} min</button>`).join('')}</div>
+        <div class="mcards">${Object.entries(SP).map(([k, s]) => `<div class="mcard" data-mobopen="${k}" role="button" tabindex="0">
+          <span class="mic">${s.ic}</span><div style="flex:1;min-width:0"><b>${s.l}</b><div class="tiny muted">${s.focus}</div><div class="tiny muted">${s.r[d].length} exercices · ${last(k)}</div></div>
+          <button class="btn sm primary" data-mobgo="${k}" aria-label="Démarrer la routine ${s.l}">▶</button></div>`).join('')}</div>` };
+  }
+  function listDlg(sp){
+    const s = SP[sp], d = dur();
+    openDlg(`<span class="muted small">${s.focus}</span><h2 style="margin:4px 0 8px">${s.ic} Mobilité ${s.l.toLowerCase()}</h2>
+      <div class="seg" style="margin:0 0 10px">${[5,10,20].map(m => `<button type="button" data-mobdurdlg="${m}" data-sp="${sp}" class="${m === d ? 'on' : ''}">${m} min</button>`).join('')}</div>
+      <p class="small muted" style="margin:0 0 10px">${s.note}</p>
+      <div>${s.r[d].map(([id, sec], i) => { const x = X[id]; return `<div class="hist" style="align-items:flex-start"><span class="num muted" style="width:18px">${i + 1}</span><div style="flex:1;min-width:0"><b>${x[0]}${x[3] ? ' <span class="tiny muted">(chaque côté)</span>' : ''}</b> <span class="chip tiny">${TAG[x[1]]}</span><div class="tiny muted">${x[2]}</div></div><b class="num small">${fmtS(sec)}</b></div>`; }).join('')}</div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" data-mobgo="${sp}">▶ Démarrer (${d} min)</button><button class="btn ghost" data-mobdone="${sp}">Déjà faite</button></div>`);
+  }
+  // lecteur guidé : un exercice à la fois, compte à rebours, changement de côté à mi-temps
+  let P = null;
+  function stop(){ if (P) { clearInterval(P.iv); try { P.wl?.release(); } catch(e){} P = null; } }
+  function play(sp){
+    stop(); const s = SP[sp], d = dur(), list = s.r[d];
+    P = { sp, d, list, i:0, left:list[0][1], paused:false, iv:null, wl:null };
+    try { navigator.wakeLock?.request('screen').then(w => { if (P) P.wl = w; }).catch(() => {}); } catch(e){}
+    openDlg(`<span class="muted small" id="mpTop"></span><h2 id="mpName" style="margin:4px 0 6px"></h2><div id="mpTag"></div>
+      <div class="num" id="mpT" style="font-size:72px;font-weight:800;text-align:center;margin:10px 0 2px"></div><div class="tiny" id="mpSide" style="text-align:center;min-height:18px;color:var(--accent)"></div>
+      <div class="bar" style="margin:10px 0"><i id="mpBar" style="width:0%"></i></div>
+      <p class="small" id="mpCue" style="min-height:66px"></p><p class="tiny muted" id="mpNext"></p>
+      <div class="row" style="margin-top:10px"><button class="btn" id="mpPrev">‹</button><button class="btn primary" id="mpPause" style="flex:1">Pause</button><button class="btn" id="mpSkip">›</button></div>`);
+    const tot = list.reduce((a, x) => a + x[1], 0);
+    const draw = () => { if (!P) return; const [id, sec] = list[P.i], x = X[id], el = sec - P.left;
+      $('#mpTop').textContent = `${s.ic} ${s.l} · ${d} min · ${P.i + 1}/${list.length}`; $('#mpName').textContent = x[0];
+      $('#mpTag').innerHTML = `<span class="chip tiny">${TAG[x[1]]}</span>`; $('#mpT').textContent = `${Math.floor(P.left/60)}:${pad(P.left % 60)}`;
+      $('#mpSide').textContent = x[3] ? (el < sec/2 ? 'Côté 1' : 'Côté 2 — change de côté') : '';
+      $('#mpCue').textContent = x[2]; $('#mpNext').textContent = list[P.i + 1] ? `Ensuite : ${X[list[P.i + 1][0]][0]}` : 'Dernier exercice';
+      const doneSec = list.slice(0, P.i).reduce((a, y) => a + y[1], 0) + el; $('#mpBar').style.width = `${doneSec/tot*100}%`;
+      $('#mpPause').textContent = P.paused ? 'Reprendre' : 'Pause'; };
+    const go = i => { if (i >= list.length) return finish(); P.i = Math.max(0, i); P.left = list[P.i][1]; try { navigator.vibrate?.(200); } catch(e){} draw(); };
+    P.iv = setInterval(() => { if (!P || P.paused) return; P.left--; const [id, sec] = list[P.i];
+      if (X[id][3] && P.left === Math.floor(sec/2)) { try { navigator.vibrate?.([80, 60, 80]); } catch(e){} }
+      if (P.left <= 0) go(P.i + 1); else draw(); }, 1000);
+    $('#mpPause').onclick = () => { P.paused = !P.paused; draw(); };
+    $('#mpSkip').onclick = () => go(P.i + 1); $('#mpPrev').onclick = () => go(P.i - 1);
+    draw();
+  }
+  function record(sp, min){ log().push({ date: todayISO(), sport: sp, min, ts: Date.now() }); save(); }
+  function finish(){ const { sp, d } = P; stop(); record(sp, d); closeDlg(); render(); toast(`Routine ${SP[sp].l.toLowerCase()} terminée · ${d} min 🧘`); }
+  document.addEventListener('click', e => {
+    const a = e.target.closest('[data-mobdur],[data-mobdurdlg],[data-mobgo],[data-mobopen],[data-mobdone]'); if (!a) return;
+    if (a.dataset.mobdur) { S.mobDur = +a.dataset.mobdur; save(); render(); return; }
+    if (a.dataset.mobdurdlg) { S.mobDur = +a.dataset.mobdurdlg; save(); listDlg(a.dataset.sp); render(); return; }
+    if (a.dataset.mobgo) { e.stopPropagation(); return play(a.dataset.mobgo); }
+    if (a.dataset.mobdone) { record(a.dataset.mobdone, dur()); closeDlg(); render(); return toast(`+${dur()} min de mobilité 🧘`); }
+    if (a.dataset.mobopen) return listDlg(a.dataset.mobopen);
+  });
+  $('#dlg').addEventListener('close', stop);
+  return { card, SP, X, play, listDlg };
+})();
 
 /* ============ test : 20 min <-> rampe ERG ============ */
 function switchTestProtocol(proto){
@@ -4961,7 +5103,7 @@ const Social = (() => {
         <div class="bar" style="margin:5px 0"><i style="width:${clamp(p ?? 0, 0, 100)}%"></i></div><div class="tiny muted">${sub}</div></div></div>`; }).join('');
     return `<div class="card soc-ch">${head}<div style="margin-top:8px">${lb}</div>
       ${mine?.status === 'joined' && c.kind === 'ftp' ? `<p class="tiny muted" style="margin:8px 0 0">Ton classement bouge à chaque test FTP (rampe ou 20 min) fait dans l'app pendant le défi.</p>` : ''}
-      ${mine?.status === 'joined' && c.kind === 'renfo' ? `<p class="tiny muted" style="margin:8px 0 0">Ajoute tes ${unitL(c)} dans « ${esc(c.name)} » ci-dessous : ta progression part toute seule.</p>` : ''}</div>`;
+      ${mine?.status === 'joined' && c.kind === 'renfo' ? `<p class="tiny muted" style="margin:8px 0 0">Ajoute tes ${unitL(c)} dans la carte « ${esc(c.name)} » de « Mes défis » : ta progression part toute seule.</p>` : ''}</div>`;
   }
   function friendsHTML(){
     const inc = D.friends.filter(f => f.status === 'pending' && f.b === uid()), out = D.friends.filter(f => f.status === 'pending' && f.a === uid()), fr = friendIds();
@@ -4974,15 +5116,29 @@ const Social = (() => {
       ${out.length ? `<h3 style="margin-top:14px">En attente</h3>${out.map(f => `<div class="hist"><span style="flex:1">${esc(nameOf(f.b))}</span><button class="btn sm ghost" data-soc="unfriend" data-u="${f.b}">Annuler</button></div>`).join('')}` : ''}
       <label style="display:flex;gap:10px;margin-top:12px;align-items:center;min-height:44px"><input type="checkbox" id="socFind" ${D.me?.searchable !== false ? 'checked' : ''} style="width:auto;min-height:0"><span class="small">Les membres peuvent me trouver par mon pseudo</span></label></div>`;
   }
+  // deux carrés en tête du volet Défis : « Défis partagés » et « Amis » ; le carré touché déplie sa section dessous
+  let OPEN = null;
+  const SQ_IC = { chals:'<path d="M7 4h10v4a5 5 0 0 1-10 0zM12 13v4M8 21h8M10 17h4M7 6H4v1a3 3 0 0 0 3 3M17 6h3v1a3 3 0 0 1-3 3"/>',
+    friends:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M19 8v6M16 11h6"/>' };
+  const sq = (k, col, big, lab, badge) => `<button type="button" data-socsq="${k}" class="${OPEN === k ? 'on' : ''}" style="--sq:${col}" aria-expanded="${OPEN === k}">
+    ${badge ? `<span class="badge">${badge}</span>` : ''}<svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SQ_IC[k]}</svg>
+    <span><span class="big num" style="color:${col}">${big}</span><br><span class="lab">${lab}</span></span></button>`;
   function html(){
-    if (!Cloud.user) return `<div class="card"><h2>Défis entre amis</h2><p class="small muted" style="margin:0 0 10px">Lance des défis FTP ou renfo avec tes potes : chacun son objectif, un classement commun.</p><button class="btn primary" data-auth="open">Créer mon compte</button></div>`;
-    if (!D.loaded && D.err) return `<div class="card"><h2>Défis entre amis</h2><p class="small muted" style="margin:0 0 8px">Impossible de charger la communauté pour l'instant.</p><button class="btn sm" data-soc="retry">Réessayer</button></div>`;
-    if (!D.loaded) { if (!D.busy) load().then(() => render()); return `<div class="card"><h2>Défis entre amis</h2><p class="small muted" style="margin:0">Chargement…</p></div>`; }
-    const act = D.chals.filter(c => c.end_date >= addDays(todayISO(), -14));
-    return `<div class="card"><div class="row between" style="align-items:center"><div><h2 style="margin:0">Défis entre amis</h2></div><button class="btn sm primary" data-soc="new">+ Nouveau défi</button></div>
-      ${act.length ? '' : `<p class="small muted" style="margin:0">Pas encore de défi partagé. Ajoute un ami ci-dessous, puis lance un défi FTP (chacun vise sa propre FTP, le classement compare le % de l'objectif atteint) ou un défi renfo (chaise, fentes…).</p>`}</div>`
-      + act.map(chalHTML).join('') + friendsHTML();
+    const ok = Cloud.user && D.loaded;
+    if (Cloud.user && !D.loaded && !D.err && !D.busy) load().then(() => render());
+    const act = ok ? D.chals.filter(c => c.end_date >= addDays(todayISO(), -14)) : [];
+    const invites = ok ? D.rows.filter(r => r.user_id === uid() && r.status === 'invited').length : 0;
+    const reqs = ok ? D.friends.filter(f => f.status === 'pending' && f.b === uid()).length : 0, fr = ok ? friendIds().length : 0;
+    let h = `<div class="dsq">${sq('chals', 'var(--h-def)', ok ? act.length : '+', `Nouveaux défis<br>partagés`, invites ? `${invites} invit.` : '')}${sq('friends', 'var(--accent)', ok ? fr : '+', `Ajouter<br>des amis`, reqs ? `${reqs} demande${reqs > 1 ? 's' : ''}` : '')}</div>`;
+    if (!OPEN) return h;
+    if (!Cloud.user) return h + `<div class="card"><h2>Défis entre amis</h2><p class="small muted" style="margin:0 0 10px">Lance des défis FTP ou renfo avec tes potes : chacun son objectif, un classement commun.</p><button class="btn primary" data-auth="open">Créer mon compte</button></div>`;
+    if (!D.loaded && D.err) return h + `<div class="card"><h2>Défis entre amis</h2><p class="small muted" style="margin:0 0 8px">Impossible de charger la communauté pour l'instant.</p><button class="btn sm" data-soc="retry">Réessayer</button></div>`;
+    if (!D.loaded) return h + `<div class="card"><p class="small muted" style="margin:0">Chargement…</p></div>`;
+    if (OPEN === 'friends') return h + friendsHTML();
+    return h + `<div class="card"><div class="row between" style="align-items:center"><h2 style="margin:0">Défis partagés</h2><button class="btn sm primary" data-soc="new">+ Nouveau défi</button></div>
+      ${act.length ? '' : `<p class="small muted" style="margin:10px 0 0">Pas encore de défi partagé. ${fr ? '' : 'Ajoute d\'abord un ami (carré « Ajouter des amis »), puis lance '}${fr ? 'Lance ' : ''}un défi FTP (chacun vise sa propre FTP, le classement compare le % de l'objectif atteint) ou un défi renfo (chaise, fentes…).</p>`}</div>` + act.map(chalHTML).join('');
   }
+  document.addEventListener('click', e => { const b = e.target.closest('[data-socsq]'); if (!b) return; OPEN = OPEN === b.dataset.socsq ? null : b.dataset.socsq; render(); });
   // ---------- actions ----------
   const rpcErr = e => toast('Communauté : ' + (e?.message || e));
   async function act(a, el){
@@ -5018,7 +5174,7 @@ const Social = (() => {
         <p class="tiny muted" style="margin:6px 0 0">Chacun fixe sa propre cible. Le classement compare le % du chemin parcouru, mesuré uniquement par les tests FTP.</p></div>
       <div id="socRen" class="hidden"><div class="grid2"><div><label class="f" for="socU">Unité</label><select id="socU"><option value="min">Minutes (chaise, gainage…)</option><option value="reps">Répétitions (fentes, squats…)</option></select></div><div><label class="f" for="socRG">Ton objectif total</label><input type="number" id="socRG" value="300"></div></div>
         <p class="tiny muted" style="margin:6px 0 0">Chacun choisit son objectif ; le classement compare le % atteint.</p></div>
-      <h3 style="margin-top:14px">Inviter</h3>${fr.length ? fr.map(id => `<label class="row" style="gap:8px;align-items:center;min-height:44px"><input type="checkbox" class="socInv" value="${id}" style="width:auto;min-height:0" checked><span>${esc(nameOf(id))}</span></label>`).join('') : '<p class="small muted" style="margin:0">Ajoute d\'abord des amis (carte « Mes amis »). Tu pourras les inviter ensuite.</p>'}
+      <h3 style="margin-top:14px">Inviter</h3>${fr.length ? fr.map(id => `<label class="row" style="gap:8px;align-items:center;min-height:44px"><input type="checkbox" class="socInv" value="${id}" style="width:auto;min-height:0" checked><span>${esc(nameOf(id))}</span></label>`).join('') : '<p class="small muted" style="margin:0">Ajoute d\'abord des amis (carré « Ajouter des amis »). Tu pourras les inviter ensuite.</p>'}
       <div class="row" style="margin-top:14px"><button class="btn primary" id="socCreate">Lancer le défi</button></div>`);
     let kind = 'ftp';
     $('#socKind').querySelectorAll('button').forEach(b => b.onclick = () => { kind = b.dataset.k; $('#socKind').querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
