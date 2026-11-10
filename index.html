@@ -475,10 +475,15 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
     <g fill="none" stroke-linecap="round" stroke-linejoin="round"><polyline class="bolt" stroke="#d9c2ff" stroke-width="7" points="200,352 186,372 204,378 182,410" style="animation-delay:0s"/><polyline class="bolt" stroke="#ffd0a0" stroke-width="7" points="380,352 396,374 374,382 392,412" style="animation-delay:0.35s"/><polyline class="bolt" stroke="#b8d0ff" stroke-width="7" points="160,250 132,262 146,276 112,290" style="animation-delay:0.7s"/><polyline class="bolt" stroke="#ffb3ec" stroke-width="7" points="292,318 282,338 300,342 288,366" style="animation-delay:0.2s"/><polyline class="bolt" stroke="#fff" stroke-width="6" points="430,262 452,250 444,272 468,262" style="animation-delay:0.85s"/><polyline class="bolt" stroke="#c9a8ff" stroke-width="6" points="150,330 126,322 134,342 104,338" style="animation-delay:0.5s"/></g>
     <g stroke-linecap="round" stroke-width="3"><line class="spark" x1="170" y1="345" x2="186" y2="345" stroke="#c77dff" style="animation-delay:0s"/><line class="spark" x1="330" y1="350" x2="344" y2="350" stroke="#ff8fd8" style="animation-delay:0.2s"/><line class="spark" x1="168" y1="320" x2="180" y2="318" stroke="#8fb4ff" style="animation-delay:0.4s"/><line class="spark" x1="326" y1="330" x2="338" y2="330" stroke="#ffa53d" style="animation-delay:0.1s"/><line class="spark" x1="178" y1="270" x2="190" y2="270" stroke="#fff" style="animation-delay:0.3s"/></g></svg></div></div>
 <script>
-// écran d'ouverture : 2 s minimum, puis fondu (absent pour les tests automatisés)
-window.SPLASH_END = navigator.webdriver ? 0 : performance.now() + 2000;
-(() => { const el = document.getElementById('splash'); if (!window.SPLASH_END) { el.remove(); return; }
-  setTimeout(() => { el.classList.add('out'); setTimeout(() => el.remove(), 500); }, window.SPLASH_END - performance.now()); })();
+// écran d'ouverture : reste au moins 2 s, puis jusqu'à ce que les données soient chargées (5 s maxi), puis fondu.
+// Absent pour les tests automatisés.
+(() => { const el = document.getElementById('splash'), t0 = performance.now();
+  if (navigator.webdriver) { el.remove(); window.SPLASH_ON = false; window.splashReady = () => {}; return; }
+  window.SPLASH_ON = true; let done = false, ready = false;
+  const hide = () => { if (done) return; done = true; window.SPLASH_ON = false; el.classList.add('out'); setTimeout(() => el.remove(), 500); if (window.render) try { render(); } catch(e){} };
+  window.splashReady = () => { ready = true; if (performance.now() - t0 >= 2000) hide(); };
+  setTimeout(() => { if (ready) hide(); }, 2000);
+  setTimeout(hide, 5000); })();
 </script>
 <div class="app" id="app"></div>
 <nav class="tabs hidden" id="tabs"><div class="in"><span class="pill" id="tabPill"></span>
@@ -495,7 +500,7 @@ window.SPLASH_END = navigator.webdriver ? 0 : performance.now() + 2000;
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.29.0';
+const APP_VERSION = '0.29.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1598,9 +1603,9 @@ function render(){
   // l'entrée de l'accueil (cartes + vague) ne joue qu'en arrivant, pas à chaque rafraîchissement.
   // Si un rafraîchissement tombe pendant l'entrée (synchro au démarrage…), elle continue là où elle en était.
   const home = document.querySelector('.home'), now = performance.now();
-  // derrière l'écran d'ouverture, l'entrée attend qu'il s'efface
-  const wait = Math.max(0, (window.SPLASH_END || 0) - now);
-  if (home && !_homeShown) { _homeT0 = now + wait; if (wait) setTimeout(() => document.querySelector('.home')?.classList.add('arrive'), wait); else home.classList.add('arrive'); }
+  // derrière l'écran d'ouverture, rien ne joue : l'entrée part quand il s'efface (il relance render())
+  if (window.SPLASH_ON) return;
+  if (home && !_homeShown) { _homeT0 = now; home.classList.add('arrive'); }
   if (home && now - _homeT0 < 2000) homeWave(_homeT0);
   _homeShown = !!home;
 }
@@ -4553,9 +4558,9 @@ const Cloud = (() => {
   const user = () => session?.user || null;
 
   async function init(){
-    if (!sb) { ready = true; render(); return; }
+    if (!sb) { ready = true; render(); window.splashReady?.(); return; }
     const { data } = await sb.auth.getSession(); session = data.session;
-    if (!session) { ready = true; render(); }
+    if (!session) { ready = true; render(); window.splashReady?.(); }
     sb.auth.onAuthStateChange((ev, s) => { const was = !!session; session = s; if (s && !was) afterLogin(); if (!s && was) { strava = { connected:false }; render(); } });
     await handleStravaReturn();
     await handleIcuReturn();
@@ -4569,7 +4574,7 @@ const Cloud = (() => {
     await importInbox();
     if (icu.connected) await autoIcu();
     await Health.load(sb);
-    render();
+    render(); window.splashReady?.(); // données là : l'écran d'ouverture peut s'effacer
     Social.load().then(() => { if (TAB === 'today' && TODAY_PANE === 'defis') render(); });
     Tour.maybe(); // visite guidée : une fois, juste après l'authentification
   }
@@ -5508,6 +5513,16 @@ if (S.profile && repairAutoLinks()) save();
 render();
 Cloud.init().catch(e => console.warn('cloud', e));
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+// mise à jour : iOS garde parfois l'ancienne page en cache ; on vérifie la version en ligne et on recharge une fois si elle a changé
+async function checkUpdate(){
+  if (location.protocol !== 'https:') return;
+  try {
+    const txt = await (await fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store' })).text();
+    const v = (txt.match(/const APP_VERSION = '([\d.]+)'/) || [])[1];
+    if (v && v !== APP_VERSION && sessionStorage.getItem('ftpb_upd') !== v) { sessionStorage.setItem('ftpb_upd', v); location.replace(location.pathname + '?u=' + v + location.hash); }
+  } catch(e){}
+}
+checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 setTimeout(() => { const ts = $('#themeSel'); if (ts) ts.value = S.settings.theme; }, 0);
 // accès pour les tests
 window.FTPB = { FIT, WORKOUTS, generatePlan, encodeWorkout, activityFromFit, powerSeries, defaultProfile, compliance, sessionEval, render, save, get S(){ return S; } };
