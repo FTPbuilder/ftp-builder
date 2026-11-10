@@ -281,6 +281,12 @@ dialog.fs3d{background:#0a1020}
 .dcard.shut{cursor:pointer}.dcard.shut:hover{border-color:var(--tint)}
 .dcard .bar i{background:var(--tint)}
 .mcards{display:flex;flex-direction:column;gap:10px}
+.manim{--mb:#d3dbe8;--mb2:#6f7b91;display:block;width:100%;height:100%}
+@media (prefers-color-scheme: light){:root:not([data-theme="dark"]) .manim{--mb:#7d889c;--mb2:#b9c1ce}}
+:root[data-theme="light"] .manim{--mb:#7d889c;--mb2:#b9c1ce}
+.mpanim{height:190px;margin:6px 0;border-radius:18px;background:var(--bg2);padding:6px}
+.mthumb{flex:0 0 72px;width:72px;height:72px;border-radius:12px;background:var(--bg2);padding:2px}
+.mthumb text{display:none}
 .mcard{display:flex;gap:12px;align-items:center;padding:12px;border-radius:16px;background:var(--card);border:1px solid var(--line);cursor:pointer}
 .mcard:hover{border-color:var(--tint)}
 .mcard .mic{font-size:26px;width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:color-mix(in srgb,var(--tint) 18%,var(--bg2))}
@@ -3470,6 +3476,71 @@ function challengesHTML(){
 }
 document.addEventListener('click', e => { const s = e.target.closest('[data-dsel]'); if (s) { DSEL = s.dataset.dsel; render(); } });
 
+/* ============ mobilité : silhouettes animées (SVG) ============ */
+const MobAnim = (() => {
+  const B = 'var(--mb)', B2 = 'var(--mb2)', A = 'var(--accent)', MU = 'var(--muted)';
+  const L = (a, b, w, c = B) => `<line x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}" stroke="${c}" stroke-width="${w}" stroke-linecap="round"/>`;
+  const C = (p, r, c = B, x = '') => `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${r}" fill="${c}" ${x}/>`;
+  const T = (x, y, s, a = 'middle') => `<text x="${x}" y="${y}" text-anchor="${a}" font-size="11" fill="${MU}">${s}</text>`;
+  const P = (x, y) => ({ x, y }), add = (p, q) => P(p.x + q.x, p.y + q.y), mul = (p, k) => P(p.x * k, p.y * k);
+  const R = (v, a) => { const c = Math.cos(a), s = Math.sin(a); return P(v.x * c - v.y * s, v.x * s + v.y * c); };
+  const D = d => d * Math.PI / 180, ease = x => (1 - Math.cos(Math.PI * x)) / 2;
+  const S = {
+    // vue de face : la tête dessine un grand cercle (flexion → inclinaison → extension → inclinaison)
+    neck_cars:{ per:8, vb:'0 0 200 220', f:t => { const th = 2*Math.PI*t, fl = Math.cos(th), tilt = D(24)*Math.sin(th);
+      const nb = P(100, 104), hd = add(nb, R(P(0, -30 + 5*fl), tilt)), sh = [P(62, 118), P(138, 118)];
+      let h = L(P(100, 150), P(100, 215), 62) + L(sh[0], sh[1], 24);
+      for (const s of sh) { const e = add(s, P(s.x < 100 ? -6 : 6, 46)); h += L(s, e, 17) + L(e, add(e, P(0, 42)), 15); }
+      h += L(nb, add(nb, R(P(0, -16), tilt)), 16, A);
+      const trail = Array.from({ length: 40 }, (_, i) => { const a = 2*Math.PI*i/40; return add(nb, R(P(0, -30 + 5*Math.cos(a)), D(24)*Math.sin(a))); });
+      h += `<polyline points="${trail.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')} ${trail[0].x.toFixed(1)},${trail[0].y.toFixed(1)}" fill="none" stroke="${A}" stroke-width="1.4" stroke-dasharray="3 4" opacity=".7"/>`;
+      h += C(hd, 21); const eye = P(0, -2 + 7*fl);
+      h += C(add(hd, R(add(eye, P(-7, 0)), tilt)), 2.4, '#222') + C(add(hd, R(add(eye, P(7, 0)), tilt)), 2.4, '#222') + C(add(hd, R(add(eye, P(0, 7)), tilt)), 1.8, '#555');
+      return h + T(100, 14, 'vue de face · cercle lent, épaules immobiles'); } },
+    // vue de dos : les omoplates montent, se serrent, descendent puis s'écartent
+    scap_cars:{ per:6, vb:'0 0 200 220', f:t => { const th = 2*Math.PI*t, dy = -10*Math.cos(th), dm = 8*Math.sin(th);
+      const sh = [P(62 + dm, 120 + dy), P(138 - dm, 120 + dy)];
+      let h = L(P(100, 150), P(100, 215), 62) + L(sh[0], sh[1], 24) + L(P(100, 112), P(100, 210), 2, B2);
+      for (const s of sh) { const e = add(s, P(s.x < 100 ? -6 : 6, 46)); h += L(s, e, 17) + L(e, add(e, P(0, 42)), 15); }
+      for (const [s, k] of [[sh[0], 1], [sh[1], -1]]) { const a = add(s, P(k*12, 4)), b = add(s, P(k*32, 6)), c = add(s, P(k*24, 42));
+        h += `<path d="M${a.x},${a.y} L${b.x},${b.y} L${c.x},${c.y} Z" fill="${A}" opacity=".9" stroke="${A}" stroke-width="4" stroke-linejoin="round"/>`; }
+      h += L(P(100, 108), P(100, 86), 15) + C(P(100, 70), 21, B2);
+      const lab = ['monte', 'serre', 'descends', 'écarte'][Math.round(th / (Math.PI/2)) % 4];
+      return h + T(100, 14, `vue de dos · ${lab}`); } },
+    // vue de profil : bras tendu, grand cercle avant → haut → arrière, puis retour par le même chemin
+    shoulder_cars:{ per:12, vb:'0 0 200 270', f:t => { const u = t < .5 ? ease(2*t) : 1 - ease(2*t - 1), ph = D(350*u);
+      const sh = P(104, 88), hip = P(104, 158), kn = P(104, 208), an = P(104, 258);
+      let h = `<circle cx="${sh.x}" cy="${sh.y}" r="88" fill="none" stroke="${A}" stroke-width="1.4" stroke-dasharray="3 4" opacity=".6"/>`;
+      h += L(sh, add(sh, P(4, 50)), 15, B2) + L(add(sh, P(4, 50)), add(sh, P(2, 92)), 13, B2);
+      h += L(hip, kn, 22) + L(kn, an, 19) + L(an, P(88, 262), 10) + L(hip, sh, 40) + L(sh, P(102, 66), 15) + C(P(98, 50), 19) + C(P(80, 52), 4);
+      const hand = add(sh, P(-88*Math.sin(ph), 88*Math.cos(ph))), out = ph > D(150) && ph < D(280);
+      h += L(sh, hand, 16, A) + C(hand, 9, out ? '#c96a35' : A);
+      return h + T(100, 14, out ? 'paume tournée vers l’extérieur' : 'vue de profil · bras tendu, buste gainé'); } },
+    // vue depuis la tête : couché sur le côté, le bras du dessus s'ouvre de l'avant vers l'arrière, le regard suit la main
+    open_book:{ per:7, vb:'0 0 260 200', f:t => { const s = ease(t < .5 ? 2*t : 2 - 2*t), psi = D(60*s), a = D(215 - 240*s);
+      const bs = P(120, 170), ts = add(bs, R(P(0, -62), psi)), dir = P(Math.cos(a), -Math.sin(a)), hand = add(ts, mul(dir, 82));
+      let h = L(P(10, 186), P(250, 186), 2, B2) + `<rect x="34" y="150" width="46" height="30" rx="14" fill="${B2}"/>` + T(57, 144, 'genoux');
+      h += L(bs, P(36, 178), 15, B2) + L(bs, ts, 36) + L(ts, hand, 16, A) + C(hand, 8, A);
+      const hc = add(bs, R(P(0, -31), psi)); h += C(hc, 20) + C(add(hc, mul(dir, 13)), 3, '#222');
+      return h + T(130, 14, 'vue depuis la tête · expire en ouvrant'); } },
+    // vue de dessus : avant-bras collé au montant, le buste tourne à l'opposé
+    pec_wall:{ per:7, vb:'0 0 220 200', f:t => { const b = D(35*ease(t < .5 ? 2*t : 2 - 2*t)), M = P(130, 120);
+      const ls = add(M, R(P(-38, 0), b)), rs = add(M, R(P(38, 0), b)), E = P(36, 120), face = R(P(0, -1), b);
+      let h = `<rect x="14" y="30" width="14" height="150" rx="3" fill="${B2}"/>` + T(21, 194, 'montant');
+      h += L(ls, rs, 30) + L(rs, add(rs, R(P(16, 20), b)), 15) + L(ls, E, 16, A) + C(E, 10, A);
+      h += L(add(ls, mul(face, 8)), add(add(ls, mul(face, 8)), R(P(26, 0), b)), 8, A);
+      return h + C(M, 20) + C(add(M, mul(face, 15)), 3.5, '#222') + T(125, 14, 'vue de dessus · le buste tourne'); } },
+  };
+  const has = id => !!S[id];
+  const svg = (id, t = 0) => S[id] ? `<svg viewBox="${S[id].vb}" class="manim" data-ex="${id}" role="img" aria-label="Animation ${id}">${S[id].f(t)}</svg>` : '';
+  let raf = 0, t0 = 0;
+  function loop(ts){ const els = document.querySelectorAll('svg.manim[data-ex]'); if (!els.length) { raf = 0; return; }
+    t0 ||= ts; for (const el of els) { const s = S[el.dataset.ex]; el.innerHTML = s.f(((ts - t0) / 1000 / s.per) % 1); }
+    raf = requestAnimationFrame(loop); }
+  const start = () => { if (!raf) raf = requestAnimationFrame(loop); };
+  return { has, svg, start, S };
+})();
+
 /* ============ mobilité : routines natation / vélo / course (5, 10, 20 min) ============
    CARs (Controlled Articular Rotations, Functional Range Conditioning) : rotations actives, lentes, gainées, en bout d'amplitude.
    Étirements tenus < 60 s par muscle avant l'effort (Behm et al. 2016, APNM 41:1-11) ; dynamique en échauffement. */
@@ -3541,8 +3612,9 @@ const Mobility = (() => {
     openDlg(`<span class="muted small">${s.focus}</span><h2 style="margin:4px 0 8px">${s.ic} Mobilité ${s.l.toLowerCase()}</h2>
       <div class="seg" style="margin:0 0 10px">${[5,10,20].map(m => `<button type="button" data-mobdurdlg="${m}" data-sp="${sp}" class="${m === d ? 'on' : ''}">${m} min</button>`).join('')}</div>
       <p class="small muted" style="margin:0 0 10px">${s.note}</p>
-      <div>${s.r[d].map(([id, sec], i) => { const x = X[id]; return `<div class="hist" style="align-items:flex-start"><span class="num muted" style="width:18px">${i + 1}</span><div style="flex:1;min-width:0"><b>${x[0]}${x[3] ? ' <span class="tiny muted">(chaque côté)</span>' : ''}</b> <span class="chip tiny">${TAG[x[1]]}</span><div class="tiny muted">${x[2]}</div></div><b class="num small">${fmtS(sec)}</b></div>`; }).join('')}</div>
+      <div>${s.r[d].map(([id, sec], i) => { const x = X[id]; return `<div class="hist" style="align-items:flex-start">${MobAnim.has(id) ? `<span class="mthumb">${MobAnim.svg(id)}</span>` : `<span class="num muted" style="width:18px">${i + 1}</span>`}<div style="flex:1;min-width:0"><b>${x[0]}${x[3] ? ' <span class="tiny muted">(chaque côté)</span>' : ''}</b> <span class="chip tiny">${TAG[x[1]]}</span><div class="tiny muted">${x[2]}</div></div><b class="num small">${fmtS(sec)}</b></div>`; }).join('')}</div>
       <div class="row" style="margin-top:12px"><button class="btn primary" data-mobgo="${sp}">▶ Démarrer (${d} min)</button><button class="btn ghost" data-mobdone="${sp}">Déjà faite</button></div>`);
+    MobAnim.start();
   }
   // lecteur guidé : un exercice à la fois, compte à rebours, changement de côté à mi-temps
   let P = null;
@@ -3551,7 +3623,7 @@ const Mobility = (() => {
     stop(); const s = SP[sp], d = dur(), list = s.r[d];
     P = { sp, d, list, i:0, left:list[0][1], paused:false, iv:null, wl:null };
     try { navigator.wakeLock?.request('screen').then(w => { if (P) P.wl = w; }).catch(() => {}); } catch(e){}
-    openDlg(`<span class="muted small" id="mpTop"></span><h2 id="mpName" style="margin:4px 0 6px"></h2><div id="mpTag"></div>
+    openDlg(`<span class="muted small" id="mpTop"></span><h2 id="mpName" style="margin:4px 0 6px"></h2><div id="mpTag"></div><div id="mpAnim" class="mpanim"></div>
       <div class="num" id="mpT" style="font-size:72px;font-weight:800;text-align:center;margin:10px 0 2px"></div><div class="tiny" id="mpSide" style="text-align:center;min-height:18px;color:var(--accent)"></div>
       <div class="bar" style="margin:10px 0"><i id="mpBar" style="width:0%"></i></div>
       <p class="small" id="mpCue" style="min-height:66px"></p><p class="tiny muted" id="mpNext"></p>
@@ -3559,7 +3631,7 @@ const Mobility = (() => {
     const tot = list.reduce((a, x) => a + x[1], 0);
     const draw = () => { if (!P) return; const [id, sec] = list[P.i], x = X[id], el = sec - P.left;
       $('#mpTop').textContent = `${s.ic} ${s.l} · ${d} min · ${P.i + 1}/${list.length}`; $('#mpName').textContent = x[0];
-      $('#mpTag').innerHTML = `<span class="chip tiny">${TAG[x[1]]}</span>`; $('#mpT').textContent = `${Math.floor(P.left/60)}:${pad(P.left % 60)}`;
+      $('#mpTag').innerHTML = `<span class="chip tiny">${TAG[x[1]]}</span>`; if (P.shown !== P.i) { P.shown = P.i; $('#mpAnim').innerHTML = MobAnim.svg(id); $('#mpAnim').classList.toggle('hidden', !MobAnim.has(id)); MobAnim.start(); } $('#mpT').textContent = `${Math.floor(P.left/60)}:${pad(P.left % 60)}`;
       $('#mpSide').textContent = x[3] ? (el < sec/2 ? 'Côté 1' : 'Côté 2 — change de côté') : '';
       $('#mpCue').textContent = x[2]; $('#mpNext').textContent = list[P.i + 1] ? `Ensuite : ${X[list[P.i + 1][0]][0]}` : 'Dernier exercice';
       const doneSec = list.slice(0, P.i).reduce((a, y) => a + y[1], 0) + el; $('#mpBar').style.width = `${doneSec/tot*100}%`;
