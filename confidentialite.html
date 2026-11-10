@@ -25,19 +25,21 @@ td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertic
 <main>
 <a class="back" href="./">← Retour à FTP Builder</a>
 <h1>Politique de confidentialité</h1>
-<p class="muted">FTP Builder · dernière mise à jour : 20 octobre 2026</p>
+<p class="muted">FTP Builder · dernière mise à jour : 10 novembre 2026</p>
 
-<p>FTP Builder est une application gratuite et personnelle de suivi d'entraînement vélo, éditée par Arnaud Lacaze (particulier). Cette page explique quelles données sont utilisées, pourquoi, et comment les supprimer.</p>
+<p>FTP Builder est une application gratuite et personnelle de suivi d'entraînement (vélo, course à pied, natation), éditée par Arnaud Lacaze (particulier). Cette page explique quelles données sont utilisées, pourquoi, et comment les supprimer.</p>
 
 <h2>Données utilisées</h2>
 <table>
 <tr><th>Donnée</th><th>Pourquoi</th></tr>
 <tr><td>Adresse e-mail (et nom/photo de profil si tu te connectes avec Google)</td><td>Créer ton compte et te reconnaître d'un appareil à l'autre.</td></tr>
 <tr><td>Profil sportif : âge, sexe, poids, taille, FTP, fréquence cardiaque max, disponibilités</td><td>Calculer tes zones d'entraînement et générer ton plan.</td></tr>
-<tr><td>Séances : puissance, fréquence cardiaque, cadence, durée, distance, ressentis et commentaires</td><td>Suivre ta progression et adapter les séances.</td></tr>
+<tr><td>Séances : puissance, fréquence cardiaque, cadence, vitesse, altitude, durée, distance, tours et intervalles, ressentis et commentaires</td><td>Suivre ta progression, recomposer tes séances bloc par bloc et adapter le plan.</td></tr>
+<tr><td>Tracé GPS des sorties en extérieur (version allégée)</td><td>Afficher le parcours en 3D et repérer les montées.</td></tr>
+<tr><td>Bien-être, si tu l'envoies : sommeil, variabilité cardiaque (VFC), fréquence cardiaque au repos, poids</td><td>Estimer ton énergie du jour et ta récupération.</td></tr>
 <tr><td>Fichiers .fit que tu importes</td><td>Lus dans ton navigateur pour en extraire les chiffres ; le fichier lui-même n'est pas envoyé au serveur.</td></tr>
 </table>
-<p>Aucune donnée de localisation GPS n'est conservée. Aucun cookie publicitaire, aucun outil de mesure d'audience.</p>
+<p>Aucune localisation en temps réel n'est collectée : seuls les tracés de tes séances terminées sont conservés. Aucun cookie publicitaire, aucun outil de mesure d'audience.</p>
 
 <h2>Où sont stockées les données</h2>
 <ul>
@@ -50,7 +52,13 @@ td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertic
 <p>Si tu choisis « Continuer avec Google », FTP Builder reçoit uniquement ton adresse e-mail, ton nom et ta photo de profil (autorisations <code>openid</code>, <code>email</code>, <code>profile</code>). L'app n'accède ni à Gmail, ni à Drive, ni à aucune autre donnée Google. L'utilisation des informations reçues des API Google respecte la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, y compris les exigences d'utilisation limitée (Limited Use).</p>
 
 <h2>Services de données sportives</h2>
-<p>Si tu relies un service tiers (par exemple Intervals.icu ou Strava), FTP Builder récupère uniquement tes activités vélo (puissance, fréquence cardiaque, cadence, durée) pour les ajouter à ton suivi. Tu peux couper ce lien à tout moment depuis l'app ou depuis le service concerné.</p>
+<p>Ces connexions sont facultatives. Tu peux les couper à tout moment depuis l'app (Profil) ou depuis le service concerné ; l'accès est alors révoqué.</p>
+<ul>
+<li><b>Intervals.icu</b> : FTP Builder lit tes activités (vélo, course, natation et autres) avec leurs flux, tours et tracés, ainsi que ton bien-être (VFC, FC repos, sommeil, poids). Il écrit dans ton calendrier Intervals uniquement les séances planifiées par FTP Builder, pour qu'elles arrivent sur ta montre ou ton compteur. Rien d'autre n'est modifié.</li>
+<li><b>Strava</b> : FTP Builder lit tes sorties vélo (puissance, fréquence cardiaque, cadence, vitesse, tracé). Il n'écrit rien sur Strava. Les données Strava ne sont visibles que par toi, ne sont jamais montrées à d'autres utilisateurs et ne sont pas utilisées hors de ton suivi.</li>
+<li><b>Apple Santé</b> (iPhone) : un Raccourci iOS que tu installes toi-même envoie chaque jour ton sommeil, ta VFC, ta FC au repos, ton poids et tes entraînements. Tu choisis ce qui est partagé dans le Raccourci.</li>
+</ul>
+<p>Les jetons d'accès à ces services sont stockés côté serveur, jamais dans l'app, et supprimés quand tu te déconnectes.</p>
 
 <h2>Partage</h2>
 <p>Tes données ne sont ni vendues, ni louées, ni partagées avec des annonceurs. Elles ne servent pas à entraîner de modèles d'intelligence artificielle. Seuls les prestataires techniques cités plus haut (Supabase, GitHub, Google pour la connexion) les traitent, pour faire fonctionner l'app.</p>
