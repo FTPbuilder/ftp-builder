@@ -1,6 +1,6 @@
 // Recomposition de séance : parseur (texte libre -> blocs), calage sur le flux distance/FC, écran et suivi par bloc.
 import fs from 'fs';
-const html = fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+const jsDir = new URL('../js/', import.meta.url); const html = [fs.readFileSync(new URL('../index.html', import.meta.url), 'utf8'), ...fs.readdirSync(jsDir).sort().map(f => fs.readFileSync(new URL(f, jsDir), 'utf8'))].join('\n');
 const Recomp = new Function(html.slice(html.indexOf('/* ===== RECOMP ====='), html.indexOf('/* ===== /RECOMP ===== */')) + '; return Recomp;')();
 const assert = (c, m) => { if (!c) { console.error('ÉCHEC', m); process.exitCode = 1; } else console.log('ok', m); };
 const TXT = `400m échauffement crawl brasse crawl
@@ -51,7 +51,7 @@ assert(Recomp.unparsed("500 pull\nnotes du coach\n200", 'swim').join() === 'note
   assert(Math.abs(r9.items[3].sec - 1009) < 6, '1050 pull ≈ 16\'49 comme la montre'); }
 
 // écran
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-11-03T20:00:00+01:00'));
@@ -67,7 +67,7 @@ await pg.addInitScript(([prev, prevRef]) => {
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname); await pg.waitForTimeout(300);
 const laps = swimStream(items);
 await pg.evaluate(([laps]) => { window.lapsFor = async () => laps; }, [laps]);
-await pg.tap('.tile[data-pane="heures"]'); await pg.waitForTimeout(200);
+await pg.tap('.home [data-pane="heures"]'); await pg.waitForTimeout(200);
 await pg.locator(`[data-ssess="${curRef}"]`).tap(); await pg.waitForTimeout(200);
 assert(await pg.locator('#dlg [data-recomp]').count() === 1, 'bouton « Recomposer » sur la fiche natation');
 await pg.locator('#dlg [data-recomp]').tap(); await pg.waitForTimeout(200);

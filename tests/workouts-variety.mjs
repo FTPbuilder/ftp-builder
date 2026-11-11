@@ -1,4 +1,4 @@
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 import fs from 'fs';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs=[]; pg.on('pageerror', e=>errs.push(e.message));
@@ -27,5 +27,5 @@ await pg.click('#dlg [data-sx="harder"]'); console.log('harder ->', await pg.eva
 await pg.click('#dlg [data-sx="orig"]'); console.log('orig ->', await pg.evaluate(id=>FTPB.S.plan.find(s=>s.id===id).workoutId, sid));
 const before = await pg.evaluate(id=>FTPB.S.plan.find(s=>s.id===id).date, sid);
 await pg.click('#dlg [data-sx="post"]'); console.log('post', before, '->', await pg.evaluate(id=>FTPB.S.plan.find(s=>s.id===id).date, sid));
-await pg.screenshot({ path:'adj.png', fullPage:false });
+await pg.screenshot({ path: (process.env.SCRATCH || '.') + '/adj.png', fullPage:false });
 console.log('errs', errs); await b.close();

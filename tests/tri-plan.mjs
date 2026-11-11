@@ -1,5 +1,5 @@
 // Plan triathlon : création depuis le calendrier, séances nat / course alignées sur les semaines vélo, semaine de course, fiche séance.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const assert = (c, m) => { if (!c) { console.error('ÉCHEC', m); process.exitCode = 1; } else console.log('ok', m); };
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));

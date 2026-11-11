@@ -1,0 +1,29 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      SCRATCH: ${{ github.workspace }}/.scratch
+      PW_REQUIRE: ${{ github.workspace }}/.scratch/node_modules/x.js
+      THREE_JS: ${{ github.workspace }}/.scratch/node_modules/three/build/three.min.js
+      JOBS: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Syntaxe et ordre de chargement
+        run: node tests/check-syntax.mjs
+      - name: Dépendances de test
+        run: |
+          mkdir -p "$SCRATCH" && cd "$SCRATCH" && npm init -y >/dev/null
+          npm i --no-audit --no-fund playwright fit-file-parser @garmin/fitsdk @supabase/supabase-js@2.45.4 three@0.147.0
+          npx playwright install --with-deps chromium
+      - name: Tests navigateur
+        run: node tests/run-all.mjs

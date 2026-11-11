@@ -1,4 +1,4 @@
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs=[]; pg.on('pageerror', e=>errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-10-25T20:00:00+01:00'));

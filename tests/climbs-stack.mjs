@@ -1,6 +1,6 @@
 // Ascensions en pile façon dossiers (4 montées), « + Découvrir » pour tout déplier, autres sports repliés en bas de Progression
 // + nommage par la fonction serveur climb-names une fois la session prête
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: process.env.DARK ? 'dark' : 'light' });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));

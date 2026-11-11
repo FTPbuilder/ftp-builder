@@ -1,5 +1,5 @@
 // Défis : un état avec l'ancien défi « Squats » le passe en archive (historique conservé) et ouvre « Squats bulgares ».
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-11-02T08:00:00+01:00'));
@@ -10,7 +10,7 @@ await pg.addInitScript(() => {
                  { id:'chaise', name:'Chaise', unit:'min', target:300, step:[1,2,5], start:'2026-10-21', end:'2027-03-15', entries:{'2026-10-27':5} } ] }));
 });
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname); await pg.waitForTimeout(300);
-await pg.tap('.tile[data-pane=defis]'); await pg.waitForTimeout(200);
+await pg.tap('.home [data-pane=defis]'); await pg.waitForTimeout(200);
 const active = await pg.$$eval('.chhead > b', x => x.map(e => e.textContent.replace('›', '').trim()));
 const arch = (await pg.locator('.card:has(h2:text("Défis archivés"))').innerText()).replace(/\s+/g, ' ');
 await pg.tap('[data-chadd="bulgares"][data-v="16"]');

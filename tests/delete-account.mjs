@@ -1,11 +1,11 @@
 // Réglages › Compte › Supprimer mon compte : confirmation SUPPRIMER, appel de la fonction delete-account, effacement local (Supabase simulé ; supabase-js local dans /tmp/sbjs)
 // teste l'UI de suppression avec Supabase simulé
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] }); const pg = await ctx.newPage();
 const errs=[]; pg.on('pageerror', e=>errs.push(e.message));
 let called = null;
 const fs = await import('fs');
-await pg.route('**/cdn.jsdelivr.net/npm/@supabase/**', r => r.fulfill({ status:200, contentType:'application/javascript', body: fs.readFileSync('/tmp/sbjs/node_modules/@supabase/supabase-js/dist/umd/supabase.js','utf8') }));
+await pg.route('**/cdn.jsdelivr.net/npm/@supabase/**', r => r.fulfill({ status:200, contentType:'application/javascript', body: fs.readFileSync((process.env.SCRATCH || '/tmp/sbjs') + '/node_modules/@supabase/supabase-js/dist/umd/supabase.js','utf8') }));
 await pg.route('**/jhemwfhmohqncywjixgh.supabase.co/**', async r => { const u = new URL(r.request().url());
   if (u.pathname.endsWith('/delete-account')) { called = r.request().postData(); return r.fulfill({ status:200, contentType:'application/json', headers:{'access-control-allow-origin':'*'}, body:'{"deleted":true}' }); }
   if (r.request().method()==='OPTIONS') return r.fulfill({ status:200, headers:{'access-control-allow-origin':'*','access-control-allow-headers':'*'} });

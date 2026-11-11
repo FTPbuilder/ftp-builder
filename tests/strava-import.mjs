@@ -1,9 +1,9 @@
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 import fs from 'fs'; import { createRequire } from 'module';
-const req = createRequire(process.cwd() + '/package.json'); const FP = req('fit-file-parser'); const F = FP.default || FP;
-const SC = process.cwd();
+const req = createRequire((process.env.SCRATCH || process.cwd()) + '/package.json'); const FP = req('fit-file-parser'); const F = FP.default || FP;
+const SC = process.env.SCRATCH || process.cwd();
 // flux Strava simulés à partir de ta vraie séance du 19/10
-const fit = await new Promise(r => new F({ mode:'list' }).parse(fs.readFileSync('/home/claude/ftp-builder/tests/2026-10-19_seance.fit'), (e,d)=>r(d)));
+const fit = await new Promise(r => new F({ mode:'list' }).parse(fs.readFileSync(new URL('./2026-10-19_seance.fit', import.meta.url).pathname), (e,d)=>r(d)));
 const t0 = new Date(fit.records[0].timestamp).getTime()/1000;
 const streams = { time: fit.records.map(x => Math.round(new Date(x.timestamp).getTime()/1000 - t0)), watts: fit.records.map(x=>x.power??null), heartrate: fit.records.map(x=>x.heart_rate??null), cadence: fit.records.map(x=>x.cadence??null) };
 const row = { id: 1, strava_id: 123456, activity: { id:123456, name:'Home trainer - test Strava', sport_type:'VirtualRide', start_date: new Date(t0*1000).toISOString(), moving_time: 3155, elapsed_time: 3155, distance: 23955, trainer:true, device_watts:true, average_watts:204, average_heartrate:157, max_heartrate:183 }, streams };

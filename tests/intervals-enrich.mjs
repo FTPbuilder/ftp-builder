@@ -1,6 +1,6 @@
 // Sorties déjà importées sans vitesse/altitude (.fit ancien, import d'avant v0.11) : complétées depuis Intervals ;
 // enregistrement parasite de 1 s supprimé ; sortie d'avant le programme qui ne compte plus comme séance.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const SC = process.env.SCRATCH || process.cwd();
 const t0 = Date.parse('2026-10-26T07:08:35Z')/1000, N = 999;
 const streams = { time: [], watts: null, heartrate: [], cadence: [], velocity_smooth: [], altitude: [], distance: [] };

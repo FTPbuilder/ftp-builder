@@ -2,3 +2,5 @@ node_modules/
 *.zip
 .DS_Store
 eval-*.png
+abs*.png
+adj.png

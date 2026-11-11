@@ -1,13 +1,13 @@
 // Tracé 3D : sortie extérieure avec GPS (col simulé) → vue 3D paysage/portrait, lecture ▶, traceur synchronisé avec la portion parcourue
 // Three.js est servi depuis node_modules (SCRATCH/three) à la place du CDN ; les tuiles satellite par SCRATCH/tile.png.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
 const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
-await pg.route('**/three@0.147.0/build/three.min.js', r => r.fulfill({ path: out + '/three/node_modules/three/build/three.min.js', contentType: 'application/javascript' }));
-await pg.route('**/three@0.147.0/examples/js/controls/OrbitControls.js', r => r.fulfill({ path: out + '/three/node_modules/three/examples/js/controls/OrbitControls.js', contentType: 'application/javascript' }));
-let tiles = 0; await pg.route('**/World_Imagery/MapServer/tile/**', r => { tiles++; return r.fulfill({ path: out + '/tile.png', contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' } }); });
+await pg.route('**/three@0.147.0/build/three.min.js', r => r.fulfill({ path: out + '/node_modules/three/build/three.min.js', contentType: 'application/javascript' }));
+await pg.route('**/three@0.147.0/examples/js/controls/OrbitControls.js', r => r.fulfill({ path: out + '/node_modules/three/examples/js/controls/OrbitControls.js', contentType: 'application/javascript' }));
+let tiles = 0; await pg.route('**/World_Imagery/MapServer/tile/**', r => { tiles++; return r.fulfill({ path: new URL('./fixtures/tile.png', import.meta.url).pathname, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' } }); });
 await pg.clock.setFixedTime(new Date('2026-10-27T21:30:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');

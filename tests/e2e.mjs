@@ -1,5 +1,5 @@
 // Test bout-en-bout : questionnaire → plan → import .fit → export workout .fit relu par fit-file-parser
-const { chromium } = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const { chromium } = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 import fs from 'fs'; import path from 'path'; import { createRequire } from 'module';
 const require = createRequire(process.env.SCRATCH + '/package.json');
 const FP = require('fit-file-parser'); const FitParser = FP.default || FP;

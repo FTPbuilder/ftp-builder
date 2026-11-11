@@ -1,5 +1,5 @@
 // Après le test final : semaines de consolidation variées (cycle 3 + 1 allégée) et alerte si le test final tombe bien avant la fin du plan
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const pg = await (await b.newContext()).newPage(); const errs=[]; pg.on('pageerror',e=>errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-11-09T08:00:00+01:00'));
 await pg.goto('file:///home/claude/ftp-builder/index.html'); await pg.waitForTimeout(800);

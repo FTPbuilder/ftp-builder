@@ -1,5 +1,5 @@
 // Accueil : ordre des tuiles, tuile « Heures de sport » (7 j glissants, hors vélotaf et marche) et son volet à 3 graphiques.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-11-01T20:00:00+01:00'));
@@ -33,10 +33,10 @@ console.log('tiles', JSON.stringify(tiles));
 // 7 j (26/10→01/11) : SS 61 + renfo 42 + nat 46 + course 56 + course 44 + nat 35 = 284 min = 4,7 h (vélotaf exclu)
 // 7 j précédents (19→25/10) : course 39 + 44 + nat 37 + vélo 212 = 332 min = 5,5 h (marche exclue)
 await pg.locator('.tiles-home').screenshot({ path:'tiles.png' });
-await pg.tap('.tile[data-pane="heures"]'); await pg.waitForTimeout(300);
+await pg.tap('.home [data-pane="heures"]'); await pg.waitForTimeout(300);
 console.log('heures cards', await pg.$$eval('#todayPane .card h2', h => h.map(x => x.textContent)));
 console.log('legend run', (await pg.locator('#todayPane .card').nth(2).locator('.mleg').innerText()).replace(/\s+/g, ' '));
 await pg.screenshot({ path:'heures.png', fullPage:true });
-await pg.tap('[data-paneback]'); await pg.tap('.tile[data-pane="prog"]'); await pg.waitForTimeout(300);
+await pg.tap('[data-paneback]'); await pg.tap('.home [data-pane="prog"]'); await pg.waitForTimeout(300);
 console.log('prog order', await pg.$$eval('#todayPane > *', els => els.map(e => e.classList.contains('arcs-wrap') ? 'carrousel' : (e.querySelector('h2')?.textContent || e.className).slice(0, 30))));
 console.log('errs', errs); await b.close();

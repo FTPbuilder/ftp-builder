@@ -1,5 +1,5 @@
 // Défis : 2 carrés (défis partagés / amis), pile Squats / Chaise / Mobilité, routines 5/10/20 min et lecteur guidé
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader'] }); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark' });
 const pg = await ctx.newPage();

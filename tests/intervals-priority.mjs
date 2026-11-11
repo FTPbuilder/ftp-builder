@@ -1,6 +1,6 @@
 // Intervals.icu prioritaire : une sortie dehors sans capteur arrive avec FC, vitesse, altitude seconde par seconde
 // et remplace la version Apple Santé (résumé seul) en gardant les corrections faites à la main.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const SC = process.env.SCRATCH || process.cwd();
 const t0 = Date.parse('2026-10-26T07:08:35Z')/1000, N = 999;
 const streams = { time: [], watts: null, heartrate: [], cadence: [], velocity_smooth: [], altitude: [], distance: [] };

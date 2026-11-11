@@ -1,5 +1,5 @@
 // Écran d'ouverture : logo + roues qui tournent + éclairs, 2 s puis fondu ; absent sous test automatisé.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const assert = (c, m) => { if (!c) { console.error('ÉCHEC', m); process.exitCode = 1; } else console.log('ok', m); };
 const b = await pw.chromium.launch(); const url = 'file://' + new URL('../index.html', import.meta.url).pathname;

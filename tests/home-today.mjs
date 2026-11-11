@@ -1,5 +1,5 @@
 // Accueil « Aujourd'hui », vocabulaire Énergie, compteurs de semaine, barre d'onglets, actions secondaires, « Ma semaine » partagée.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const assert = (c, m) => { if (!c) { console.error('ÉCHEC', m); process.exitCode = 1; } else console.log('ok', m); };
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme:'dark' });
@@ -23,7 +23,7 @@ assert(/J-\d+/.test(ct), 'compte à rebours de la course');
 assert(await card.locator('.tbatt svg').count() === 1, 'batterie dans la carte');
 const tiles = await pg.$$eval('.tile .tl', x => x.map(e => e.textContent));
 assert(tiles.includes('Énergie') && !tiles.includes('Forme'), 'tuile « Énergie »');
-const prog = (await pg.locator('.tile[data-pane="prog"]').innerText()).replace(/\s+/g, ' ');
+const prog = (await pg.locator('.home [data-pane="prog"]').innerText()).replace(/\s+/g, ' ');
 assert(/\d+\/\d+ cette semaine · J-\d+/.test(prog), 'tuile Programme : semaine en cours + J-');
 const lbls = await pg.$$eval('#tabs .lbl', x => x.map(e => getComputedStyle(e).position + ':' + e.offsetHeight));
 assert(lbls.every(l => !l.startsWith('absolute') && +l.split(':')[1] > 5), 'libellés visibles sous les icônes');

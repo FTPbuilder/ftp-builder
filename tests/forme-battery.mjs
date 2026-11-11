@@ -1,5 +1,5 @@
 // Forme du jour : batterie (vert ≥ 60, jaune 35–59, rouge < 35) à la place de l'arc.
-const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); let bad = 0;
 for (const scheme of ['dark', 'light']) {
