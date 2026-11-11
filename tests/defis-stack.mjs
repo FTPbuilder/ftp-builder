@@ -32,10 +32,11 @@ r.no3d = await pg.evaluate(() => Object.keys(Mobility.X).filter(id => !Mannequin
 await pg.click('#mpPause'); for (let k = 0; k < 4; k++) await pg.click('#mpSkip'); await pg.waitForTimeout(200);
 r.log = await pg.evaluate(() => FTPB.S.mobility);
 // lecteur vélo : CARs hanche 60 s, chaque côté → 3-2-1 avant le changement à 30 s, puis 3-2-1 avant l'exercice suivant
-await pg.evaluate(() => { closeDlg(); Mobility.play('bike'); }); await pg.waitForTimeout(300); await pg.evaluate(() => Mannequin.stop());
-await pg.clock.runFor(27000); r.cd1 = await pg.locator('#mpSide').innerText();
-await pg.clock.runFor(3000); r.side2 = await pg.locator('#mpSide').innerText();
-await pg.clock.runFor(28000); r.cd2 = await pg.locator('#mpSide').innerText(); r.snd = await pg.locator('#mpSnd').innerText();
+await pg.evaluate(() => { closeDlg(); Mobility.play('bike'); }); await pg.waitForFunction(() => document.querySelector('#mpAnim canvas'), null, { timeout: 30000 }); await pg.waitForTimeout(300); await pg.evaluate(() => Mannequin.stop());
+for (let k = 0; k < 27; k++) await pg.clock.runFor(1000);
+r.cd1 = await pg.locator('#mpSide').innerText();
+for (let k = 0; k < 3; k++) await pg.clock.runFor(1000); r.side2 = await pg.locator('#mpSide').innerText();
+for (let k = 0; k < 28; k++) await pg.clock.runFor(1000); r.cd2 = await pg.locator('#mpSide').innerText(); r.snd = await pg.locator('#mpSnd').innerText();
 await pg.evaluate(() => closeDlg());
 r.after = await pg.locator('.dcard.open').innerText();
 console.log(JSON.stringify(r, null, 1));
