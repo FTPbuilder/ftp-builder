@@ -534,7 +534,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.31.0';
+const APP_VERSION = '0.31.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -700,7 +700,7 @@ function weekKinds(p){
     if (i === 0) { k.kind = 'calib'; k.block = 'Calibration'; continue; }
     if (i === g) { k.kind = 'final'; k.block = 'Affûtage · Test final'; continue; }
     if (i === g-1) { k.kind = 'taper'; k.block = 'Affûtage'; continue; }
-    if (i > g) { k.kind = 'bonus'; k.block = 'Consolidation'; continue; }
+    if (i > g) { k.kind = 'bonus'; k.bj = i - g - 1; k.block = k.bj % 4 === 3 ? 'Consolidation · allégée' : 'Consolidation'; continue; }
     if (inHol) { k.kind = 'holiday'; k.block = 'Fêtes · Maintien'; continue; }
     const pos = load % 4;
     const b = Math.min(Math.floor(load/4), BLOCKS.length-1);
@@ -768,10 +768,14 @@ function generatePlan(p, keepFrom){
       case 'holiday': {
         add(k.ws, kd(0), 'ss_3x12', 'key', k);
         O.forEach(d => add(k.ws, d, 'end_90', 'optional', k)); break; }
-      case 'bonus': {
-        add(k.ws, kd(0), 'thr_2x20', 'key', k);
-        if (K.length >= 2) add(k.ws, kd(1), 'vo2_5x4', 'key', k);
-        O.forEach(d => add(k.ws, d, 'end_90', 'optional', k)); break; }
+      case 'bonus': { // après le test final : cycles de 4 semaines (3 de maintien qui tournent + 1 allégée), plus jamais la même semaine
+        const j = k.bj || 0;
+        if (j % 4 === 3) { add(k.ws, kd(0), 'rec_45', 'recovery', k); if (K.length >= 2) add(k.ws, kd(1), 'end_60', 'recovery', k); break; }
+        const x = Math.floor(j / 4) * 3 + j % 4;
+        const T1 = ['thr_2x20','ou_3x9','thr_3x12','thr_2x15','thr_prog','thr_5x6'], T2 = ['vo2_5x4','vo2_4020','vo2_6x3','vo2_8x2','vo2_pyr','vo2_3030'], T3 = ['ss_2x20','force_4x8','tempo_2x20','ss_ou'];
+        const kw = [T1[x % T1.length], T2[x % T2.length], T3[x % T3.length]];
+        K.forEach((d, n) => add(k.ws, d, kw[n % 3], 'key', k));
+        O.forEach((d, n) => add(k.ws, d, (p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','tempo_end'])[(x + n) % 3], 'optional', k)); break; }
     }
   }
   return plan.sort((a,b)=>a.date.localeCompare(b.date));
@@ -3058,6 +3062,9 @@ function goalCheckText(p){
   if (pct > 15) { cls = 'bad'; msg += ` C'est très ambitieux : au-delà de 10-12 % en 4-5 mois, il faut un vrai volume (3 séances/sem. ou plus) et un peu de chance. Le plan reste valable, la projection te dira où tu en es.`; }
   else if (pct > 8) { cls = ''; msg += ` Ambitieux mais jouable avec de la régularité.`; }
   msg += ` Environ ${sessions} séances prévues.`;
+  const after = p.endDate ? Math.round(diffDays(p.goalDate, p.endDate) / 7) : 0;
+  if (after >= 2) { if (cls === 'ok') cls = ''; msg += ` Attention : ton test final (${fmtShort(p.goalDate)}) tombe ${after} semaines avant la fin du plan (${fmtShort(p.endDate)}). Après le test, l'app passe en « consolidation » (maintien). Si c'est ton vrai objectif, mets le test final plus près de la fin.`; }
+  else if (after < 0) { cls = 'bad'; msg += ` Le test final est après la date de fin du plan : recule la date de fin.`; }
   return `<div class="note ${cls}" style="margin:0">${esc(msg)}</div>`;
 }
 function bindQuestionnaire(onboarding){
