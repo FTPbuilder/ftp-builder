@@ -154,7 +154,11 @@ nav.tabs button .lbl{font:italic 800 12.5px/1 "Barlow Condensed","Arial Narrow",
 .home::before{top:-60px;height:400px;-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 34%,#000 62%,transparent 100%);mask-image:linear-gradient(to bottom,transparent 0,#000 34%,#000 62%,transparent 100%)}
 .home{--hs:clamp(196px,calc(100svh - 570px),240px)}
 .home .hero{width:var(--hs);height:var(--hs);margin:0 auto 12px}
-.home .hero .num0{font-size:calc(var(--hs) * .56);margin:4px 0 2px}
+.home .hero .num0{font-size:calc(var(--hs) * .48);margin:4px 0 2px}
+/* le texte reste dans le cercle intérieur : J-xx passe sous « cette semaine » */
+.home .hero .in{max-width:calc(var(--hs) - 56px)}
+.home .hero .hsub{flex-direction:column;gap:0;font-size:calc(var(--hs) * .062);text-align:center}
+.home .hero .hsub b{font-weight:700;color:var(--text);opacity:.85}
 .home .hc .num0{font-size:clamp(64px,19vw,82px)}
 .home .hc.wide{padding:12px 16px}
 .home .hc.wide .num0{font-size:64px;margin:8px 0 4px}
@@ -530,7 +534,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.30.1';
+const APP_VERSION = '0.30.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1838,7 +1842,7 @@ function homeHTML({ wk, sh, sc, ll, chs }){
   const [hi, hf] = fmtH(sh.cur).split(',');
   return `<div class="home">
     <button class="hero" data-pane="prog" aria-label="Programme : ${wk.done} séances faites sur ${wk.total} cette semaine">${homeRing(wk.total ? wk.done/wk.total : 0, 240, 16, 'var(--h-prog1)', 'var(--h-prog2)', 'hRingP')}
-      <span class="in"><span class="lab" style="color:var(--h-prog1)">Programme</span><span class="num0">${wk.done}<small>/${wk.total}</small></span><span class="sub">${triOn() ? `cette semaine · J-${Math.max(0, diffDays(t, tri().race.date))}` : 'cette semaine'}</span></span></button>
+      <span class="in"><span class="lab" style="color:var(--h-prog1)">Programme</span><span class="num0">${wk.done}<small>/${wk.total}</small></span><span class="sub hsub">cette semaine${triOn() ? `<b>J-${Math.max(0, diffDays(t, tri().race.date))}</b>` : ''}</span></span></button>
     <div class="grid">
       <button class="hc" data-pane="heures"><span class="top">${homeIcon('timer', 'var(--h-hrs)')}<span class="lab" style="color:var(--h-hrs)">Heures sport</span></span>
         <span class="num0">${hi}${hf ? `,${hf}` : ''}<small>h</small></span><span class="sub">${arrow}${up ? '+' : '−'}${fmtH(Math.abs(dh))} h vs 7 j</span>${homeSpark(hrs, 'var(--h-hrs)', 'hSpH')}</button>
