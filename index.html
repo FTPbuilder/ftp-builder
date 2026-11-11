@@ -534,7 +534,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.31.3';
+const APP_VERSION = '0.31.4';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -3894,10 +3894,18 @@ const Mobility = (() => {
   function tone(f, d, v){ if (!AC || !snd()) return; try { const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.frequency.value = f; o.type = f < 1500 ? 'sine' : 'square';
     g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + 0.02); } catch(e){} }
   const tick = () => tone(2200, 0.03, 0.05), beep = () => tone(880, 0.15, 0.35), gong = () => tone(1320, 0.5, 0.45);
-  function stop(){ Mannequin.stop(); if (P) { clearInterval(P.iv); try { P.wl?.release(); } catch(e){} P = null; } }
+  function stop(){ Mannequin.stop(); audioOff(); if (P) { clearInterval(P.iv); try { P.wl?.release(); } catch(e){} P = null; } }
+  // iOS coupe le Web Audio en mode silencieux : session « playback » (iOS 17+) + boucle <audio> muette (iOS plus anciens) pour passer en catégorie média
+  let SIL = null;
+  function silentLoop(){ if (SIL) return SIL; const n = 8000, b = new ArrayBuffer(44 + n), v = new DataView(b), w = (o, t) => [...t].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+    w(0, 'RIFF'); v.setUint32(4, 36 + n, true); w(8, 'WAVEfmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true); v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true); w(36, 'data'); v.setUint32(40, n, true);
+    for (let i = 0; i < n; i++) v.setUint8(44 + i, 128); SIL = new Audio(URL.createObjectURL(new Blob([b], { type: 'audio/wav' }))); SIL.loop = true; SIL.setAttribute('playsinline', ''); return SIL; }
+  function audioOn(){ if (!snd()) return; try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch(e){}
+    try { silentLoop().play().catch(() => {}); } catch(e){}
+    try { AC ||= new (window.AudioContext || window.webkitAudioContext)(); AC.resume?.(); } catch(e){ AC = null; } }
+  function audioOff(){ try { SIL?.pause(); } catch(e){} try { if (navigator.audioSession) navigator.audioSession.type = 'auto'; } catch(e){} }
   function play(sp){
-    try { AC ||= new (window.AudioContext || window.webkitAudioContext)(); AC.resume?.(); } catch(e){ AC = null; }
-    stop(); const s = SP[sp], d = dur(), list = s.r[d];
+    stop(); audioOn(); const s = SP[sp], d = dur(), list = s.r[d];
     P = { sp, d, list, i:0, left:list[0][1], paused:false, iv:null, wl:null };
     try { navigator.wakeLock?.request('screen').then(w => { if (P) P.wl = w; }).catch(() => {}); } catch(e){}
     openDlg(`<span class="muted small" id="mpTop"></span><h2 id="mpName" style="margin:4px 0 6px"></h2><div id="mpTag"></div><div id="mpAnim" class="mpanim"></div>
@@ -3923,7 +3931,7 @@ const Mobility = (() => {
       else if (P.left <= 0) gong(); else tick();
       if (P.left <= 0) go(P.i + 1); else draw(); }, 1000);
     $('#mpPause').onclick = () => { P.paused = !P.paused; draw(); };
-    $('#mpSnd').onclick = () => { S.mobSound = !snd(); save(); try { AC?.resume?.(); } catch(e){} draw(); };
+    $('#mpSnd').onclick = () => { S.mobSound = !snd(); save(); if (snd()) { audioOn(); beep(); } else audioOff(); draw(); };
     $('#mpSkip').onclick = () => go(P.i + 1); $('#mpPrev').onclick = () => go(P.i - 1);
     draw();
   }
