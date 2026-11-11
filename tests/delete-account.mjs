@@ -17,7 +17,7 @@ await pg.addInitScript(() => {
   const days = {}; for (let d=0; d<7; d++) days[d] = { avail:[1,3,5].includes(d), max:75 };
   localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:1, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:28, weightKg:84, heightCm:181, ftp:260, hrMax:193, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-21', days, keyPerWeek:2, optionalPerWeek:0, holidays:true, testProtocol:'ramp', intensityAdj:1, ctl0:40 }, plan:[], activities:[], ftpHistory:[], settings:{ theme:'auto', tourSeen:true } }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html'); await pg.waitForTimeout(2500);
+await pg.goto(new URL('../index.html', import.meta.url).href); await pg.waitForTimeout(2500);
 await pg.evaluate(() => { document.querySelector('#splash')?.remove(); window.SPLASH_ON=false; });
 await pg.evaluate(()=>document.querySelector('button[data-tab=profile]').click()); await pg.waitForTimeout(300);
 await pg.evaluate(()=>document.querySelector('[data-settings=open]').click()); await pg.waitForTimeout(300);

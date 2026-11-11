@@ -26,7 +26,7 @@ await pg.addInitScript(() => {
   localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:1, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:27, weightKg:81, heightCm:181, ftp:255, hrMax:185, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-19', days:{0:{avail:true,max:75},1:{avail:true,max:75},2:{avail:false,max:75},3:{avail:true,max:75},4:{avail:false,max:75},5:{avail:true,max:120},6:{avail:false,max:120}}, keyPerWeek:2, optionalPerWeek:1, testProtocol:'20min', intensityAdj:1, ctl0:40 },
     plan:[{ id:'p1', date:'2026-10-19', week:0, block:'Calibration', kind:'key', workoutId:'ss_3x10', status:'planned' }], activities:[], ftpHistory:[{date:'2026-10-19',ftp:255,source:'initial'}], settings:{theme:'auto'} }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html'); await pg.waitForTimeout(1500);
+await pg.goto(new URL('../index.html', import.meta.url).href); await pg.waitForTimeout(1500);
 const st = await pg.evaluate(() => { const S = FTPB.S; const a = S.activities[0]; return { n:S.activities.length, src:a?.source, name:a?.name, dur:a?.durationS, np:a?.np, avg:a?.avgPower, hr:a?.avgHr, tss:a?.tss, best20:a?.best?.m20, linked: S.plan[0].status, comp: a?.compliance }; });
 console.log('IMPORT STRAVA', JSON.stringify(st), 'inbox marquée importée:', patched);
 console.log('note:', await pg.locator('.note', { hasText:'Strava' }).first().innerText().catch(()=>'—'));

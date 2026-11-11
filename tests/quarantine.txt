@@ -8,4 +8,3 @@ home-today.mjs
 intervals.mjs
 sport-hours.mjs
 strava-import.mjs
-track-3d.mjs

@@ -14,7 +14,7 @@ await pg.addInitScript(() => {
     { start_at:'2026-10-23T07:30:00Z', type:'Vélo', duration_min:25, avg_hr:120, source:'Strava', indoor:null },
   ] }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html');
+await pg.goto(new URL('../index.html', import.meta.url).href);
 console.log('promoted', await pg.evaluate(() => Health.promoteBikes()));
 console.log('acts', await pg.evaluate(() => JSON.stringify(FTPB.S.activities.map(a => [a.date, a.source, a.indoor, a.tss, a.planId, a.countAsSession]))), 'plan', await pg.evaluate(() => FTPB.S.plan.map(s => s.status).join(',')));
 await pg.evaluate(()=>{ render(); document.querySelector('button[data-tab=cal]').click(); }); await pg.waitForTimeout(300);

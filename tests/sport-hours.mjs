@@ -26,7 +26,7 @@ await pg.addInitScript(() => {
     W('2026-10-17T09:25:00+02:00','Course à pied',382,49.1), W('2026-10-17T10:52:00+02:00','Course à pied',323,33.6), // doublon
   ], token:null }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html');
+await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.waitForTimeout(300);
 const tiles = await pg.$$eval('.tiles-home .tile', ts => ts.map(t => [t.dataset.pane, t.querySelector('.tv').textContent, t.querySelector('.ts').textContent]));
 console.log('tiles', JSON.stringify(tiles));

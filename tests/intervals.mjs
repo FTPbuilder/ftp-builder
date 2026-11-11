@@ -28,7 +28,7 @@ await pg.route('**/*.supabase.co/**', async r => {
 await pg.addInitScript(() => {
   localStorage.setItem('sb-jhemwfhmohqncywjixgh-auth-token', JSON.stringify({ access_token:'x.y.z', refresh_token:'r', token_type:'bearer', expires_in:3600, expires_at:Math.floor(Date.now()/1000)+3600, user:{ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' } }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html');
+await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.fill('[name=age]','27'); await pg.fill('[name=weightKg]','83.2'); await pg.fill('[name=ftp]','255');
 await pg.fill('[name=startDate]','2026-10-19');
 await pg.evaluate(()=>document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');

@@ -3,7 +3,7 @@ import fs from 'fs';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs=[]; pg.on('pageerror', e=>errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-10-25T09:00:00+01:00'));
-await pg.goto('file:///home/claude/ftp-builder/index.html');
+await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.fill('[name=age]','27'); await pg.fill('[name=weightKg]','83'); await pg.fill('[name=ftp]','255');
 await pg.evaluate(()=>document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
 const r = await pg.evaluate(() => {

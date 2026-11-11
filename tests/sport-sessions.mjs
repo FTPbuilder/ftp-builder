@@ -26,7 +26,7 @@ await pg.addInitScript(() => {
     W('2026-10-17T09:25:00+02:00','Course à pied',382,49.1), W('2026-10-17T10:52:00+02:00','Course à pied',323,33.6), // doublon
   ], token:null }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html');
+await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.waitForTimeout(300);
 await pg.tap('.home [data-pane="heures"]'); await pg.waitForTimeout(300);
 for (const n of [1,2]) console.log('liste', n, (await pg.locator('#todayPane .card').nth(n).locator('[data-ssess]').allInnerTexts()).map(t => t.replace(/\s+/g,' ')));

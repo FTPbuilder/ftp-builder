@@ -3,7 +3,7 @@
 import { spawn } from 'child_process'; import fs from 'fs'; import path from 'path'; import os from 'os';
 const dir = path.dirname(new URL(import.meta.url).pathname), only = process.argv[2];
 const env = { ...process.env, SCRATCH: process.env.SCRATCH || fs.mkdtempSync(path.join(os.tmpdir(), 'ftpb-')) };
-const files = fs.readdirSync(dir).filter(f => f.endsWith('.mjs') && f !== 'run-all.mjs' && (!only || f.includes(only))).sort();
+const files = fs.readdirSync(dir).filter(f => f.endsWith('.mjs') && f !== 'run-all.mjs' && f !== 'check-syntax.mjs' && (!only || f.includes(only))).sort();
 const run = f => new Promise(res => { const t0 = Date.now(), p = spawn(process.execPath, [path.join(dir, f)], { env }); let out = '';
   p.stdout.on('data', d => out += d); p.stderr.on('data', d => out += d);
   const k = setTimeout(() => { p.kill('SIGKILL'); out += '\n[timeout]'; }, +(process.env.TEST_TIMEOUT || 240000));

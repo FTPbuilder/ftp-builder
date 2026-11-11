@@ -16,7 +16,7 @@ await pg.addInitScript(() => {
   const activities = [A('x1','2026-10-06',true,true,'HT'), A('x2','2026-10-11',false,false,'Sortie Longchamp'), A('x3','2026-10-19',true,true,'Prépa test'), {...A('x4','2026-10-19',false,false,'Vélotaf'), distanceKm:5.8, durationS:1100}, A('x5','2026-10-22',undefined,true,'Saisie manuelle')];
   localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:1, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:27, weightKg:81, heightCm:181, ftp:255, hrMax:185, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-01', days, keyPerWeek:2, optionalPerWeek:1, testProtocol:'20min', intensityAdj:1, ctl0:40 }, plan, activities, ftpHistory:[{date:'2026-10-01',ftp:255,source:'initial'}], settings:{theme:'auto'} }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html');
+await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.evaluate(()=>document.querySelector('button[data-tab=cal]').click()); await pg.waitForTimeout(300);
 const card = pg.locator('.card').first(); await card.screenshot({ path:'mcal.png' });
 console.log((await card.innerText()).split('\n').slice(-2).join(' | '));

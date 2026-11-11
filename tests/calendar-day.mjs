@@ -15,7 +15,7 @@ await pg.addInitScript(() => {
   localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:1, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:28, weightKg:83, heightCm:181, ftp:260, hrMax:201, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-21', days, keyPerWeek:2, optionalPerWeek:0, testProtocol:'ramp', intensityAdj:1, ctl0:40 }, plan:[], activities, ftpHistory:[], settings:{ theme:'auto' } }));
   localStorage.setItem('ftpb_health_v1', JSON.stringify({ daily:[], sleep:[], workouts:[{ start_at:'2026-11-03T05:57:39.000Z', type:'Natation', duration_min:63, distance_km:3.025, avg_hr:141, source:'Intervals.icu' }, { start_at:'2026-11-04T11:20:59.000Z', type:'Renforcement musculaire', duration_min:43, distance_km:null, avg_hr:129, source:'Intervals.icu' }], token:null }));
 });
-await pg.goto('file:///home/claude/ftp-builder/index.html'); await pg.waitForTimeout(300);
+await pg.goto(new URL('../index.html', import.meta.url).href); await pg.waitForTimeout(300);
 await pg.tap('button[data-tab="cal"]').catch(async () => { await pg.locator('#tabs button').nth(1).tap(); }); await pg.waitForTimeout(200);
 await pg.tap('[data-calday="2026-11-03"]'); await pg.waitForTimeout(200);
 const tabs = await pg.locator('#dlg .daysel button').allInnerTexts();
