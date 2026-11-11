@@ -10,6 +10,7 @@ jobs:
     timeout-minutes: 30
     env:
       JOBS: '1'
+      TZ: Europe/Paris
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
