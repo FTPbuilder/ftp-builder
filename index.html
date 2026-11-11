@@ -530,7 +530,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.30.0';
+const APP_VERSION = '0.30.1';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -4888,6 +4888,8 @@ const Cloud = (() => {
   const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' } }) : null;
   let session = null, pushTimer = null, strava = { connected: false }, busy = false, ready = false; // ready : compte et connexions vérifiés (le guide attend ce moment)
   const appUrl = () => location.origin + location.pathname;
+  // Intervals.icu exige une adresse de retour identique au caractère près : toujours la racine de l'app, sans index.html
+  const icuRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
   const user = () => session?.user || null;
 
   async function init(){
@@ -4988,7 +4990,7 @@ const Cloud = (() => {
     if (!ICU_CLIENT_ID) { TAB = 'profile'; PROFILE_PANE = 'settings'; render(); return toast('Colle ta clé API Intervals.icu dans la carte Compte'); }
     if (!user()) { authDlg(); return toast('Crée d’abord ton compte FTP Builder'); }
     const u = new URL('https://intervals.icu/oauth/authorize');
-    u.search = new URLSearchParams({ client_id: ICU_CLIENT_ID, redirect_uri: appUrl(), scope: ICU_SCOPE, state: 'icu' });
+    u.search = new URLSearchParams({ client_id: ICU_CLIENT_ID, redirect_uri: icuRedirect(), scope: ICU_SCOPE, state: 'icu' });
     location.href = u.toString();
   }
   async function handleIcuReturn(){
@@ -4998,7 +5000,7 @@ const Cloud = (() => {
     if (q.get('error')) return toast('Connexion Intervals.icu annulée');
     if (!session) return toast('Connecte-toi puis relance la connexion Intervals.icu');
     try {
-      const r = await icuCall({ action:'oauth', code: q.get('code'), redirect_uri: appUrl() });
+      const r = await icuCall({ action:'oauth', code: q.get('code'), redirect_uri: icuRedirect() });
       const a = r.athlete || {};
       toast(`Intervals.icu connecté${a.name ? ' : ' + a.name : ''} ✅`);
       if (a.ftp && a.ftp !== ftp()) S.icuFtpHint = a.ftp;
