@@ -9,9 +9,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SCRATCH: ${{ runner.temp }}/ftpb
-      PW_REQUIRE: ${{ runner.temp }}/ftpb/node_modules/x.js
-      THREE_JS: ${{ runner.temp }}/ftpb/node_modules/three/build/three.min.js
       JOBS: '1'
     steps:
       - uses: actions/checkout@v4
@@ -22,6 +19,8 @@ jobs:
         run: node tests/check-syntax.mjs
       - name: Dépendances de test
         run: |
+          echo "SCRATCH=$RUNNER_TEMP/ftpb" >> "$GITHUB_ENV"; echo "PW_REQUIRE=$RUNNER_TEMP/ftpb/node_modules/x.js" >> "$GITHUB_ENV"; echo "THREE_JS=$RUNNER_TEMP/ftpb/node_modules/three/build/three.min.js" >> "$GITHUB_ENV"
+          SCRATCH="$RUNNER_TEMP/ftpb"
           mkdir -p "$SCRATCH" && cd "$SCRATCH" && npm init -y >/dev/null
           npm i --no-audit --no-fund playwright fit-file-parser @garmin/fitsdk @supabase/supabase-js@2.45.4 three@0.147.0
           npx playwright install --with-deps chromium
