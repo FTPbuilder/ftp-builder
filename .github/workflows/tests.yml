@@ -9,9 +9,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      SCRATCH: ${{ github.workspace }}/.scratch
-      PW_REQUIRE: ${{ github.workspace }}/.scratch/node_modules/x.js
-      THREE_JS: ${{ github.workspace }}/.scratch/node_modules/three/build/three.min.js
+      SCRATCH: ${{ runner.temp }}/ftpb
+      PW_REQUIRE: ${{ runner.temp }}/ftpb/node_modules/x.js
+      THREE_JS: ${{ runner.temp }}/ftpb/node_modules/three/build/three.min.js
       JOBS: '1'
     steps:
       - uses: actions/checkout@v4
