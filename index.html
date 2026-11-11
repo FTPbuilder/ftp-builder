@@ -534,7 +534,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.31.1';
+const APP_VERSION = '0.31.2';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -3603,9 +3603,9 @@ const Mannequin = (() => {
     const ell = (p, sx, sy, sz, m, x = 0, y = 0, z = 0) => { const me = shadow(new T.Mesh(new T.SphereGeometry(1, 32, 24), m)); me.scale.set(sx, sy, sz); me.position.set(x, y, z); p.add(me); return me; };
     const cap = (p, rad, len, m, y) => { const me = shadow(new T.Mesh(new T.CapsuleGeometry(rad, len, 8, 20), m)); me.position.y = y; p.add(me); return me; };
     const root = new T.Group(); sc.add(root);
-    const J = { root, sh: [], el: [], hand: [], hip: [], kn: [], an: [], scap: [], arm: [] };
+    const J = { root, sh: [], el: [], hand: [], hip: [], kn: [], an: [], scap: [], arm: [], leg: [], foot: [] };
     J.pelvis = G(root, 0, 0.995, 0); ell(J.pelvis, 0.155, 0.11, 0.105, cloth, 0, 0.01);
-    J.spine = G(J.pelvis, 0, 0.08, 0); ell(J.spine, 0.13, 0.12, 0.09, skin, 0, 0.07);
+    J.spine = G(J.pelvis, 0, 0.08, 0); J.spineM = ell(J.spine, 0.13, 0.12, 0.09, skin, 0, 0.07);
     J.chest = G(J.spine, 0, 0.15, 0); ell(J.chest, 0.17, 0.17, 0.105, cloth, 0, 0.11); ell(J.chest, 0.2, 0.07, 0.09, cloth, 0, 0.2);
     J.neck = G(J.chest, 0, 0.28, 0); const neckM = cap(J.neck, 0.043, 0.06, skin, 0.03);
     J.head = G(J.neck, 0, 0.075, 0); ell(J.head, 0.084, 0.11, 0.096, skin, 0, 0.1); ell(J.head, 0.088, 0.085, 0.092, hair, 0, 0.145, -0.018); ell(J.head, 0.045, 0.045, 0.045, hair, 0, 0.12, -0.105); ell(J.head, 0.014, 0.022, 0.018, skin, 0, 0.085, 0.094);
@@ -3614,13 +3614,16 @@ const Mannequin = (() => {
       const up = cap(sh, 0.043, 0.24, skin, -0.14); const el = G(sh, 0, -0.29, 0); const fo = cap(el, 0.036, 0.2, skin, -0.12);
       const hd = G(el, 0, -0.265, 0); const hm = ell(hd, 0.033, 0.07, 0.022, skin, 0, -0.045);
       J.sh.push(sh); J.el.push(el); J.hand.push(hd); J.arm.push([up, fo, hm]);
-      const hp = G(J.pelvis, s * 0.088, -0.06, 0); cap(hp, 0.064, 0.32, cloth, -0.2); const kn = G(hp, 0, -0.43, 0); cap(kn, 0.05, 0.32, cloth, -0.19);
-      const an = G(kn, 0, -0.43, 0); ell(an, 0.042, 0.032, 0.115, skin, 0, -0.04, 0.055); J.hip.push(hp); J.kn.push(kn); J.an.push(an);
+      const hp = G(J.pelvis, s * 0.088, -0.06, 0); const thM = cap(hp, 0.064, 0.32, cloth, -0.2); const kn = G(hp, 0, -0.43, 0); const shM = cap(kn, 0.05, 0.32, cloth, -0.19); J.leg.push([thM, shM]);
+      const an = G(kn, 0, -0.43, 0); J.foot.push(ell(an, 0.042, 0.032, 0.115, skin, 0, -0.04, 0.055)); J.hip.push(hp); J.kn.push(kn); J.an.push(an);
       J.scap.push(ell(J.chest, 0.042, 0.078, 0.012, hi, s * 0.09, 0.16, -0.103));
     }
     const ring = new T.LineLoop(new T.BufferGeometry().setFromPoints(Array.from({ length: 96 }, (_, i) => { const a = 2 * Math.PI * i / 96; return new T.Vector3(0, -Math.cos(a) * 0.56, Math.sin(a) * 0.56); })), new T.LineDashedMaterial({ color: 0xff8a4c, dashSize: 0.03, gapSize: 0.025, transparent: true, opacity: 0.95 }));
     ring.computeLineDistances(); sc.add(ring);
-    R = { T, r, sc, cam, J, yoga, door, ring, neckM, mats: { skin, cloth, hi } };
+    const wall2 = new T.Mesh(new T.BoxGeometry(1, 1, 1), wallM); wall2.receiveShadow = true; sc.add(wall2);
+    const boxM = new T.MeshStandardMaterial({ color: 0xc9bfae, roughness: 0.9 }); boxM.color.convertSRGBToLinear(); const box = shadow(new T.Mesh(new T.BoxGeometry(1, 1, 1), boxM)); sc.add(box);
+    const band = new T.Mesh(new T.CylinderGeometry(0.009, 0.009, 1, 8), hi); sc.add(band);
+    R = { T, r, sc, cam, J, yoga, door, ring, neckM, wall2, box, band, mats: { skin, cloth, hi } };
   }
   const V = (x, y, z) => new THREE.Vector3(x, y, z);
   function aim(g, dir, twist = 0){ const T = THREE; g.parent.updateMatrixWorld(true); const qp = new T.Quaternion(); g.parent.getWorldQuaternion(qp);
@@ -3630,9 +3633,50 @@ const Mannequin = (() => {
     const { J } = R; J.root.position.set(0, 0, 0); J.root.rotation.set(0, 0, 0);
     J.root.traverse(o => { if (o.isGroup && o !== J.root) { o.rotation.set(0, 0, 0); o.quaternion.identity(); if (o.userData.rest) o.position.copy(o.userData.rest); } });
     for (let i = 0; i < 2; i++) { J.sh[i].rotation.z = (i ? -1 : 1) * 0.07; J.el[i].rotation.x = -0.12; J.arm[i].forEach(m => m.material = R.mats.skin); J.scap[i].visible = false; J.hand[i].scale.set(1, 1, 1); }
+    for (let i = 0; i < 2; i++) { J.leg[i].forEach(m => m.material = R.mats.cloth); J.foot[i].material = R.mats.skin; } J.spineM.material = R.mats.skin;
+    R.wall2.visible = R.box.visible = R.band.visible = false; R.door.position.set(0, 0, 0);
     R.neckM.material = R.mats.skin; R.yoga.rotation.y = 0; R.yoga.position.set(0, 0.006, 0); R.door.visible = false; R.yoga.visible = true; R.ring.visible = false;
   }
   const HL = i => R.J.arm[i].forEach(m => m.material = R.mats.hi);
+  // ---- aides de pose en repère monde ----
+  const N = (x, y, z) => V(x, y, z).normalize(), pp = t => ease(t < 0.5 ? 2 * t : 2 - 2 * t), SG = i => i ? -1 : 1;
+  function orient(g, Y, Z, zFirst){ const T = THREE, y = Y.clone().normalize(), z = Z.clone().normalize();
+    if (zFirst) y.sub(z.clone().multiplyScalar(y.dot(z))).normalize(); else z.sub(y.clone().multiplyScalar(z.dot(y))).normalize();
+    const q = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(V(0, 0, 0).crossVectors(y, z), y, z));
+    g.parent.updateMatrixWorld(true); const qp = new T.Quaternion(); g.parent.getWorldQuaternion(qp); g.quaternion.copy(qp.invert().multiply(q)); g.updateMatrixWorld(true); }
+  // corps : U = axe tête, F = ventre, P = position du bassin
+  function body(U, F, P){ const r = R.J.root; r.position.set(0, 0, 0); orient(r, U, F); r.position.copy(P.clone().sub(wpos(R.J.pelvis))); r.updateMatrixWorld(true); }
+  // IK 2 segments : extrémité sur T, coude/genou du côté de « pole »
+  function two(a, b, L1, L2, T, pole){ const S = wpos(a), v = T.clone().sub(S), d = Math.min(Math.max(v.length(), 0.05), (L1 + L2) * 0.999), u = v.normalize();
+    const ca = Math.min(1, Math.max(-1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))), p = pole.clone().sub(u.clone().multiplyScalar(pole.dot(u))).normalize();
+    const E = S.clone().addScaledVector(u, L1 * ca).addScaledVector(p, L1 * Math.sqrt(1 - ca * ca)); aim(a, E.clone().sub(S)); aim(b, T.clone().sub(E)); }
+  const armTo = (i, T, pole) => two(R.J.sh[i], R.J.el[i], 0.29, 0.265, T, pole), legTo = (i, T, pole) => two(R.J.hip[i], R.J.kn[i], 0.43, 0.43, T, pole);
+  const armDir = (i, a, b) => { aim(R.J.sh[i], a); aim(R.J.el[i], b || a); }, legDir = (i, a, b) => { aim(R.J.hip[i], a); aim(R.J.kn[i], b || a); };
+  const foot = (i, toe, up = V(0, 1, 0)) => orient(R.J.an[i], up, toe, true), palm = (i, fing, n = V(0, 1, 0)) => orient(R.J.hand[i], fing.clone().negate(), n, true);
+  const hang = i => armDir(i, N(SG(i) * 0.12, -1, 0.02), N(SG(i) * 0.06, -1, 0.12));
+  const onHips = i => { const s = SG(i), q = R.J.root.quaternion; armTo(i, wpos(R.J.pelvis).add(V(s * 0.17, 0.07, 0.01).applyQuaternion(q)), V(s, 0, -0.5).applyQuaternion(q)); };
+  const KF = (ks, t, j = 1) => { let i = 0; while (i < ks.length - 2 && t > ks[i + 1][0]) i++; const a = ks[i], b = ks[i + 1], u = ease(Math.min(1, Math.max(0, (t - a[0]) / (b[0] - a[0])))); return V(...a[j]).lerp(V(...b[j]), u).normalize(); };
+  const HLL = (i, k = [0, 1]) => k.forEach(j => R.J.leg[i][j].material = R.mats.hi), HLF = i => { R.J.foot[i].material = R.mats.hi; }, HLS = () => { R.J.spineM.material = R.mats.hi; };
+  const prop = (m, x, y, z, sx, sy, sz) => { m.visible = true; m.position.set(x, y, z); m.scale.set(sx, sy, sz); };
+  function band(a, b){ const m = R.band, d = b.clone().sub(a); m.visible = true; m.position.copy(a).addScaledVector(d, 0.5); m.scale.set(1, d.length(), 1); m.quaternion.setFromUnitVectors(V(0, 1, 0), d.normalize()); }
+  // à quatre pattes : genoux sous les hanches, mains sous les épaules (cibles mémorisées avant flexion de la colonne)
+  function quad(bend = () => {}){ const { J } = R; let a = 0.2;
+    for (let it = 0; it < 4; it++) { body(N(0, Math.sin(a), Math.cos(a)), N(0, -Math.cos(a), Math.sin(a)), V(0, 0.52, -0.25)); bend(); a += (0.6 - (wpos(J.sh[0]).y + wpos(J.sh[1]).y) / 2) / 0.45; }
+    for (let i = 0; i < 2; i++) { legDir(i, N(SG(i) * 0.02, -1, -0.05), V(0, -0.08, -1)); foot(i, V(0, 0, -1), V(0, -1, 0)); }
+    R.qT = [0, 1].map(i => V(SG(i) * 0.19, 0.035, 0.22)); }
+  const quadArms = skip => { for (let i = 0; i < 2; i++) if (i !== skip) { armTo(i, R.qT[i], V(0, 0.2, -1)); palm(i, V(0, 0, 1)); } };
+  // sommets du mannequin : contact au sol et cadrage
+  function verts(fn, step = 1){ const v = V(0, 0, 0); R.J.root.updateMatrixWorld(true);
+    R.J.root.traverse(o => { if (!o.isMesh || !o.visible) return; const p = o.geometry.attributes.position; for (let k = 0; k < p.count; k += step) fn(v.fromBufferAttribute(p, k).applyMatrix4(o.matrixWorld)); }); }
+  function drop(){ let m = Infinity; verts(v => { if (v.y < m) m = v.y; }, 2); R.J.root.position.y += 0.012 - m; R.J.root.updateMatrixWorld(true); }
+  const FR = {};
+  function frame(id){ const k = id + R.cam.aspect.toFixed(2); if (FR[k]) return FR[k]; const e = EX[id], bx = new THREE.Box3(), pts = [];
+    for (let i = 0; i < 8; i++) { apply(id, i / 8); verts(v => { bx.expandByPoint(v); pts.push(v.clone()); }, 7); }
+    const c = bx.getCenter(V(0, 0, 0)), d = V(...e.v).normalize(), rt = V(0, 0, 0).crossVectors(d, V(0, 1, 0)).normalize(), up = V(0, 0, 0).crossVectors(rt, d);
+    const tv = Math.tan(R.cam.fov * Math.PI / 360) / (e.z || 1.06); let D = 0;
+    for (const p of pts) { const q = p.sub(c), z = q.dot(d); D = Math.max(D, z + Math.abs(q.dot(up)) / tv, z + Math.abs(q.dot(rt)) / (tv * R.cam.aspect)); }
+    return FR[k] = [c.clone().addScaledVector(d, D).toArray(), c.toArray()]; }
+  function apply(id, t){ reset(); EX[id].f(t); if (!EX[id].cam) drop(); }
   const EX = {
     neck_cars:{ per:8, key:0.25, cam:[[0.6, 1.66, 1.6], [0, 1.47, 0]], f:t => { const { J } = R, th = 2 * Math.PI * t, c = Math.cos(th);
       J.neck.rotation.x = 0.42 * c; J.neck.rotation.z = 0.42 * Math.sin(th); J.head.rotation.x = 0.25 * c; J.head.rotation.z = 0.2 * Math.sin(th); R.neckM.material = R.mats.hi; } },
@@ -3654,8 +3698,104 @@ const Mannequin = (() => {
       R.door.visible = true; R.yoga.visible = false; J.root.rotation.y = -0.75 * s; J.root.position.z = 0.04 * s; J.head.rotation.y = -0.15 * s;
       const E = V(0.52, 1.46, 0.0), S0 = wpos(J.sh[0]); HL(0);
       aim(J.sh[0], E.clone().sub(S0)); J.el[0].rotation.set(0, 0, 0); aim(J.el[0], V(0, 1, 0)); } },
+    // ---- 24 exercices posés en repère monde (IK 2 segments, contact au sol automatique, cadrage auto via v = direction caméra) ----
+    spine_cars:{ per:10, key:0, v:[1.3, 0.35, 1], f:t => { const { J } = R, th = 2 * Math.PI * t, c = Math.cos(th), sn = Math.sin(th), fx = c > 0 ? c : 0.55 * c; HLS();
+      J.spine.rotation.x = 0.4 * fx; J.chest.rotation.x = 0.45 * fx; J.neck.rotation.x = 0.35 * fx; J.spine.rotation.z = 0.2 * sn; J.chest.rotation.z = 0.25 * sn; J.neck.rotation.z = 0.15 * sn;
+      for (let i = 0; i < 2; i++) { J.hip[i].rotation.x = -0.12; J.kn[i].rotation.x = 0.22; J.an[i].rotation.x = -0.1; hang(i); } } },
+    hip_cars:{ per:10, key:0.42, v:[1.5, 0.45, 1.1], f:t => { HLL(0);
+      const ks = [[0, [0, -1, 0], [0, -1, 0]], [0.18, [0.05, 0.08, 1], [0, -1, 0.05]], [0.42, [1, 0.08, 0.25], [0.05, -1, 0]], [0.64, [0.6, -0.25, -0.75], [0.75, 0.35, 0.45]], [0.84, [0.15, -0.95, -0.3], [0.15, -0.9, -0.4]], [1, [0, -1, 0], [0, -1, 0]]];
+      legDir(0, KF(ks, t), KF(ks, t, 2)); onHips(0); onHips(1); } },
+    knee_cars:{ per:8, key:0.15, v:[1.6, 0.45, 0.9], f:t => { const { J } = R, th = 2 * Math.PI * t; HLL(0, [1]);
+      J.spine.rotation.x = 0.12; legDir(0, N(0.04, 0.02, 1), N(0.22 * Math.sin(th), -1, 0.22 * Math.cos(th))); foot(0, N(0.45 * Math.sin(th), 0.2 * Math.cos(th), 1));
+      const M = wpos(J.hip[0]).lerp(wpos(J.kn[0]), 0.55); armTo(0, M.clone().add(V(0.07, -0.04, 0)), V(1, -0.3, -0.5)); armTo(1, M.clone().add(V(-0.06, -0.06, 0)), V(-1, -0.3, -0.5)); } },
+    ankle_cars:{ per:6, key:0.1, v:[1.4, 0.3, 1.3], f:t => { const th = 2 * Math.PI * t; HLF(0);
+      legDir(0, N(0.03, 0.05, 1), V(0, -1, 0)); foot(0, N(0.55 * Math.sin(th), 0.55 * Math.cos(th), 0.75)); onHips(0); onHips(1); } },
+    foot_cars:{ per:6, key:0.3, v:[0.9, 1, 1.6], f:t => { const { J } = R, th = 2 * Math.PI * t; body(N(0, 1, -0.3), N(0, 0.3, 1), V(0, 0.13, 0));
+      for (let i = 0; i < 2; i++) { const s = SG(i); legDir(i, N(s * 0.1, -0.12, 1)); HLF(i); foot(i, N(s * (0.15 + 0.4 * Math.sin(th)), 0.85 + 0.35 * Math.cos(th), 0.35), V(0, 0, -1));
+        armTo(i, wpos(J.pelvis).add(V(s * 0.22, 0, -0.28)).setY(0.035), V(s * 0.5, 0, -1)); palm(i, V(s * 0.3, 0, -1)); } } },
+    cat_cow:{ per:6, key:0, v:[1.7, 0.5, 0.25], f:t => { const { J } = R, c = Math.cos(2 * Math.PI * t); HLS();
+      quad(() => { J.spine.rotation.x = 0.32 * c; J.chest.rotation.x = 0.26 * c; J.neck.rotation.x = 0.45 * c + 0.05; }); quadArms(); } },
+    thread_needle:{ per:8, key:0.25, v:[1.25, 0.55, 1.15], f:t => { const { J } = R, k = Math.sin(2 * Math.PI * t); HL(0);
+      quad(() => { J.spine.rotation.y = 0.3 * k; J.chest.rotation.y = 0.7 * k; J.neck.rotation.y = 0.5 * k; }); quadArms(0);
+      if (k < 0) { armTo(0, R.qT[0].clone().lerp(V(-0.3, 0.05, R.qT[1].z - 0.02), -k), V(0, 1, -0.4)); palm(0, V(-1, 0, 0)); }
+      else armTo(0, wpos(J.sh[0]).add(V(0, -1, 0.03).lerp(V(0.3, 1, 0.05), k).normalize().multiplyScalar(0.58)), V(0, 0, 1)); } },
+    wall_slides:{ per:6, key:0.5, v:[0.9, 0.3, 1.9], f:t => { const s = pp(t); prop(R.wall2, 0, 1.1, -0.2, 2.4, 2.2, 0.1); HL(0); HL(1);
+      for (let i = 0; i < 2; i++) { const g = SG(i); armDir(i, V(g, -0.35, -0.04).lerp(V(g * 0.45, 1, -0.04), s).normalize(), V(g * 0.12, 1, -0.04).lerp(V(g * 0.4, 1, -0.04), s).normalize()); } } },
+    streamline:{ per:6, key:0.5, v:[0.9, 0.3, 1.9], f:t => { const s = pp(t); prop(R.wall2, 0, 1.1, -0.2, 2.4, 2.2, 0.1); HL(0); HL(1);
+      R.J.spine.rotation.x = 0.06 * s; for (let i = 0; i < 2; i++) armDir(i, N(-SG(i) * (0.3 + 0.03 * s), 1, -0.03 - 0.04 * s)); } },
+    lat_prayer:{ per:7, key:0.5, v:[1.8, 0.7, -0.5], f:t => { const { J } = R, s = pp(t); HL(0); HL(1);
+      body(N(0, -0.3 - 0.12 * s, 1), N(0, -1, -0.3 - 0.12 * s), V(0, 0.3, -0.05 - 0.04 * s)); J.neck.rotation.x = 0.15;
+      for (let i = 0; i < 2; i++) { const g = SG(i), H = wpos(J.hip[i]), e = Math.asin(Math.min(0.95, Math.max(0.1, (H.y - 0.055) / 0.43)));
+        aim(J.hip[i], N(g * 0.08, -Math.sin(e), Math.cos(e))); aim(J.kn[i], V(g * 0.12, 0.07, H.z - 0.1).sub(wpos(J.kn[i]))); foot(i, V(0, 0, -1), V(0, -1, 0));
+        const S = wpos(J.sh[i]); armTo(i, V(g * 0.24, 0.035, S.z + 0.5), V(0, 1, 0)); palm(i, V(0, 0, 1)); } } },
+    sleeper:{ per:7, key:0.6, v:[0.25, 1.3, 1.3], f:t => { const { J } = R, a = 1.15 * pp(t); HL(1);
+      body(V(-1, 0, 0), V(0, 0, 1), V(0.42, 0.2, 0)); R.yoga.rotation.y = Math.PI / 2; R.yoga.position.set(0, 0.006, 0.15);
+      for (let i = 0; i < 2; i++) { J.hip[i].rotation.x = -1.1; J.kn[i].rotation.x = 1.4; } J.neck.rotation.z = 0.3;
+      armDir(1, N(0, -0.05, 1), N(Math.sin(a), Math.cos(a), 0)); armTo(0, wpos(J.hand[1]).add(V(0.02, 0.07, 0)), V(0, 0.5, 1)); } },
+    band_er:{ per:5, key:0.7, v:[0.35, 0.55, 1.9], f:t => { const a = -0.45 + 1.35 * pp(t); R.door.visible = true; R.door.position.x = -1.05; HL(0);
+      armDir(0, N(0.04, -1, 0.02), N(Math.sin(a), -0.03, Math.cos(a))); hang(1); band(wpos(R.J.hand[0]), V(-0.42, wpos(R.J.hand[0]).y, -0.04)); } },
+    ankle_pf:{ per:6, key:0.75, v:[1.8, 0.5, 0.6], f:t => { const { J } = R, s = pp(t); HLF(0); HLF(1);
+      body(N(0, 1, -0.15 * s), N(0, 0.15 * s, 1), V(0, 0.22, 0));
+      for (let i = 0; i < 2; i++) { const g = SG(i), H = wpos(J.hip[i]), e = Math.asin(Math.min(0.95, (H.y - 0.055) / 0.43)) - 0.32 * s;
+        aim(J.hip[i], N(g * 0.03, -Math.sin(e), Math.cos(e))); aim(J.kn[i], V(g * 0.1, 0.075, H.z - 0.06).sub(wpos(J.kn[i]))); foot(i, V(0, 0, -1), V(0, -1, 0));
+        armTo(i, wpos(J.hip[i]).lerp(wpos(J.kn[i]), 0.75).add(V(g * 0.02, 0.07, 0)), V(g, 0, -0.4)); palm(i, V(0, 0, 1)); } } },
+    knee_wall:{ per:5, key:0.6, v:[1.9, 0.5, 0.15], f:t => { const s = pp(t); HLL(0, [1]); HLF(0); prop(R.wall2, 0, 1.1, 0.6, 2.4, 2.2, 0.1);
+      body(N(0, 1, 0.12), V(0, 0, 1), V(0, 0.86 - 0.07 * s, 0.02 + 0.14 * s));
+      legTo(0, V(0.1, 0.075, 0.32), V(0, 0, 1)); foot(0, V(0, 0, 1)); legTo(1, V(-0.1, 0.075, -0.4), V(0, -0.2, 1)); foot(1, V(0, 0, 1));
+      for (let i = 0; i < 2; i++) { armTo(i, V(SG(i) * 0.22, 1.25, 0.53), V(SG(i), -0.5, -0.4)); palm(i, V(0, 1, 0), V(0, 0, -1)); } } },
+    calf_wall:{ per:8, key:0.25, v:[1.9, 0.45, 0.1], f:t => { const b = pp(t); HLL(0, [1]); prop(R.wall2, 0, 1.1, 0.75, 2.4, 2.2, 0.1);
+      body(N(0, 1, 0.3), N(0, -0.3, 1), V(0, 0.84 - 0.06 * b, 0.05));
+      legTo(1, V(-0.1, 0.075, 0.3), V(0, 0, 1)); foot(1, V(0, 0, 1)); legTo(0, V(0.1, 0.075, -0.45 + 0.12 * b), V(0, -0.3, 1)); foot(0, V(0, 0, 1));
+      for (let i = 0; i < 2; i++) { armTo(i, V(SG(i) * 0.22, 1.3, 0.68), V(SG(i), -0.5, -0.4)); palm(i, V(0, 1, 0), V(0, 0, -1)); } } },
+    ninety:{ per:8, key:0, v:[0.5, 1.4, 1.6], f:t => { const u = pp(t), e = Math.sin(Math.PI * u) * 1.1; HLL(0, [0]); HLL(1, [0]);
+      body(V(0, 1, 0), V(0, 0, 1), V(0, 0.13, 0));
+      const A = [[V(-0.28, 0.06, 0.45), V(0.55, 0.06, -0.3)], [V(-0.55, 0.06, -0.3), V(0.28, 0.06, 0.45)]];
+      for (let i = 0; i < 2; i++) { const az = (i ? -90 + 80 * u : 10 + 80 * u) * Math.PI / 180;
+        legTo(i, A[i][0].clone().lerp(A[i][1], u), V(Math.sin(az) * Math.cos(e), Math.sin(e), Math.cos(az) * Math.cos(e)));
+        armTo(i, V(SG(i) * 0.26, 0.035, -0.22), V(SG(i), 0, -0.4)); palm(i, V(SG(i) * 0.3, 0, -1)); } } },
+    hip_flexor:{ per:8, key:0.7, v:[1.9, 0.45, 0.1], f:t => { const { J } = R, s = pp(t), a = 1.05 * Math.PI * s; HLL(0, [0]);
+      body(N(0, 1, -0.05 * s), N(0, 0.05 * s, 1), V(0, 0.55 - 0.03 * s, 0.02 + 0.09 * s));
+      legTo(1, V(-0.12, 0.075, 0.55), V(0, 0.3, 1)); foot(1, V(0, 0, 1)); legTo(0, V(0.1, 0.075, -0.5), V(0, -1, 0.15)); foot(0, V(0, 0, -1), V(0, -1, 0));
+      armDir(0, N(0.05, -Math.cos(a), Math.sin(a))); armTo(1, wpos(J.kn[1]).add(V(0, 0.07, 0)), V(-1, 0, -0.3)); } },
+    quad_couch:{ per:8, key:0.8, v:[1.9, 0.5, 0.1], f:t => { const { J } = R, s = pp(t); HLL(0, [0]); prop(R.box, 0, 0.22, -0.62, 1.1, 0.44, 0.6);
+      body(N(0, 1, 0.55 * (1 - s)), N(0, -0.55 * (1 - s), 1), V(0, 0.52, 0));
+      legTo(1, V(-0.12, 0.075, 0.55), V(0, 0.3, 1)); foot(1, V(0, 0, 1));
+      legDir(0, V(0.1, 0.06, -0.24).sub(wpos(J.hip[0])), N(0, 1, -0.05)); foot(0, V(0, 0, -1), V(0, -1, 0));
+      armTo(1, wpos(J.kn[1]).add(V(0, 0.07, 0)), V(-1, 0, -0.3)); onHips(0); } },
+    ham_hinge:{ per:7, key:0.8, v:[1.9, 0.45, 0.35], f:t => { const { J } = R, a = 0.1 + 0.85 * pp(t); HLL(0, [0]); prop(R.box, 0.1, 0.1, 0.58, 0.45, 0.2, 0.32);
+      body(N(0, Math.cos(a), Math.sin(a)), N(0, -Math.sin(a), Math.cos(a)), V(0, 0.95, -0.02 - 0.05 * pp(t)));
+      legTo(0, V(0.1, 0.27, 0.56), V(0, 1, 0.2)); foot(0, N(0, 0.85, 0.5), N(0, 0.5, -0.85)); legTo(1, V(-0.1, 0.075, -0.04), V(0, 0, 1)); foot(1, V(0, 0, 1));
+      const M = wpos(J.hip[0]).lerp(wpos(J.kn[0]), 0.7); for (let i = 0; i < 2; i++) armTo(i, M.clone().add(V(SG(i) * 0.06, 0.06, 0)), V(SG(i), 0.3, -0.5)); } },
+    glute_fig4:{ per:7, key:0.8, v:[1.2, 0.8, 1.5], f:t => { const { J } = R, a = -0.1 + 0.55 * pp(t); HLL(0, [0]);
+      body(V(0, 0, -1), V(0, 1, 0), V(0, 0.12, 0.25));
+      legDir(1, N(0, Math.cos(a), -Math.sin(a)), N(0, Math.sin(a), Math.cos(a)));
+      legTo(0, wpos(J.kn[1]).add(V(0.03, 0.07, -0.05)), V(1, 0.4, 0.2)); foot(0, V(-1, 0, 0.2));
+      const M = wpos(J.hip[1]).lerp(wpos(J.kn[1]), 0.6); for (let i = 0; i < 2; i++) armTo(i, M.clone().add(V(SG(i) * 0.08, 0, -0.06)), V(SG(i), 0, -0.3)); } },
+    cobra:{ per:6, key:0.55, v:[1.9, 0.55, 0.6], f:t => { const { J } = R, s = sstep(0, 0.35, t) * (1 - sstep(0.75, 1, t)); HLS();
+      body(V(0, 0, 1), V(0, -1, 0), V(0, 0.11, -0.25));
+      for (let i = 0; i < 2; i++) { legDir(i, N(SG(i) * 0.06, -0.03, -1)); foot(i, V(0, 0, -1), V(0, -1, 0)); }
+      const T = [0, 1].map(i => { const S = wpos(J.sh[i]); return V(S.x + SG(i) * 0.04, 0.035, S.z - 0.06); });
+      J.spine.rotation.x = -0.45 * s; J.chest.rotation.x = -0.4 * s; J.neck.rotation.x = -0.25 * s;
+      for (let i = 0; i < 2; i++) { armTo(i, T[i], N(SG(i) * 0.3, 0.6, -1)); palm(i, V(0, 0, 1)); } } },
+    worlds:{ per:8, key:0.62, v:[1.6, 0.6, 0.9], f:t => { const { J } = R, o = sstep(0.25, 0.85, pp(t)); HL(0);
+      body(N(0, 0.2, 1), N(0, -1, 0.2), V(0, 0.48, -0.02));
+      legTo(0, V(0.16, 0.075, 0.58), V(0.15, 0.2, 1)); foot(0, V(0, 0, 1)); legTo(1, V(-0.1, 0.1, -0.72), V(0, -0.4, 1)); foot(1, N(0, -0.5, 0.85), N(0, 0.85, 0.5));
+      J.spine.rotation.y = 0.25 * o - 0.1; J.chest.rotation.y = 0.85 * o - 0.25; J.neck.rotation.y = 0.5 * o;
+      armTo(1, V(-0.02, 0.035, 0.55), V(-1, 0, -0.2)); palm(1, V(0, 0, 1));
+      armTo(0, V(0.06, 0.12, 0.5).lerp(wpos(J.sh[0]).add(N(0.25, 1, 0.05).multiplyScalar(0.55)), o), V(0, 1, -0.5)); } },
+    leg_swings:{ per:6, key:0.12, v:[1.4, 0.4, 1.4], f:t => { const sg = t < 0.5, a = Math.sin(4 * Math.PI * t); HLL(0); prop(R.wall2, -0.62, 1.1, 0, 0.1, 2.2, 1.6);
+      const d = sg ? N(0, -Math.cos(0.8 * a), Math.sin(0.8 * a)) : N(Math.sin(a > 0 ? 0.6 * a : 0.45 * a), -Math.cos(0.6 * a), 0.12);
+      legDir(0, d, d.clone().add(V(0, 0, -0.08)).normalize()); armTo(1, V(-0.55, 1.32, 0.05), V(0, -1, -0.3)); palm(1, V(0, 1, 0), V(1, 0, 0)); onHips(0); } },
+    hip_open_walk:{ per:6, key:0.55, v:[1, 0.45, 1.6], f:t => { HLL(0); const sw = Math.sin(2 * Math.PI * t);
+      const ks = [[0, [0, -1, 0], [0, -1, 0]], [0.3, [0.08, 0.12, 1], [0, -1, 0.1]], [0.6, [1, 0.12, 0.25], [0.1, -1, 0]], [0.85, [0.25, -0.95, 0.15], [0, -1, 0]], [1, [0, -1, 0], [0, -1, 0]]];
+      legDir(0, KF(ks, t), KF(ks, t, 2)); armDir(0, N(0.12, -1, -0.25 * sw), N(0.06, -1, 0.3)); armDir(1, N(-0.12, -1, 0.25 * sw), N(-0.06, -1, 0.3)); } },
+    lunge_matrix:{ per:9, key:0.17, v:[1.3, 0.55, 1.6], f:t => { const ph = Math.min(2, Math.floor(t * 3)), k = Math.sin(Math.PI * (t * 3 - ph)); HLL(0);
+      const D = [[V(0.12, 0.075, 0.78), V(0.02, 0.64, 0.3), 0, V(0, 0, 1), V(0, 0, 1)], [V(0.78, 0.075, 0.05), V(0.33, 0.76, 0), 0, N(0.3, 0, 1), V(1, 0, 0.3)], [V(0.55, 0.075, -0.5), V(0.2, 0.72, -0.16), 0.7, N(1, 0, -1), N(1, 0, -1)]][ph];
+      const yaw = D[2] * k; body(V(0, 1, 0), V(Math.sin(yaw), 0, Math.cos(yaw)), V(0, 0.995, 0).lerp(D[1], k));
+      legTo(0, V(0.09, 0.075, 0).lerp(D[0], k), D[4]); foot(0, V(0, 0, 1).lerp(D[3], k).normalize()); legTo(1, V(-0.09, 0.075, 0), V(0, 0, 1)); foot(1, V(0, 0, 1));
+      onHips(0); onHips(1); } },
   };
-  function pose(id, t){ reset(); EX[id].f(t); const [p, l] = EX[id].cam; R.cam.position.set(...p); R.cam.lookAt(...l); }
+  function pose(id, t){ const [p, l] = EX[id].cam || frame(id); apply(id, t); R.cam.position.set(...p); R.cam.lookAt(...l); }
   function size(w, h){ R.r.setSize(w, h, false); R.cam.aspect = w / h; R.cam.updateProjectionMatrix(); }
   async function mount(el, id){
     await load(); if (!R) build(); cur = { el, id, t0: performance.now() };
@@ -3668,7 +3808,7 @@ const Mannequin = (() => {
     size(240, 240); pose(id, EX[id].key); R.r.render(R.sc, R.cam); return cache[id] = R.r.domElement.toDataURL('image/jpeg', 0.86); }
   async function fillThumbs(root = document){ for (const img of root.querySelectorAll('img[data-m3]')) { try { const u = await thumb(img.dataset.m3); if (u) img.src = u; } catch(e){ img.replaceWith(document.createRange().createContextualFragment(MobAnim.svg(img.dataset.m3))); } } }
   const stop = () => { cur = null; };
-  return { has: id => !!EX[id], mount, thumb, fillThumbs, stop, pose, EX, get R(){ return R; } };
+  return { has: id => !!EX[id], mount, thumb, fillThumbs, stop, pose, size: (w, h) => size(w, h), EX, get R(){ return R; } };
 })();
 
 /* ============ mobilité : routines natation / vélo / course (5, 10, 20 min) ============

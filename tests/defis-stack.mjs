@@ -23,12 +23,15 @@ await pg.click('[data-mobdur="5"]'); r.mob5 = await pg.locator('.mcard').first()
 await pg.screenshot({ path: out + '/mobilite.png', fullPage: true });
 await pg.click('.mcard[data-mobopen=swim]'); await pg.waitForTimeout(150); r.list = (await pg.locator('#dlg').innerText()).replace(/\n+/g, ' | ');
 await pg.waitForFunction(() => [...document.querySelectorAll('#dlg img[data-m3]')].every(i => i.src.startsWith('data:')), null, { timeout: 30000 }); r.thumbs = await pg.locator('#dlg img[data-m3]').count(); await pg.screenshot({ path: out + '/swim-list.png' });
+await pg.evaluate(() => Mobility.listDlg('bike')); await pg.waitForFunction(() => [...document.querySelectorAll('#dlg img[data-m3]')].every(i => i.src.startsWith('data:')), null, { timeout: 30000 }); r.bikeThumbs = await pg.locator('#dlg img[data-m3]').count(); await pg.screenshot({ path: out + '/bike-list.png' });
+await pg.evaluate(() => Mobility.listDlg('swim'));
 await pg.click('#dlg [data-mobgo=swim]'); await pg.waitForTimeout(100);
 await pg.click('#mpSkip'); await pg.clock.runFor(1500); await pg.waitForTimeout(500); r.p1 = await pg.locator('#mpName').innerText(); r.anim = await pg.locator('#mpAnim canvas').count();
 await pg.screenshot({ path: out + '/player.png' });
-for (let k = 0; k < 4; k++) await pg.click('#mpSkip'); await pg.waitForTimeout(200);
+r.no3d = await pg.evaluate(() => Object.keys(Mobility.X).filter(id => !Mannequin.has(id)));
+await pg.click('#mpPause'); for (let k = 0; k < 4; k++) await pg.click('#mpSkip'); await pg.waitForTimeout(200);
 r.log = await pg.evaluate(() => FTPB.S.mobility);
 r.after = await pg.locator('.dcard.open').innerText();
 console.log(JSON.stringify(r, null, 1));
-const ok = r.squares === 2 && r.cards === 3 && /Squats bulgares/.test(r.open0) && r.mcards === 3 && /5 exercices/.test(r.mob5) && /CARs épaule/.test(r.list) && /cars omoplates/i.test(r.p1) && r.thumbs === 5 && r.anim === 1 && r.log?.length === 1 && r.log[0].min === 5 && /\b5\b min/.test(r.after);
+const ok = r.squares === 2 && r.cards === 3 && /Squats bulgares/.test(r.open0) && r.mcards === 3 && /5 exercices/.test(r.mob5) && /CARs épaule/.test(r.list) && /cars omoplates/i.test(r.p1) && r.thumbs === 5 && r.anim === 1 && r.no3d.length === 0 && r.bikeThumbs === 5 && r.log?.length === 1 && r.log[0].min === 5 && /\b5\b min/.test(r.after);
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
