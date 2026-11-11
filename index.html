@@ -534,7 +534,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.31.2';
+const APP_VERSION = '0.31.3';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -3888,8 +3888,15 @@ const Mobility = (() => {
   }
   // lecteur guidé : un exercice à la fois, compte à rebours, changement de côté à mi-temps
   let P = null;
+  // son (Web Audio, créé au tap « Démarrer » pour iOS) : tic chaque seconde, bips 3-2-1, bip long au changement
+  let AC = null;
+  const snd = () => S.mobSound !== false;
+  function tone(f, d, v){ if (!AC || !snd()) return; try { const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.frequency.value = f; o.type = f < 1500 ? 'sine' : 'square';
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.0001, t + d); o.connect(g).connect(AC.destination); o.start(t); o.stop(t + d + 0.02); } catch(e){} }
+  const tick = () => tone(2200, 0.03, 0.05), beep = () => tone(880, 0.15, 0.35), gong = () => tone(1320, 0.5, 0.45);
   function stop(){ Mannequin.stop(); if (P) { clearInterval(P.iv); try { P.wl?.release(); } catch(e){} P = null; } }
   function play(sp){
+    try { AC ||= new (window.AudioContext || window.webkitAudioContext)(); AC.resume?.(); } catch(e){ AC = null; }
     stop(); const s = SP[sp], d = dur(), list = s.r[d];
     P = { sp, d, list, i:0, left:list[0][1], paused:false, iv:null, wl:null };
     try { navigator.wakeLock?.request('screen').then(w => { if (P) P.wl = w; }).catch(() => {}); } catch(e){}
@@ -3897,20 +3904,26 @@ const Mobility = (() => {
       <div class="num" id="mpT" style="font-size:72px;font-weight:800;text-align:center;margin:10px 0 2px"></div><div class="tiny" id="mpSide" style="text-align:center;min-height:18px;color:var(--accent)"></div>
       <div class="bar" style="margin:10px 0"><i id="mpBar" style="width:0%"></i></div>
       <p class="small" id="mpCue" style="min-height:66px"></p><p class="tiny muted" id="mpNext"></p>
-      <div class="row" style="margin-top:10px"><button class="btn" id="mpPrev">‹</button><button class="btn primary" id="mpPause" style="flex:1">Pause</button><button class="btn" id="mpSkip">›</button></div>`);
+      <div class="row" style="margin-top:10px"><button class="btn" id="mpPrev">‹</button><button class="btn primary" id="mpPause" style="flex:1">Pause</button><button class="btn" id="mpSkip">›</button><button class="btn" id="mpSnd" aria-label="Son"></button></div>`);
     const tot = list.reduce((a, x) => a + x[1], 0);
     const draw = () => { if (!P) return; const [id, sec] = list[P.i], x = X[id], el = sec - P.left;
       $('#mpTop').textContent = `${s.ic} ${s.l} · ${d} min · ${P.i + 1}/${list.length}`; $('#mpName').textContent = x[0];
       $('#mpTag').innerHTML = `<span class="chip tiny">${TAG[x[1]]}</span>`; if (P.shown !== P.i) { P.shown = P.i; const box = $('#mpAnim'); box.classList.toggle('hidden', !Mannequin.has(id) && !MobAnim.has(id)); if (Mannequin.has(id)) Mannequin.mount(box, id).catch(() => { box.innerHTML = MobAnim.svg(id); MobAnim.start(); }); else { Mannequin.stop(); box.innerHTML = MobAnim.svg(id); MobAnim.start(); } } $('#mpT').textContent = `${Math.floor(P.left/60)}:${pad(P.left % 60)}`;
-      $('#mpSide').textContent = x[3] ? (el < sec/2 ? 'Côté 1' : 'Côté 2 — change de côté') : '';
+      const half = Math.floor(sec / 2), toSide = x[3] ? P.left - half : 0;
+      $('#mpSide').textContent = x[3] && toSide > 0 && toSide <= 3 ? `Change de côté dans ${toSide}…` : P.left > 0 && P.left <= 3 && (!x[3] || toSide <= 0) ? `${list[P.i + 1] ? 'Exercice suivant' : 'Fin'} dans ${P.left}…` : x[3] ? (toSide > 0 ? 'Côté 1' : 'Côté 2') : '';
+      $('#mpSnd').textContent = snd() ? '🔊' : '🔇';
       $('#mpCue').textContent = x[2]; $('#mpNext').textContent = list[P.i + 1] ? `Ensuite : ${X[list[P.i + 1][0]][0]}` : 'Dernier exercice';
       const doneSec = list.slice(0, P.i).reduce((a, y) => a + y[1], 0) + el; $('#mpBar').style.width = `${doneSec/tot*100}%`;
       $('#mpPause').textContent = P.paused ? 'Reprendre' : 'Pause'; };
     const go = i => { if (i >= list.length) return finish(); P.i = Math.max(0, i); P.left = list[P.i][1]; try { navigator.vibrate?.(200); } catch(e){} draw(); };
     P.iv = setInterval(() => { if (!P || P.paused) return; P.left--; const [id, sec] = list[P.i];
-      if (X[id][3] && P.left === Math.floor(sec/2)) { try { navigator.vibrate?.([80, 60, 80]); } catch(e){} }
+      const toSide = X[id][3] ? P.left - Math.floor(sec/2) : -1;
+      if (toSide === 0) { gong(); try { navigator.vibrate?.([80, 60, 80]); } catch(e){} }
+      else if ((toSide > 0 && toSide <= 3) || (toSide < 0 && P.left > 0 && P.left <= 3)) beep();
+      else if (P.left <= 0) gong(); else tick();
       if (P.left <= 0) go(P.i + 1); else draw(); }, 1000);
     $('#mpPause').onclick = () => { P.paused = !P.paused; draw(); };
+    $('#mpSnd').onclick = () => { S.mobSound = !snd(); save(); try { AC?.resume?.(); } catch(e){} draw(); };
     $('#mpSkip').onclick = () => go(P.i + 1); $('#mpPrev').onclick = () => go(P.i - 1);
     draw();
   }

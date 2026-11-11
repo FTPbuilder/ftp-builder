@@ -31,7 +31,13 @@ await pg.screenshot({ path: out + '/player.png' });
 r.no3d = await pg.evaluate(() => Object.keys(Mobility.X).filter(id => !Mannequin.has(id)));
 await pg.click('#mpPause'); for (let k = 0; k < 4; k++) await pg.click('#mpSkip'); await pg.waitForTimeout(200);
 r.log = await pg.evaluate(() => FTPB.S.mobility);
+// lecteur vélo : CARs hanche 60 s, chaque côté → 3-2-1 avant le changement à 30 s, puis 3-2-1 avant l'exercice suivant
+await pg.evaluate(() => { closeDlg(); Mobility.play('bike'); }); await pg.waitForTimeout(300); await pg.evaluate(() => Mannequin.stop());
+await pg.clock.runFor(27000); r.cd1 = await pg.locator('#mpSide').innerText();
+await pg.clock.runFor(3000); r.side2 = await pg.locator('#mpSide').innerText();
+await pg.clock.runFor(28000); r.cd2 = await pg.locator('#mpSide').innerText(); r.snd = await pg.locator('#mpSnd').innerText();
+await pg.evaluate(() => closeDlg());
 r.after = await pg.locator('.dcard.open').innerText();
 console.log(JSON.stringify(r, null, 1));
-const ok = r.squares === 2 && r.cards === 3 && /Squats bulgares/.test(r.open0) && r.mcards === 3 && /5 exercices/.test(r.mob5) && /CARs épaule/.test(r.list) && /cars omoplates/i.test(r.p1) && r.thumbs === 5 && r.anim === 1 && r.no3d.length === 0 && r.bikeThumbs === 5 && r.log?.length === 1 && r.log[0].min === 5 && /\b5\b min/.test(r.after);
+const ok = r.squares === 2 && r.cards === 3 && /Squats bulgares/.test(r.open0) && r.mcards === 3 && /5 exercices/.test(r.mob5) && /CARs épaule/.test(r.list) && /cars omoplates/i.test(r.p1) && r.thumbs === 5 && r.anim === 1 && r.no3d.length === 0 && r.bikeThumbs === 5 && /côté dans 3/.test(r.cd1) && r.side2 === 'Côté 2' && /suivant dans 2/.test(r.cd2) && r.snd === '🔊' && r.log?.length === 1 && r.log[0].min === 5 && /\b5\b min/.test(r.after);
 console.log(ok ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
