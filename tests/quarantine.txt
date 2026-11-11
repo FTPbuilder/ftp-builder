@@ -8,3 +8,5 @@ home-today.mjs
 intervals.mjs
 sport-hours.mjs
 strava-import.mjs
+# instable (passe une fois sur deux, attente du questionnaire) :
+intervals-enrich.mjs
