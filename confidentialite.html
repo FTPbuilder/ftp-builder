@@ -25,7 +25,7 @@ td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertic
 <main>
 <a class="back" href="./">← Retour à FTP Builder</a>
 <h1>Politique de confidentialité</h1>
-<p class="muted">FTP Builder · dernière mise à jour : 10 novembre 2026</p>
+<p class="muted">FTP Builder · dernière mise à jour : 11 novembre 2026</p>
 
 <p>FTP Builder est une application gratuite et personnelle de suivi d'entraînement (vélo, course à pied, natation), éditée par Arnaud Lacaze (particulier). Cette page explique quelles données sont utilisées, pourquoi, et comment les supprimer.</p>
 
@@ -47,12 +47,24 @@ td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertic
 <li><b>Dans le cloud si tu crées un compte</b> : base de données Supabase hébergée dans l'Union européenne (Paris, AWS eu-west-3). Chaque utilisateur n'a accès qu'à ses propres données.</li>
 <li>Le site est servi par GitHub Pages (GitHub, Inc.).</li>
 </ul>
+<p>Tant que tu ne crées pas de compte, rien ne quitte ton téléphone (à part les services techniques ci-dessous).</p>
+
+<h2>Communauté (amis et défis)</h2>
+<p>Facultatif. Si tu t'ajoutes à la communauté, tes amis et les membres de tes défis voient uniquement <b>ton pseudo</b> et <b>ta progression dans les défis partagés</b> (valeur de départ, objectif, avancement). Ils ne voient ni tes séances, ni tes données de santé, ni tes tracés. Tu peux décocher « Les membres peuvent me trouver par mon pseudo » ou quitter un défi à tout moment.</p>
+
+<h2>Services techniques tiers</h2>
+<p>Pour fonctionner, l'app fait appel à quelques services qui reçoivent ton adresse IP (comme pour tout site web), sans tes données d'entraînement ni ton identité :</p>
+<ul>
+<li><b>Google Fonts</b> et <b>jsDelivr</b> : police d'écriture et bibliothèques de l'app.</li>
+<li><b>Esri (ArcGIS)</b> : fond de carte satellite de la vue 3D ; il reçoit les zones de carte affichées.</li>
+<li><b>Komoot Photon</b> (données OpenStreetMap) : donne un nom à tes montées. Il reçoit uniquement les coordonnées de la montée, depuis notre serveur, sans aucun identifiant.</li>
+</ul>
 
 <h2>Connexion avec Google</h2>
 <p>Si tu choisis « Continuer avec Google », FTP Builder reçoit uniquement ton adresse e-mail, ton nom et ta photo de profil (autorisations <code>openid</code>, <code>email</code>, <code>profile</code>). L'app n'accède ni à Gmail, ni à Drive, ni à aucune autre donnée Google. L'utilisation des informations reçues des API Google respecte la <a href="https://developers.google.com/terms/api-services-user-data-policy" target="_blank" rel="noopener">Google API Services User Data Policy</a>, y compris les exigences d'utilisation limitée (Limited Use).</p>
 
 <h2>Services de données sportives</h2>
-<p>Ces connexions sont facultatives. Tu peux les couper à tout moment depuis l'app (Profil) ou depuis le service concerné ; l'accès est alors révoqué.</p>
+<p>Ces connexions sont facultatives. Tu peux les couper à tout moment depuis l'app (Profil › Réglages) ou depuis le service concerné ; l'accès est alors révoqué.</p>
 <ul>
 <li><b>Intervals.icu</b> : FTP Builder lit tes activités (vélo, course, natation et autres) avec leurs flux, tours et tracés, ainsi que ton bien-être (VFC, FC repos, sommeil, poids). Il écrit dans ton calendrier Intervals uniquement les séances planifiées par FTP Builder, pour qu'elles arrivent sur ta montre ou ton compteur. Rien d'autre n'est modifié.</li>
 <li><b>Strava</b> : FTP Builder lit tes sorties vélo (puissance, fréquence cardiaque, cadence, vitesse, tracé). Il n'écrit rien sur Strava. Les données Strava ne sont visibles que par toi, ne sont jamais montrées à d'autres utilisateurs et ne sont pas utilisées hors de ton suivi.</li>
@@ -61,14 +73,16 @@ td,th{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertic
 <p>Les jetons d'accès à ces services sont stockés côté serveur, jamais dans l'app, et supprimés quand tu te déconnectes.</p>
 
 <h2>Partage</h2>
-<p>Tes données ne sont ni vendues, ni louées, ni partagées avec des annonceurs. Elles ne servent pas à entraîner de modèles d'intelligence artificielle. Seuls les prestataires techniques cités plus haut (Supabase, GitHub, Google pour la connexion) les traitent, pour faire fonctionner l'app.</p>
+<p>Tes données ne sont ni vendues, ni louées, ni partagées avec des annonceurs. Elles ne servent pas à entraîner de modèles d'intelligence artificielle. Seuls les prestataires techniques cités plus haut (Supabase, GitHub, Google pour la connexion, et les services techniques listés) les traitent, pour faire fonctionner l'app.</p>
 
 <h2>Durée de conservation et suppression</h2>
 <p>Les données sont conservées tant que ton compte existe. Pour tout supprimer :</p>
 <ul>
-<li>sur ton appareil : Profil › <b>Tout effacer</b> ;</li>
-<li>dans le cloud : écris à l'adresse ci-dessous ; ton compte et toutes tes données sont supprimés sous 30 jours.</li>
+<li><b>tout, en une fois</b> : Profil › Réglages › Compte › <b>Supprimer mon compte</b>. Ton compte et toutes tes données cloud sont effacés immédiatement et définitivement, l'accès à Strava et Intervals.icu est révoqué, et les données du téléphone sont effacées ;</li>
+<li>sur ton appareil seulement : Profil › <b>Tout effacer</b> ;</li>
+<li>ou écris à l'adresse ci-dessous : suppression sous 30 jours.</li>
 </ul>
+<p>Tes données restent intactes chez Strava, Intervals.icu et dans Apple Santé : FTP Builder n'efface rien chez eux.</p>
 
 <h2>Tes droits</h2>
 <p>Conformément au RGPD, tu peux accéder à tes données, les corriger, les exporter (Profil › Exporter mes données) ou demander leur suppression. Tu peux aussi saisir la CNIL (<a href="https://www.cnil.fr" target="_blank" rel="noopener">cnil.fr</a>).</p>

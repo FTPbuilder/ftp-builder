@@ -534,7 +534,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.30.2';
+const APP_VERSION = '0.31.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -5206,7 +5206,29 @@ const Cloud = (() => {
         : STRAVA_CLIENT_ID
           ? `<p class="small muted" style="margin:0 0 8px">Récupère automatiquement tes sorties (puissance, FC, cadence) dès qu'elles arrivent sur Strava.</p><button class="btn" data-strava="on" style="background:#fc4c02;border-color:#fc4c02;color:#fff">Connecter Strava</button>`
           : `<p class="small muted" style="margin:0">Connexion Strava bientôt disponible.</p>`}
+      <hr style="border:0;border-top:1px solid var(--line);margin:16px 0 10px">
+      <div class="row between" style="align-items:center"><a class="small" href="confidentialite.html">Où sont mes données ?</a><button class="btn sm danger" data-auth="delete">Supprimer mon compte</button></div>
     </div>`;
+  }
+  // suppression définitive : révocation Strava/Intervals + compte + toutes les données cloud, puis effacement local
+  function deleteDlg(){
+    openDlg(`<h2>Supprimer mon compte</h2>
+      <p class="small">Ça efface <b>définitivement</b> ton compte et toutes tes données dans le cloud : profil, plan, séances, tracés, données Apple Santé, défis et amis. L'accès de l'app à Strava et Intervals.icu est révoqué, et les données de ce téléphone sont effacées.</p>
+      <p class="small muted">Tes données restent intactes chez Strava, Intervals.icu et dans Apple Santé. Pense à exporter tes données (Profil › Données) si tu veux les garder.</p>
+      <label class="f" for="delConf">Écris <b>SUPPRIMER</b> pour confirmer</label><input type="text" id="delConf" autocomplete="off" autocapitalize="characters">
+      <div class="row" style="margin-top:12px"><button class="btn danger" id="delGo" disabled>Supprimer définitivement</button><button class="btn" data-close>Annuler</button></div>
+      <div id="delMsg" class="small" style="margin-top:10px"></div>`);
+    const inp = $('#delConf'), go = $('#delGo');
+    inp.oninput = () => go.disabled = inp.value.trim().toUpperCase() !== 'SUPPRIMER';
+    go.onclick = async () => {
+      go.disabled = true; go.textContent = 'Suppression…';
+      let data, error; try { ({ data, error } = await sb.functions.invoke('delete-account', { body: { confirm:'SUPPRIMER' } })); } catch (e) { error = e; }
+      if (error || !data?.deleted) { $('#delMsg').innerHTML = `<div class="note bad">Échec : ${esc(error?.message || data?.error || 'réponse vide')}. Rien n'a été effacé sur ce téléphone ; réessaie.</div>`; go.disabled = false; go.textContent = 'Supprimer définitivement'; return; }
+      try { await sb.auth.signOut({ scope:'local' }); } catch {}
+      try { Object.keys(localStorage).filter(k => /^(ftpb|sb-)/.test(k)).forEach(k => localStorage.removeItem(k)); Storage.prototype.setItem = () => {}; } catch {} // plus aucune écriture jusqu'au rechargement
+      document.body.innerHTML = `<div style="padding:40px 20px;text-align:center;font-family:system-ui"><h2>Compte supprimé</h2><p>Toutes tes données ont été effacées.</p></div>`;
+      setTimeout(() => location.replace(appUrl()), 1800);
+    };
   }
   function authDlg(){
     openDlg(`<h2>Mon compte</h2><p class="muted small">Tes séances sont sauvegardées et synchronisées entre tes appareils.</p>
@@ -5230,6 +5252,7 @@ const Cloud = (() => {
     if (a.dataset.icu === 'off') { icuCall({ action:'disconnect' }).then(() => { icu = { connected:false }; render(); toast('Intervals.icu déconnecté'); }); return; }
     if (a.dataset.auth === 'open') authDlg();
     else if (a.dataset.auth === 'logout') sb.auth.signOut();
+    else if (a.dataset.auth === 'delete') deleteDlg();
     else if (a.dataset.strava === 'on') connectStrava();
     else if (a.dataset.strava === 'sync') syncStrava(30);
     else if (a.dataset.strava === 'off') disconnectStrava();
