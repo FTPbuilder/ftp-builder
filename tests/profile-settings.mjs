@@ -1,0 +1,34 @@
+// Profil › Réglages : un bouton ouvre Bien démarrer + Compte + Apple Santé ; le profil principal ne les affiche plus.
+const pw = (await import('module')).createRequire('/opt/npm-tools/node_modules/x.js')('playwright');
+const out = process.env.SCRATCH || '.';
+const assert = (c, m) => { if (!c) { console.error('ÉCHEC', m); process.exitCode = 1; } else console.log('ok', m); };
+const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme:'dark' });
+const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
+await pg.addInitScript(() => {
+  if (localStorage.getItem('ftpb_state_v1')) return;
+  const days = {}; for (let d = 0; d < 7; d++) days[d] = { avail: [1,3,5].includes(d), max: 75 };
+  localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:1, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:28, weightKg:84, heightCm:181, ftp:260, hrMax:193, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-21', days, keyPerWeek:2, optionalPerWeek:0, holidays:true, testProtocol:'ramp', intensityAdj:1, ctl0:40 }, plan:[], activities:[], ftpHistory:[], settings:{ theme:'auto', tourSeen:true } }));
+});
+await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname); await pg.waitForTimeout(1500);
+await pg.evaluate(() => { const s = document.querySelector('#splash'); if (s) s.remove(); window.SPLASH_ON = false; });
+await pg.tap('button[data-tab="profile"]'); await pg.waitForTimeout(300);
+const h2 = await pg.$$eval('#app .card h2', x => x.map(e => e.textContent.trim()));
+assert(await pg.locator('[data-settings="open"]').count() === 1, 'bouton Réglages dans Profil');
+assert(!h2.includes('Compte') && !h2.includes('Apple Santé') && !h2.includes('Bien démarrer'), 'Compte / Apple Santé / Bien démarrer sortis du profil');
+assert(await pg.locator('#qform').count() === 1, 'questionnaire toujours dans Profil');
+await pg.screenshot({ path: out + '/profile-main.png' });
+await pg.tap('[data-settings="open"]'); await pg.waitForTimeout(300);
+const h2s = await pg.$$eval('#app h2', x => x.map(e => e.textContent.trim()));
+console.log('réglages :', h2s);
+assert(h2s.includes('Réglages') && h2s.includes('Compte'), 'Réglages : titre + Compte');
+assert(h2s.includes('Apple Santé'), 'Réglages : Apple Santé');
+assert(h2s.includes('Bien démarrer') || await pg.locator('#app .card.guide').count() > 0 || !(await pg.evaluate(() => Cloud.ready)), 'Réglages : Bien démarrer');
+assert(await pg.locator('#qform').count() === 0, 'questionnaire absent des Réglages');
+await pg.screenshot({ path: out + '/profile-settings.png', fullPage: true });
+await pg.tap('[data-settings="back"]'); await pg.waitForTimeout(300);
+assert(await pg.locator('#qform').count() === 1, 'retour au profil');
+await pg.tap('[data-settings="open"]'); await pg.waitForTimeout(200);
+await pg.tap('button[data-tab="today"]'); await pg.tap('button[data-tab="profile"]'); await pg.waitForTimeout(300);
+assert(await pg.locator('#qform').count() === 1, "l'onglet Profil rouvre le profil, pas les Réglages");
+assert(!errs.length, 'pas d’erreur JS ' + errs.join(' | '));
+await b.close();

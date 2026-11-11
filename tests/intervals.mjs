@@ -33,6 +33,7 @@ await pg.fill('[name=age]','27'); await pg.fill('[name=weightKg]','83.2'); await
 await pg.fill('[name=startDate]','2026-10-19');
 await pg.evaluate(()=>document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(()=>document.querySelector('button[data-tab=profile]').click()); await pg.waitForTimeout(300);
+await pg.evaluate(()=>document.querySelector('[data-settings=open]').click()); await pg.waitForTimeout(300);
 await pg.fill('#icuKey', 'abcdefghijklmnop123');
 await pg.evaluate(()=>document.querySelector('#icuConnect').click());
 await pg.waitForTimeout(2500);

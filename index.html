@@ -175,6 +175,11 @@ nav.tabs .in{background:color-mix(in srgb,var(--card) 84%,transparent)}
 .tgrow label span{position:absolute;left:0;right:0;bottom:4px;text-align:center;font-size:10px;color:var(--muted);pointer-events:none}
 .tbench{margin-top:10px}.tbench summary{cursor:pointer;font-weight:600;font-size:14px;padding:8px 0;list-style:none}
 .tbench summary::before{content:'＋ ';color:var(--accent)} .tbench[open] summary::before{content:'− '}
+.set-btn{display:flex;align-items:center;gap:12px;width:100%;font:inherit;color:var(--text);cursor:pointer;min-height:64px;-webkit-tap-highlight-color:transparent}
+.set-btn b{font-size:17px}
+.set-ic{width:40px;height:40px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--bg2);border:1px solid var(--line)}
+.set-ic svg{width:22px;height:22px}
+.set-dot{min-width:22px;height:22px;border-radius:11px;padding:0 6px;background:#ff453a;color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
 .pane-head{display:flex;align-items:center;gap:12px;margin:2px 0 14px}
 .pane-head h2{font-size:26px;font-weight:700;text-transform:uppercase;flex:1}
 .pane-back{width:44px;height:44px;flex:none;border-radius:50%;border:3px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,var(--iri) border-box;color:var(--text);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .15s}
@@ -525,7 +530,7 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 "use strict";
-const APP_VERSION = '0.29.1';
+const APP_VERSION = '0.30.0';
 /* ---- configuration cloud ---- */
 const SB_URL = 'https://jhemwfhmohqncywjixgh.supabase.co';
 const SB_KEY = 'sb_publishable_zrv0VlJ43zNW4IyGZEuByw_4HRwzzF5';
@@ -1518,7 +1523,7 @@ function nightHTML(night){
     <table class="ntab"><thead><tr><th></th><th>Durée</th><th></th>${hasHr ? '<th>FC</th>' : ''}${hasRr ? '<th>Resp.</th>' : ''}</tr></thead><tbody>${rows}</tbody></table>
     <h3 style="margin:12px 0 2px;font-size:15px">Par cycle</h3><p class="tiny muted" style="margin:0 0 2px">Un cycle (≈ 90 min) se termine à chaque épisode de paradoxal.</p>${cycles || '<p class="tiny muted">Pas de cycle complet détecté.</p>'}
     ${notes.length ? `<div style="margin-top:10px">${notes.map(([c, t]) => `<div class="note ${c}" style="margin:6px 0 0">${t}</div>`).join('')}</div>` : ''}
-    ${!hasHr ? `<p class="tiny muted" style="margin:10px 0 0">FC et respiration de la nuit : ajoute-les au Raccourci (Profil › Apple Santé › Guide du raccourci, partie B) pour les voir phase par phase.</p>` : ''}`;
+    ${!hasHr ? `<p class="tiny muted" style="margin:10px 0 0">FC et respiration de la nuit : ajoute-les au Raccourci (Profil › Réglages › Apple Santé › Guide du raccourci, partie B) pour les voir phase par phase.</p>` : ''}`;
 }
 // fiche Sommeil : 7 nuits par phases vs durée recommandée, puis VFC et FC de nuit
 function sleepDetail(){
@@ -1648,7 +1653,7 @@ document.addEventListener('click', e => {
   const b = e.target.closest('.tile[data-pane],.home [data-pane]'); if (b) { TODAY_PANE = b.dataset.pane; render(); window.scrollTo(0, 0); return; }
   if (e.target.closest('[data-paneback]')) { TODAY_PANE = null; render(); window.scrollTo(0, 0); }
 });
-$('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; if (b.dataset.tab === 'today') TODAY_PANE = null; TAB = b.dataset.tab; render(); window.scrollTo(0,0); });
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (!b) return; if (b.dataset.tab === 'today') TODAY_PANE = null; if (b.dataset.tab === 'profile') PROFILE_PANE = null; TAB = b.dataset.tab; render(); window.scrollTo(0,0); });
 
 /* ----- Aujourd'hui ----- */
 // séances de la semaine en cours (vélo + nat / course) : faites / prévues, et tout ce qui reste à venir
@@ -1729,7 +1734,7 @@ function todayHTML(){
   h += `<div class="pane-in" id="todayPane" data-p="${TODAY_PANE}"><div class="pane-head"><button class="pane-back" data-paneback="1" aria-label="Retour aux tuiles"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>${cur.l}</h2><span class="pane-num num">${cur.v}${cur.u?`<small>${cur.u}</small>`:''}</span></div>`;
   if (TODAY_PANE === 'heures') h += sportHoursHTML();
   if (TODAY_PANE === 'defis') h += Social.html() + challengesHTML();
-  if (TODAY_PANE === 'forme') { const lc = loadCardHTML(); h += (Health.todayCard() || (lc ? '' : ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil).</p></div>`)) + lc + Health.progressCards(); }
+  if (TODAY_PANE === 'forme') { const lc = loadCardHTML(); h += (Health.todayCard() || (lc ? '' : ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil › Réglages) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil › Réglages).</p></div>`)) + lc + Health.progressCards(); }
   if (TODAY_PANE === 'prog') {
   h += phaseHTML(true);
   h += arcsHTML(); let pre = '';
@@ -2109,7 +2114,7 @@ async function recompDlg(ref){
     <div id="rcOut" style="margin-top:10px"></div>`);
   const out = $('#rcOut');
   const laps = await lapsFor(x);
-  if (!laps?.s) out.innerHTML = `<div class="note warn">${Cloud.user ? "Pas encore de détail longueur par longueur pour cette séance : il arrive avec la prochaine synchro Intervals.icu (Profil › Synchroniser)." : "Connecte-toi (Profil) pour récupérer le détail de la séance depuis Intervals.icu."}</div>`;
+  if (!laps?.s) out.innerHTML = `<div class="note warn">${Cloud.user ? "Pas encore de détail longueur par longueur pour cette séance : il arrive avec la prochaine synchro Intervals.icu (Profil › Réglages › Synchroniser)." : "Connecte-toi (Profil › Réglages) pour récupérer le détail de la séance depuis Intervals.icu."}</div>`;
   let last = null;
   $('#rcGo').onclick = () => {
     const text = $('#rcText').value.trim(); if (!text) { out.innerHTML = `<div class="note warn">Écris ta séance, une ligne par bloc.</div>`; return; }
@@ -3105,8 +3110,23 @@ function regenerateFuture(){
   const fresh = generatePlan(p, t).filter(s => !keep.some(k => k.date === s.date));
   S.plan = [...keep, ...fresh].sort((a,b)=>a.date.localeCompare(b.date));
 }
+/* Profil › Réglages : Bien démarrer, Compte, Apple Santé regroupés derrière un bouton */
+let PROFILE_PANE = null;
+const GEAR = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>`;
+function settingsBtnHTML(){
+  const st = Cloud.ready ? guideSteps() : [], left = st.filter(x => x.must && !x.done).length;
+  const sub = !Cloud.user ? 'Compte non connecté' : left ? `Bien démarrer : ${left} étape${left > 1 ? 's' : ''} à faire` : 'Bien démarrer, compte, Apple Santé';
+  return `<button class="card set-btn" data-settings="open"><span class="set-ic">${GEAR}</span><span style="flex:1;min-width:0;text-align:left"><b>Réglages</b><span class="tiny muted" style="display:block">${sub}</span></span>${left ? `<span class="set-dot" aria-label="${left} étape(s) à faire">${left}</span>` : ''}<span class="muted" aria-hidden="true">›</span></button>`;
+}
+function settingsPaneHTML(){
+  return `<div class="pane-in"><div class="pane-head"><button class="pane-back" data-settings="back" aria-label="Retour au profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>Réglages</h2></div>
+    ${Cloud.ready ? guideHTML(false) : ''}${Cloud.accountHTML()}${Health.settingsHTML() || `<div class="card"><div class="row between"><h2>Apple Santé</h2><a class="small" href="raccourci.html">Guide du raccourci</a></div><p class="small muted" style="margin:0">Un Raccourci iOS envoie chaque jour sommeil, VFC, FC repos et poids vers l'app. ${Cloud.sb ? 'Connecte-toi (carte Compte ci-dessus) pour générer ta clé.' : 'Hors ligne : reviens avec la connexion pour générer ta clé.'}</p></div>`}</div>`;
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-settings]'); if (!b) return;
+  PROFILE_PANE = b.dataset.settings === 'open' ? 'settings' : null; if (dlg.open) closeDlg(); TAB = 'profile'; render(); window.scrollTo(0, 0); });
 function profileHTML(){
-  return guideProfileHTML() + Cloud.accountHTML() + Health.settingsHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
+  if (PROFILE_PANE === 'settings') return settingsPaneHTML();
+  return settingsBtnHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row" style="margin-bottom:8px"><button class="btn" data-tour="open">Revoir la visite guidée</button></div>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>
@@ -4965,7 +4985,7 @@ const Cloud = (() => {
   }
   // « Se connecter avec Intervals.icu » (OAuth) : plus besoin de copier une clé API
   function connectIcuOAuth(){
-    if (!ICU_CLIENT_ID) { TAB = 'profile'; render(); return toast('Colle ta clé API Intervals.icu dans la carte Compte'); }
+    if (!ICU_CLIENT_ID) { TAB = 'profile'; PROFILE_PANE = 'settings'; render(); return toast('Colle ta clé API Intervals.icu dans la carte Compte'); }
     if (!user()) { authDlg(); return toast('Crée d’abord ton compte FTP Builder'); }
     const u = new URL('https://intervals.icu/oauth/authorize');
     u.search = new URLSearchParams({ client_id: ICU_CLIENT_ID, redirect_uri: appUrl(), scope: ICU_SCOPE, state: 'icu' });
@@ -5483,7 +5503,7 @@ const Tour = (() => {
     () => { const st = guideSteps().filter(x => ['acct', 'icu', 'strava', 'health'].includes(x.k));
       return txt('Dernière étape · Tes données', "Branche ta montre et c'est parti", "Tout ce que tu viens de voir se remplit avec tes vraies séances.")
         + st.map((x, k) => `<div class="tr-card tr-step${x.done ? ' done' : ''}"><span class="gnum">${x.done ? '✓' : k + 1}</span><div style="flex:1;min-width:0"><b>${esc(x.t)}</b>${x.tag ? ` <span class="chip tiny">${esc(x.tag)}</span>` : ''}${x.done ? ' <span class="tiny muted">· fait</span>' : x.btn ? `<div class="row" style="margin-top:8px">${x.btn}</div>` : ''}</div></div>`).join('')
-        + `<p class="tr-small" style="text-align:center">Tu retrouves ce guide dans Profil › Bien démarrer, et cette visite dans Profil › Revoir la visite.</p>`; },
+        + `<p class="tr-small" style="text-align:center">Tu retrouves ce guide dans Profil › Réglages › Bien démarrer, et cette visite dans Profil › Revoir la visite.</p>`; },
   ];
   function html(){
     const last = i === N - 1;
@@ -5540,7 +5560,7 @@ function guideHTML(compact){
       ${!x.done || !compact ? `<div class="small muted" style="margin-top:2px">${x.d}</div>${x.btn && !x.done ? `<div class="row" style="margin-top:8px">${x.btn}</div>` : ''}` : ''}</div></div>`).join('');
   return `<div class="card guide"><div class="row between"><h2>Bien démarrer</h2><span class="chip num">${done}/${st.length}</span></div>
     <div class="bar" style="margin:0 0 12px"><i style="width:${Math.round(done / st.length * 100)}%"></i></div>${rows}
-    ${compact ? `<div class="row between" style="margin-top:6px;align-items:center"><label style="display:flex;gap:8px;align-items:center;min-height:44px;cursor:pointer"><input type="checkbox" id="guideOffBox" style="width:auto;min-height:0"><span class="small">Ne plus afficher</span></label><span class="tiny muted">Toujours dispo dans Profil</span></div>` : ''}</div>`;
+    ${compact ? `<div class="row between" style="margin-top:6px;align-items:center"><label style="display:flex;gap:8px;align-items:center;min-height:44px;cursor:pointer"><input type="checkbox" id="guideOffBox" style="width:auto;min-height:0"><span class="small">Ne plus afficher</span></label><span class="tiny muted">Toujours dispo dans Profil › Réglages</span></div>` : ''}</div>`;
 }
 // carte d'accueil : tant qu'une étape essentielle manque et que la carte n'a pas été masquée
 function guideCardHTML(){
@@ -5549,9 +5569,9 @@ function guideCardHTML(){
 }
 // Profil : guide complet tant qu'il reste une étape, sinon une ligne
 const guideProfileHTML = () => !Cloud.ready ? '' : guideSteps().every(x => x.done) ? guideHTML('line') : guideHTML(false);
-document.addEventListener('change', e => { if (e.target.id !== 'guideOffBox' || !e.target.checked) return; S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil'); });
+document.addEventListener('change', e => { if (e.target.id !== 'guideOffBox' || !e.target.checked) return; S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil › Réglages'); });
 document.addEventListener('click', e => { const g = e.target.closest('[data-guide]'); if (!g) return;
-  if (g.dataset.guide === 'off') { S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil'); }
+  if (g.dataset.guide === 'off') { S.settings.guideOff = true; save(); render(); toast('Guide masqué : il reste dans Profil › Réglages'); }
   else if (g.dataset.guide === 'open') openDlg(guideHTML(false) + (S.settings.guideOff ? `<button class="btn sm" data-guide="on">Réafficher sur Aujourd'hui</button>` : ''));
   else if (g.dataset.guide === 'on') { S.settings.guideOff = false; save(); closeDlg(); render(); toast("Guide réaffiché sur Aujourd'hui"); } });
 
