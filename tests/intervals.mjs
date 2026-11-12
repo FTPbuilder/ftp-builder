@@ -31,16 +31,23 @@ await pg.addInitScript(() => {
 await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.fill('[name=age]','27'); await pg.fill('[name=weightKg]','83.2'); await pg.fill('[name=ftp]','255');
 await pg.fill('[name=startDate]','2026-10-19');
-await pg.evaluate(()=>document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.evaluate(()=>document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)'); await pg.evaluate(() => Tour.close()); // visite guidée (affichée après connexion) fermée
 await pg.evaluate(()=>document.querySelector('button[data-tab=profile]').click()); await pg.waitForTimeout(300);
 await pg.evaluate(()=>document.querySelector('[data-settings=open]').click()); await pg.waitForTimeout(300);
+await pg.evaluate(() => { const d = document.querySelector('#icuKey').closest('details'); if (d) d.open = true; }); // la clé API est le repli, rangée sous « Ou avec une clé API »
 await pg.fill('#icuKey', 'abcdefghijklmnop123');
 await pg.evaluate(()=>document.querySelector('#icuConnect').click());
 await pg.waitForTimeout(2500);
-console.log('activities', await pg.evaluate(()=>JSON.stringify(FTPB.S.activities.map(a=>[a.source,a.date,a.np,a.tss,a.extId]))));
+const out = process.env.SCRATCH || '.'; let ok = true; const assert = (c, m) => { if (!c) { ok = false; console.error('ÉCHEC', m); } else console.log('ok', m); };
+const acts = await pg.evaluate(() => FTPB.S.activities.map(a => [a.source, a.date, a.np, a.tss, a.extId]));
+console.log('activities', JSON.stringify(acts));
 console.log('push events', pushed?.events.length, 'remove', pushed?.remove.length, 'first', pushed?.events[0]?.date, pushed?.events[0]?.name);
-console.log('DESC:\n' + pushed?.events.find(e=>/Sweet spot 3/.test(e.name))?.description);
-fs.writeFileSync('icu-push.fit', Buffer.from(pushed.events[0].fit_base64, 'base64'));
-console.log('carte:', (await pg.locator('.card', { hasText:'Intervals.icu' }).first().innerText()).replace(/\n+/g,' | ').slice(0,500));
-await pg.locator('.card', { hasText:'Intervals.icu' }).first().screenshot({ path:'icu-card.png' });
-console.log('errs', errs); await b.close();
+assert(acts.length >= 1 && acts.every(a => a[0] === 'intervals'), 'la sortie vélo de la boîte de réception est importée');
+assert(pushed?.events.length >= 5 && pushed.events.every(e => e.date && e.name), 'le plan est envoyé vers Intervals.icu');
+const fitB = Buffer.from(pushed?.events[0]?.fit_base64 || '', 'base64'); fs.writeFileSync(out + '/icu-push.fit', fitB);
+assert(fitB.length > 100 && fitB.subarray(8, 12).toString() === '.FIT', 'chaque séance envoyée porte son fichier .fit');
+const icuCard = pg.locator('.card:has([data-icu="sync"])').first(); const card = (await icuCard.innerText()).replace(/\n+/g,' | ');
+console.log('carte:', card.slice(0, 300));
+assert(/Arnaud Lacaze/.test(card) && /Synchroniser maintenant/.test(card), 'carte Intervals.icu : compte relié');
+await icuCard.screenshot({ path: out + '/icu-card.png' });
+console.log(ok && !errs.length ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);

@@ -29,7 +29,12 @@ await pg.addInitScript(() => {
 await pg.goto(new URL('../index.html', import.meta.url).href); await pg.waitForTimeout(1500);
 const st = await pg.evaluate(() => { const S = FTPB.S; const a = S.activities[0]; return { n:S.activities.length, src:a?.source, name:a?.name, dur:a?.durationS, np:a?.np, avg:a?.avgPower, hr:a?.avgHr, tss:a?.tss, best20:a?.best?.m20, linked: S.plan[0].status, comp: a?.compliance }; });
 console.log('IMPORT STRAVA', JSON.stringify(st), 'inbox marquée importée:', patched);
-console.log('note:', await pg.locator('.note', { hasText:'Strava' }).first().innerText().catch(()=>'—'));
-await pg.evaluate(()=>document.querySelector('button[data-tab=profile]').click()); await pg.waitForTimeout(300);
-console.log('carte:', (await pg.locator('.card', { hasText:'Strava' }).first().innerText()).replace(/\n+/g,' | ').slice(0,300));
-console.log('errs', errs); await b.close();
+let ok = true; const assert = (c, m) => { if (!c) { ok = false; console.error('ÉCHEC', m); } else console.log('ok', m); };
+assert(st.n === 1 && st.src === 'strava' && st.np > 200 && st.tss > 50 && st.best20 > 200, 'sortie Strava importée avec ses métriques (NP, TSS, meilleur 20 min)');
+assert(st.linked === 'done' && st.comp?.ratio > 0.9, 'rattachée à la séance prévue du jour, avec le respect des cibles');
+assert(patched === 1, 'boîte de réception marquée importée');
+await pg.evaluate(() => { Tour.close(); document.querySelector('button[data-tab=profile]').click(); }); await pg.waitForTimeout(300);
+await pg.evaluate(() => document.querySelector('[data-settings=open]').click()); await pg.waitForTimeout(300);
+const card = (await pg.locator('.card:has([data-strava="sync"])').first().innerText()).replace(/\n+/g,' | ');
+assert(/Connecté \(athlète 999\)/.test(card), 'Réglages : Strava connecté');
+console.log(ok && !errs.length ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);

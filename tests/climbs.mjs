@@ -21,7 +21,7 @@ await pg.addInitScript(() => localStorage.setItem('sb-jhemwfhmohqncywjixgh-auth-
 await pg.clock.setFixedTime(new Date('2026-10-27T23:30:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
 await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)'); await pg.evaluate(() => Tour.close()); // visite guidée (affichée après connexion) fermée
 const res = await pg.evaluate(() => {
   // sortie : 8 km plats, col type Joux Plane (11,6 km, 989 m, 1h03'31), descente, côte de 250 m, retour
   function ride(colTime, seed){ const lat = [], lon = [], alt = [], t = [], d = []; let x = 0, tt = 0, h = 700, r = seed;
@@ -61,7 +61,7 @@ const after = await pg.evaluate(() => { const G = Climbs.groups(); return { n: G
 console.log('BORNES', JSON.stringify(before), '→', JSON.stringify(after));
 // nouvelle analyse (comme une nouvelle sortie) : la correction doit être réappliquée
 await pg.evaluate(() => { for (const a of FTPB.S.activities) { a.climbsV = 0; a.climbs = null; } FTPB.save(); });
-await pg.evaluate(() => { location.reload(); }); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.waitForTimeout(600); await pg.reload(); await pg.waitForSelector('#tabs:not(.hidden)'); // (pause : en file://, un rechargement immédiat peut devancer l'écriture du stockage)
 await pg.evaluate(() => document.querySelector('button[data-tab=prog]').click()); await pg.waitForTimeout(1200);
 const rescan = await pg.evaluate(() => Climbs.groups()[0].list.map(c => c.L));
 console.log('RÉANALYSE', JSON.stringify(rescan));

@@ -1,10 +1,2 @@
-# Tests cassés par l'évolution de l'interface (sélecteurs ou parcours périmés), à réparer un par un.
-# Ils tournent quand même en CI mais n'empêchent pas la livraison. Retirer la ligne une fois le test réparé.
-adapt.mjs
-challenges-migration.mjs
-climbs.mjs
-e2e.mjs
-home-today.mjs
-intervals.mjs
-sport-hours.mjs
-strava-import.mjs
+# Tests cassés à réparer : un nom de fichier par ligne. Ils tournent en CI sans bloquer la livraison.
+# (vide : tous les tests sont bloquants)

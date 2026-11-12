@@ -15,24 +15,23 @@ await pg.addInitScript(() => {
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname); await pg.waitForTimeout(300);
 await pg.evaluate(() => { S.plan = generatePlan(S.profile); applyTri({ ...TRI_DEF(), enabled:true }); render(); });
 await pg.waitForTimeout(300);
-const card = pg.locator('.today-card');
-const ct = (await card.innerText()).replace(/\s+/g, ' ');
-console.log('carte :', ct);
-assert(/aujourd'hui/i.test(ct) && /🏊/.test(ct) && /🚴/.test(ct), "carte Aujourd'hui : nat du matin + vélo du soir");
-assert(/J-\d+/.test(ct), 'compte à rebours de la course');
-assert(await card.locator('.tbatt svg').count() === 1, 'batterie dans la carte');
-const tiles = await pg.$$eval('.tile .tl', x => x.map(e => e.textContent));
-assert(tiles.includes('Énergie') && !tiles.includes('Forme'), 'tuile « Énergie »');
+// accueil : 4 bulles (Programme, Heures sport, Énergie, Défi) ; Programme porte la semaine en cours et le J- de la course
+const order = await pg.$$eval('.home [data-pane]', x => x.map(e => e.dataset.pane));
+assert(order.join() === 'prog,heures,forme,defis', 'accueil : Programme, Heures sport, Énergie, Défi');
+const labs = await pg.$$eval('.home .lab', x => x.map(e => e.textContent));
+assert(labs.includes('Énergie') && !labs.includes('Forme'), 'bulle « Énergie »');
 const prog = (await pg.locator('.home [data-pane="prog"]').innerText()).replace(/\s+/g, ' ');
-assert(/\d+\/\d+ cette semaine · J-\d+/.test(prog), 'tuile Programme : semaine en cours + J-');
+console.log('programme :', prog);
+assert(/\d+ ?\/ ?\d+ cette semaine ?J-\d+/i.test(prog), 'bulle Programme : semaine en cours + J-');
 const lbls = await pg.$$eval('#tabs .lbl', x => x.map(e => getComputedStyle(e).position + ':' + e.offsetHeight));
 assert(lbls.every(l => !l.startsWith('absolute') && +l.split(':')[1] > 5), 'libellés visibles sous les icônes');
 await pg.screenshot({ path: out + '/home-today.png' });
-// énergie basse + séance vélo dure : conseil avec actions
-const tip = await card.locator('.note').innerText().catch(() => '');
-console.log('conseil :', tip.replace(/\s+/g, ' '));
+// volet Programme : la séance vélo du jour, avec sa fiche
+await pg.tap('.home [data-pane="prog"]'); await pg.waitForTimeout(300);
+const bikeToday = await pg.evaluate(() => S.plan.find(s => s.date === todayISO())?.id);
+assert(!!bikeToday, 'une séance vélo est prévue ce mardi');
 // fiche séance : action principale + autres actions repliées
-await card.locator('[data-open]').first().tap(); await pg.waitForTimeout(200);
+await pg.locator(`#todayPane [data-open="${bikeToday}"]`).first().tap(); await pg.waitForTimeout(200);
 assert(await pg.locator('#dlg details.more').count() === 1 && !(await pg.locator('#dlg details.more').getAttribute('open')), 'fiche vélo : autres actions repliées');
 assert(await pg.locator('#dlg [data-log]').isHidden(), '« saisir à la main » rangé dans le menu');
 await pg.evaluate(() => document.querySelector('#dlg').close());

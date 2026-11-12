@@ -28,15 +28,21 @@ await pg.addInitScript(() => {
 });
 await pg.goto(new URL('../index.html', import.meta.url).href);
 await pg.waitForTimeout(300);
-const tiles = await pg.$$eval('.tiles-home .tile', ts => ts.map(t => [t.dataset.pane, t.querySelector('.tv').textContent, t.querySelector('.ts').textContent]));
-console.log('tiles', JSON.stringify(tiles));
+const out = process.env.SCRATCH || '.'; let ok = true; const assert = (c, m) => { if (!c) { ok = false; console.error('ÉCHEC', m); } else console.log('ok', m); };
+const order = await pg.$$eval('.home [data-pane]', ts => ts.map(t => t.dataset.pane));
+const hc = (await pg.locator('.home [data-pane="heures"]').innerText()).replace(/\s+/g, ' ');
+console.log('accueil', order.join(), '|', hc);
 // 7 j (26/10→01/11) : SS 61 + renfo 42 + nat 46 + course 56 + course 44 + nat 35 = 284 min = 4,7 h (vélotaf exclu)
 // 7 j précédents (19→25/10) : course 39 + 44 + nat 37 + vélo 212 = 332 min = 5,5 h (marche exclue)
-await pg.locator('.tiles-home').screenshot({ path:'tiles.png' });
+assert(order.join() === 'prog,heures,forme,defis', 'accueil : Programme, Heures sport, Énergie, Défi');
+assert(/4,7 ?h/i.test(hc) && /−0,8 h vs 7 j/i.test(hc), 'Heures sport : 4,7 h sur 7 j glissants, −0,8 h vs les 7 j précédents');
+await pg.locator('.home').screenshot({ path: out + '/tiles.png' });
 await pg.tap('.home [data-pane="heures"]'); await pg.waitForTimeout(300);
-console.log('heures cards', await pg.$$eval('#todayPane .card h2', h => h.map(x => x.textContent)));
+const cards = await pg.$$eval('#todayPane .card h2', h => h.map(x => x.textContent)); console.log('heures cards', cards);
 console.log('legend run', (await pg.locator('#todayPane .card').nth(2).locator('.mleg').innerText()).replace(/\s+/g, ' '));
-await pg.screenshot({ path:'heures.png', fullPage:true });
+await pg.screenshot({ path: out + '/heures.png', fullPage:true });
 await pg.tap('[data-paneback]'); await pg.tap('.home [data-pane="prog"]'); await pg.waitForTimeout(300);
-console.log('prog order', await pg.$$eval('#todayPane > *', els => els.map(e => e.classList.contains('arcs-wrap') ? 'carrousel' : (e.querySelector('h2')?.textContent || e.className).slice(0, 30))));
-console.log('errs', errs); await b.close();
+const prog = await pg.$$eval('#todayPane > *', els => els.map(e => e.classList.contains('arcs-wrap') ? 'carrousel' : (e.querySelector('h2')?.textContent || e.className).slice(0, 30))); console.log('prog order', prog);
+assert(cards.join() === '🚴 Vélo,🏊 Natation,🏃 Course à pied', 'volet Heures : un graphique par sport');
+assert(prog.includes('carrousel') && prog.includes('Dernières séances'), 'volet Programme : carrousel et dernières séances');
+console.log(ok && !errs.length ? 'OK' : 'ÉCHEC', 'erreurs', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);

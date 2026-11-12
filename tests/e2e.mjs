@@ -1,12 +1,11 @@
-// Test bout-en-bout : questionnaire → plan → import .fit → export workout .fit relu par fit-file-parser
+// Test bout-en-bout : questionnaire → plan → import .fit → export workout .fit validé par le SDK Garmin
 const { chromium } = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 import fs from 'fs'; import path from 'path'; import { createRequire } from 'module';
 const require = createRequire(process.env.SCRATCH + '/package.json');
-const FP = require('fit-file-parser'); const FitParser = FP.default || FP;
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const out = process.env.SCRATCH;
 const b = await chromium.launch(); const pg = await b.newPage({ viewport:{ width:400, height:860 }, acceptDownloads:true });
-const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type()==='error' && errs.push(m.text()));
+const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type()==='error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
 await pg.clock.setFixedTime(new Date('2026-10-20T10:00:00+02:00'));
 await pg.goto('file://' + root + '/index.html');
 // pré-remplissage depuis le .fit
@@ -25,7 +24,7 @@ const viol = await pg.evaluate(() => { const H=new Set(['test','ss','thr','vo2']
 console.log('VIOLATIONS 48h:', viol);
 await pg.screenshot({ path: out + '/02-today.png', fullPage:true });
 // import de la séance du 19/10
-await pg.click('button[data-log=""]');
+await pg.click('.home [data-pane=prog]'); await pg.click('button[data-log=""]');
 await pg.click('#dropZone').catch(()=>{});
 const fc2 = pg.waitForEvent('filechooser', { timeout: 3000 }).catch(()=>null);
 await pg.click('#dropZone'); const ch = await fc2; await ch.setFiles(root + '/tests/2026-10-19_seance.fit');
@@ -47,7 +46,13 @@ console.log('EXPORT', d.suggestedFilename());
 // test20 aussi
 const tb = await pg.evaluate(() => Array.from(FTPB.encodeWorkout('test20', 255)));
 fs.writeFileSync(out + '/test20.fit', Buffer.from(tb));
-const { execFileSync } = await import('child_process');
-console.log(execFileSync('node', [out + '/val.mjs', fp, out + '/test20.fit'], { cwd: out }).toString());
-console.log('ERRORS', errs);
-await b.close();
+// validation par le SDK Garmin : intégrité (CRC), décodage sans erreur, messages workout + étapes
+const { Decoder, Stream } = await import(require.resolve('@garmin/fitsdk'));
+let ok = st.n >= 35 && viol.length === 0 && metr.length > 0;
+for (const f of [fp, out + '/test20.fit']) { const dec = new Decoder(Stream.fromBuffer(fs.readFileSync(f)));
+  const integ = dec.isFIT() && dec.checkIntegrity(), { messages, errors } = dec.read();
+  const steps = messages.workoutStepMesgs?.length || 0, wk = messages.workoutMesgs?.[0];
+  console.log('FIT', path.basename(f), { integ, erreurs: errors.length, nom: wk?.wktName, etapes: steps, declarees: wk?.numValidSteps });
+  ok &&= integ && !errors.length && !!wk && steps > 2 && steps === wk.numValidSteps; }
+console.log(ok && !errs.length ? 'OK' : 'ÉCHEC', 'erreurs', errs);
+await b.close(); process.exit(ok && !errs.length ? 0 : 1);

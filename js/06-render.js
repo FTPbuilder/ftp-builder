@@ -6,7 +6,8 @@ function applyTheme(){ const t = S.settings.theme; if (t === 'auto') document.do
 function render(){
   applyTheme();
   const app = $('#app'); const tabs = $('#tabs');
-  if (!S.profile) { tabs.classList.add('hidden'); app.innerHTML = onboardingHTML(); bindQuestionnaire(true); return; }
+  // questionnaire déjà affiché : on n'y touche pas (un réaffichage pendant le chargement du compte faisait perdre le focus et la frappe en cours)
+  if (!S.profile) { tabs.classList.add('hidden'); if (app.querySelector('.onb #qform')) return; app.innerHTML = onboardingHTML(); bindQuestionnaire(true); return; }
   tabs.classList.remove('hidden');
   tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
   const head = `<header class="top"><div class="brand"><h1><span class="ftp">FTP</span><b>·</b>Builder</h1><small>v${APP_VERSION}</small></div><span class="chip num">FTP <b>${ftp()} W</b> · <b>${(ftp()/S.profile.weightKg).toFixed(2).replace('.', ',')}</b> W/kg</span></header>`;
@@ -1528,6 +1529,6 @@ function profileHTML(){
 function exportJSON(){ download(`ftp-builder-${todayISO()}.json`, new TextEncoder().encode(JSON.stringify(S, null, 1)), 'application/json'); }
 function importJSON(){
   const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
-  inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!d.version) throw new Error('Fichier non reconnu'); S = Object.assign(blank(), d); save(); TAB='today'; render(); toast('Données importées'); } catch(e){ toast(e.message); } };
+  inp.onchange = async () => { try { const d = JSON.parse(await inp.files[0].text()); if (!d.version) throw new Error('Fichier non reconnu'); const m = migrateState(d); if (!m) throw new Error('Fichier non reconnu'); if (m.newer) throw new Error("Sauvegarde faite avec une version plus récente de l'app : mets l'app à jour puis réessaie"); if (S.profile) backupState(S, 'remplacé par une sauvegarde JSON'); S = Object.assign(blank(), m.state); delete S.syncLegacy; delete S.syncedUser; if (Cloud.user) S.syncedUser = Cloud.user.id; save(); TAB='today'; render(); toast('Données importées'); } catch(e){ toast(e.message); } };
   inp.click();
 }

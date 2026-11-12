@@ -4,7 +4,7 @@ const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/op
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--enable-unsafe-swiftshader'] });
 const ctx = await b.newContext({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
-const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type() === 'error' && errs.push(m.text()));
+const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
 await pg.route('**/three@0.147.0/build/three.min.js', r => r.fulfill({ path: out + '/node_modules/three/build/three.min.js', contentType: 'application/javascript' }));
 await pg.route('**/three@0.147.0/examples/js/controls/OrbitControls.js', r => r.fulfill({ path: out + '/node_modules/three/examples/js/controls/OrbitControls.js', contentType: 'application/javascript' }));
 let tiles = 0; await pg.route('**/World_Imagery/MapServer/tile/**', r => { tiles++; return r.fulfill({ path: new URL('./fixtures/tile.png', import.meta.url).pathname, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' } }); });

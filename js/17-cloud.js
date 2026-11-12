@@ -13,7 +13,7 @@ const Cloud = (() => {
     if (!sb) { ready = true; render(); window.splashReady?.(); return; }
     const { data } = await sb.auth.getSession(); session = data.session;
     if (!session) { ready = true; render(); window.splashReady?.(); }
-    sb.auth.onAuthStateChange((ev, s) => { const was = !!session; session = s; if (s && !was) afterLogin(); if (!s && was) { strava = { connected:false }; render(); } });
+    sb.auth.onAuthStateChange((ev, s) => { const was = !!session; session = s; if (s && !was) afterLogin(); if (!s && was) { strava = { connected:false }; pulled = false; hold = false; render(); } });
     await handleStravaReturn();
     await handleIcuReturn();
     if (session) await afterLogin();
@@ -138,19 +138,53 @@ const Cloud = (() => {
     } catch(e) { toast('Intervals : ' + e.message); }
     finally { render(); }
   }
-  async function pull(){
+  // Synchro de l'état : une ligne par compte, le plus récent l'emporte — sauf deux cas où l'on n'écrase jamais sans le dire :
+  //  · l'état vient d'une app plus récente (APP_STALE) : on n'envoie rien et on se met à jour ;
+  //  · l'état local n'a jamais été relié à ce compte, qui contient déjà des données (questionnaire refait sur un nouveau
+  //    téléphone puis connexion) : on prend le compte si le téléphone est vierge, sinon on demande.
+  let hold = false;   // envois suspendus tant qu'un choix est en attente
+  let pulled = false; // le compte a été lu au moins une fois : aucun envoi avant (on n'écrase pas ce qu'on n'a pas regardé)
+  const linked = () => S.syncedUser === user()?.id;
+  function link(){ if (S.syncedUser === user().id && !S.syncLegacy) return; S.syncedUser = user().id; delete S.syncLegacy; save({ remote:true }); }
+  const localFresh = () => !S.activities.length && !S.plan.some(s => s.status === 'done') && !(S.triPlan || []).some(x => x.status === 'done');
+  function stale(){ APP_STALE = true; toast("Tes données viennent d'une version plus récente de l'app : mise à jour…"); try { checkUpdate(); } catch(e){} }
+  function adopt(st){ S = Object.assign(blank(), st); link(); save({ remote:true }); if (repairAutoLinks()) save(); toast('Données récupérées depuis ton compte'); }
+  const sumState = st => `${st.activities?.length || 0} séance${(st.activities?.length || 0) > 1 ? 's' : ''} enregistrée${(st.activities?.length || 0) > 1 ? 's' : ''}, modifié le ${fmtShort(iso(new Date(st.updatedAt || Date.now())))}`;
+  function askWhich(remote){ return new Promise(res => { let done = false; const end = v => { if (done) return; done = true; dlg.removeEventListener('close', onClose); res(v); }, onClose = () => end(null);
+    openDlg(`<h2>Deux jeux de données</h2><p class="small muted">Ton compte contient déjà des données, et ce téléphone aussi. Lesquelles garder ? L'autre jeu est conservé ${BACKUP_DAYS} jours en copie de secours.</p>
+      <div class="note"><b>Ton compte</b><br>${esc(sumState(remote))}</div><div class="note"><b>Ce téléphone</b><br>${esc(sumState(S))}</div>
+      <div class="row" style="margin-top:12px"><button class="btn primary" id="syKeepR">Garder le compte</button><button class="btn" id="syKeepL">Garder ce téléphone</button></div>
+      <p class="tiny muted" style="margin:10px 0 0">Tant que tu n'as pas choisi, rien n'est envoyé ni remplacé.</p>`);
+    $('#syKeepR').onclick = () => { end('remote'); closeDlg(); }; $('#syKeepL').onclick = () => { end('local'); closeDlg(); }; dlg.addEventListener('close', onClose); }); }
+  let pulling = null; // une seule lecture du compte à la fois
+  const pull = () => pulling ||= doPull().finally(() => { pulling = null; });
+  async function doPull(){
     const { data, error } = await sb.from('user_state').select('data, updated_at').maybeSingle();
     if (error) { console.warn(error); return; }
-    const remote = data?.data;
-    if (!remote) { if (S.profile) await push(); return; }
-    const rT = remote.updatedAt || Date.parse(data.updated_at) || 0, lT = S.updatedAt || 0;
-    if (!S.profile || rT > lT) { S = Object.assign(blank(), remote); save({ remote:true }); if (repairAutoLinks()) save(); toast('Données récupérées depuis ton compte'); }
+    pulled = true;
+    if (APP_STALE) return stale();
+    const m = data?.data ? migrateState(data.data) : null;
+    if (!m) { if (S.profile) await push(); return; }
+    if (m.newer) return stale();
+    const remote = m.state, rT = remote.updatedAt || Date.parse(data.updated_at) || 0, lT = S.updatedAt || 0;
+    if (!S.profile) return adopt(remote);
+    if (!linked() && !S.syncLegacy && remote.profile) { // jamais relié à ce compte
+      if (localFresh()) { backupState(S, 'questionnaire local remplacé par le compte'); return adopt(remote); }
+      hold = true; const pick = await askWhich(remote); 
+      if (pick === 'remote') { backupState(S, 'téléphone remplacé par le compte'); hold = false; return adopt(remote); }
+      if (pick === 'local') { backupState(remote, 'compte remplacé par le téléphone'); hold = false; S.updatedAt = Date.now(); save({ remote:true }); return push(); } // daté de maintenant : ce choix l'emporte aussi sur les autres appareils
+      return; // pas de choix : on reposera la question au prochain lancement, rien n'est envoyé d'ici là
+    }
+    if (rT > lT) adopt(remote);
     else if (lT > rT) await push();
+    else link();
   }
+  let pushFails = 0;
   async function push(){
-    if (!sb || !user() || !S.profile) return;
-    const { error } = await sb.from('user_state').upsert({ user_id: user().id, data: S, updated_at: new Date().toISOString() });
-    if (error) console.warn('push', error);
+    if (!sb || !user() || !S.profile || APP_STALE || hold) return;
+    if (!pulled) return pull(); // premier envoi de la session : on lit d'abord le compte, pull() décide
+    const uid = user().id, { error } = await sb.from('user_state').upsert({ user_id: uid, data: { ...S, syncedUser: uid, syncLegacy: undefined }, updated_at: new Date().toISOString() });
+    if (error) { console.warn('push', error); if (++pushFails === 3) Errors.report(new Error('Synchro du compte en échec : ' + (error.message || error.code || '')), 'push'); } else { pushFails = 0; link(); }
   }
   function schedulePush(){ if (!user()) return; clearTimeout(pushTimer); pushTimer = setTimeout(push, 1500); }
 

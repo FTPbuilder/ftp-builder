@@ -48,9 +48,24 @@ const round5 = w => Math.round(w / 5) * 5;
 function toast(msg){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
 
 /* ============ état ============ */
-let S = load();
-function blank(){ return { version:1, profile:null, plan:[], activities:[], ftpHistory:[], settings:{ theme:'auto' } }; }
-function load(){ try { const r = localStorage.getItem(LS_KEY); if (r) return Object.assign(blank(), JSON.parse(r)); } catch(e){} return blank(); }
+function blank(){ return { version:SCHEMA, profile:null, plan:[], activities:[], ftpHistory:[], settings:{ theme:'auto' } }; }
+// APP_STALE : les données ont été écrites par une version plus récente de l'app (page restée en cache) → on n'envoie rien au compte
+let APP_STALE = false;
+const BACKUP_KEY = 'ftpb_state_backup', BACKUP_DAYS = 14;
+// copie de secours (une seule, 14 jours) : avant une migration, un état illisible, ou un état local remplacé par celui du compte
+function backupState(raw, why){ try { localStorage.setItem(BACKUP_KEY, JSON.stringify({ at: Date.now(), why, raw: typeof raw === 'string' ? raw : JSON.stringify(raw) })); return true; } catch(e){ return false; } }
+function backupInfo(){ try { const b = JSON.parse(localStorage.getItem(BACKUP_KEY) || 'null'); if (!b) return null; if (Date.now() - b.at > BACKUP_DAYS * 864e5) { localStorage.removeItem(BACKUP_KEY); return null; } return b; } catch(e){ return null; } }
+function load(){
+  let r = null; try { r = localStorage.getItem(LS_KEY); } catch(e){}
+  backupInfo(); // purge la copie de secours périmée
+  if (!r) return blank();
+  let m = null; try { m = migrateState(JSON.parse(r)); } catch(e){}
+  if (!m) { backupState(r, 'illisible'); setTimeout(() => Errors.report(new Error('État local illisible : copie de secours conservée'), 'load'), 0); return blank(); }
+  if (m.newer) { APP_STALE = true; return Object.assign(blank(), m.state); }
+  if (m.from < m.to) { backupState(r, `migration v${m.from} → v${m.to}`); try { localStorage.setItem(LS_KEY, JSON.stringify(Object.assign(blank(), m.state))); } catch(e){} }
+  return Object.assign(blank(), m.state);
+}
+let S = load(); // après les constantes ci-dessus (APP_STALE, BACKUP_KEY) : sinon elles ne sont pas encore définies au chargement
 function save(opts={}){ if (!opts.remote) S.updatedAt = Date.now(); try { localStorage.setItem(LS_KEY, JSON.stringify(S)); } catch(e){ if (!save.warned) { save.warned = 1; Errors.report(e, 'save'); toast('Sauvegarde impossible sur ce téléphone (stockage plein ?) — tes dernières saisies risquent d’être perdues'); } } if (!opts.remote) { try { Cloud.schedulePush(); } catch(e){} try { Social.pushSoon(); } catch(e){} } }
 const ftp = () => (S.profile?.ftp || 250);
 const adj = () => (S.profile?.intensityAdj || 1);
