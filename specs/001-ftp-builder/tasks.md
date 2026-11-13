@@ -53,5 +53,9 @@
 - [x] T042 [US6] Usure : pneus AV/AR, chaîne, cassette (HT direct exclu), plateaux, galets, plaquettes, direction (×1,5 HT), boîtier, guidoline, liquide préventif, batterie Di2, piles des leviers, capteur de puissance ; fiche composant (remplacement, recharge, mesure de chaîne, durée de vie) ; journal et achats
 - [x] T043 [US6] Entretien de la transmission (lubrifier 300 km, nettoyage 1 500 km / 60 j, mesure 1 000 km) et pression des pneus inspirée de SILCA
 - [x] T044 [US6] Maquette 3D procédurale Aeroad CFR (three.js 0.147 + OrbitControls), rotation libre, vue éclatée animée au toucher, témoins d'usure / batterie par composant (`js/22-bike3d.js`) ; test `tests/garage.mjs`
-- [ ] T045 [US6] Attribution par vélo Strava (`gear_id`) ou Intervals.icu quand plusieurs vélos ; maquettes d'autres marques
+- [x] T045 [US6] Attribution par vélo Strava / Intervals (`gear_id` transmis par les Edge Functions, cases à cocher dans l'onglet Vélo)
+- [x] T046 [US6] Configurateur (v0.38) : scène studio (environnement, ombres douces, travelling d'entrée, présentoir tournant), maquette détaillée (jantes profilées, dentures, maillons de chaîne, freins à patins ou à disque, 11 / 12 v), éclaté échelonné « mode ingénieur », focus et fiche latérale avec rendu du composant, témoins discrets ; onglets Composants · Entretien · Achats · Pression · Sorties · Vélo
+- [x] T047 [US6] Import GLB (reconnaissance des composants par nom, réglage manuel, rotation), film .mp4 image par image, stockage `garage-media` (migration 20261114)
+- [x] T048 [US6] Gabarit Aeroad CF SL Di2 (Ultegra Di2 11 v, patins), composants complets (dérailleurs, moyeux, rayons, tige, cockpit, freins AV/AR), inspections, niveau de batterie lu, conditions de sortie, valeurs SILCA officielles saisies, plafonds pneu / jante
+- [ ] T049 [US6] Déployer `intervals` et `strava-webhook` avec `gear_id` ; maquettes d'autres marques
 

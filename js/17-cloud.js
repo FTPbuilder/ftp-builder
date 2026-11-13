@@ -255,7 +255,7 @@ const Cloud = (() => {
     else a = { id: uid(), date: iso(new Date(start*1000)), name: a0.name || 'Sortie', durationS: a0.moving_time || 0, distanceKm: a0.distance ? +(a0.distance/1000).toFixed(1) : null,
       avgPower: a0.average_watts ? Math.round(a0.average_watts) : null, np: a0.weighted_average_watts ? Math.round(a0.weighted_average_watts) : null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null,
       maxHr: a0.max_heartrate || null, hasPower: !!a0.average_watts, best: null, feel: null };
-    a.source = source; a.startTs = start;
+    a.source = source; a.startTs = start; if (a0.gear_id) { a.gearId = String(a0.gear_id); a.gearName = a0.gear_name || null; } // vélo (Garage)
     if (!a.durationS) a.durationS = a0.moving_time || 0;
     if (a.avgSpeed == null && a0.average_speed) a.avgSpeed = +(a0.average_speed*3.6).toFixed(1);
     if (a.maxSpeed == null && a0.max_speed) a.maxSpeed = +(a0.max_speed*3.6).toFixed(1);
@@ -314,7 +314,7 @@ const Cloud = (() => {
       const fit = { records, laps:[], user:{}, zones:{}, workout:{ name: a0.name }, noPower: !a0.device_watts,
         sessions:[{ start, timer: a0.moving_time, distKm: a0.distance/1000, subSport: a0.trainer ? 6 : 0, avgSpeed: a0.average_speed || null, maxSpeed: a0.max_speed || null, ascent: a0.total_elevation_gain ?? null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
       const a = activityFromFit(fit, a0.name);
-      a.source = 'strava'; a.stravaId = row.strava_id; a.startTs = start;
+      a.source = 'strava'; a.stravaId = row.strava_id; a.startTs = start; if (a0.gear_id) { a.gearId = String(a0.gear_id); a.gearName = a0.gear_name || null; }
       if (!a0.trainer && st.latlng) Tracks.put(start, Tracks.fromStreams(st), 'strava');
       if (!a.durationS) a.durationS = a0.moving_time;
       // doublon avec un .fit déjà importé (même départ à 2 min près)

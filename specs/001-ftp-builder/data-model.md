@@ -66,10 +66,13 @@ alter table public.strava_tokens enable row level security; -- accès service_ro
 ## Garage (`S.garage`, synchronisé avec l'état dans `user_state`)
 
 ```
-{ bikes:[{ id, name, model:'aeroad-cfr'|'road', since:'YYYY-MM-DD', km0:{ road, ht }, rule:{ out, ht, taf }, trainer:'direct'|'wheel',
-           tires:{ f, r, internal, setup:'tube'|'latex'|'tubeless', hookless, surface:'new'|'worn'|'poor'|'cobble', speed },
-           parts:{ <clé>:{ at, spec, life } } }],
-  log:[{ id, bikeId, date, part, kind:'replace'|'buy'|'charge'|'lube'|'clean'|'check'|'service', label, price, value }],
-  assign:{ 'a:<id activité>' | 'w:<début séance Santé>' : bikeId | 'none' }, sel }
+{ bikes:[{ id, name, brand, modelName, year, purchased, model:'aeroad-cfsl'|'aeroad-cfr'|'road', variant:{ brakes:'rim'|'disc', speeds:11|12, pm },
+           since, km0:{ road, ht }, rule:{ out, ht, taf }, gearIds:[], trainer:'direct'|'wheel',
+           tires:{ f, r, internal, measuredF, measuredR, setup, surface, wet, speed, front, bikeKg, maxF, maxR, rimMax, hookless, silca:{ f, r, date } },
+           parts:{ <clé>:{ at, atTs, spec, life } }, glb:{ id, name, size, rotY, map:{ <objet>:<composant> } }, film:{ id, name, size } }],
+  log:[{ id, ts, bikeId, date, part, kind:'replace'|'buy'|'inspect'|'check'|'charge'|'lube'|'degrease'|'clean'|'jockey'|'wipe'|'service',
+         label, brand, ref, supplier, buyDate, price, value, cat, note }],
+  assign:{ 'a:<id>' | 'w:<début>' : bikeId | 'none' }, cond:{ <ref>: 'wet'|'rain' }, sel }
 ```
-Aucune distance stockée : kilométrage et usure se recalculent à partir des sorties (route / home trainer via `isIndoor`, vélotaf via `isVelotaf`).
+Aucune distance stockée : kilométrage et usure se recalculent à partir des sorties (route / HT via `isIndoor`, vélotaf via `isVelotaf`, vélo via `gearId`).
+Fichiers lourds (.glb, .mp4) : IndexedDB `ftpb-garage` + stockage privé `garage-media/<id du compte>/` (RLS par dossier, effacé avec le compte).
