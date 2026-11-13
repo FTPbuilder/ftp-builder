@@ -56,7 +56,14 @@ await pg.screenshot({ path: out + '/library-profile.png', fullPage: true });
 
 // --- photos d'une course ---
 await pg.tap('#racesCard [data-rc="open"]'); await pg.waitForSelector('#rcName');
-await pg.fill('#rcTime', '6:02:41'); await pg.fill('#rcRank', '152e / 900');
+// temps en 3 cases (h / min / s), étapes du tri → total calculé tout seul
+assert(!(await pg.locator('#rcSplits').isHidden()) && await pg.locator('#rcSplits [data-tm]').count() === 5, 'triathlon : nat, T1, vélo, T2, course');
+const typeTm = async (k, h, m, s) => { const I = pg.locator(`[data-tm="${k}"] input`); await I.nth(0).fill(''); await I.nth(0).type(String(h)); await I.nth(1).fill(''); await I.nth(1).type(m); await I.nth(2).fill(''); await I.nth(2).type(s); };
+for (const [k, t] of [['swim', [0, '38', '12']], ['t1', [0, '03', '05']], ['bike', [3, '12', '40']], ['t2', [0, '02', '10']], ['run', [2, '06', '34']]]) await typeTm(k, ...t);
+const tot = await pg.$$eval('[data-tm="total"] input', x => x.map(e => e.value).join(':'));
+assert(tot === '6:02:41', 'total = somme des étapes ' + tot);
+assert(await pg.evaluate(() => document.querySelector('[data-tm="total"] input').inputMode === 'numeric' && [...document.querySelectorAll('#dlg input')].every(i => i.getBoundingClientRect().right <= document.querySelector('#dlg').getBoundingClientRect().right + 1)), 'clavier numérique, aucun champ ne déborde');
+await pg.fill('#rcRank', '152e / 900');
 const [fc] = await Promise.all([pg.waitForEvent('filechooser'), pg.tap('#rcAdd')]);
 await fc.setFiles([photo, photo]);
 await pg.waitForFunction(() => document.querySelectorAll('#rcPh img[src]').length === 2, null, { timeout: 8000 });
@@ -68,7 +75,7 @@ await pg.tap('#rcPh img >> nth=0'); await pg.waitForFunction(() => document.quer
 await pg.screenshot({ path: out + '/library-photo.png' });
 await pg.tap('#dlg [data-rc="open"]'); await pg.waitForSelector('#rcSave'); await pg.tap('#rcSave'); await pg.waitForTimeout(300);
 const saved = await pg.evaluate(() => { const r = FTPB.S.races.find(r => r.auto); return { time: r.time, rank: r.rank, thumbs: document.querySelectorAll('#racesCard .race-th img').length }; });
-assert(saved.time === '6:02:41' && saved.rank === '152e / 900' && saved.thumbs === 2, 'temps officiel + classement enregistrés, vignettes dans la liste ' + JSON.stringify(saved));
+assert(saved.time === '6:02:41' && saved.rank === '152e / 900' && saved.thumbs === 2 && (await pg.locator('#racesCard .race').first().innerText()).includes('🏊 38:12 · 🚴 3:12:40 · 🏃 2:06:34'), 'temps officiel + classement enregistrés, vignettes dans la liste ' + JSON.stringify(saved));
 // course ajoutée à la main
 await pg.tap('[data-rc="new"]'); await pg.waitForSelector('#rcName'); await pg.fill('#rcName', 'Marmotte'); await pg.fill('#rcDate', '2025-07-06'); await pg.selectOption('#rcSport', 'bike'); await pg.tap('#rcSave'); await pg.waitForTimeout(200);
 const names = await pg.$$eval('#racesCard .race b', x => x.map(e => e.textContent));
