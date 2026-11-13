@@ -122,6 +122,19 @@ const WORKOUTS = {
   rec_45: { name:'Récup active 45 min', type:'rec', goal:"Faire tourner les jambes, très facile (< 60 %).", steps:[S_(45,55,'Récup active','rest',{cad:90})] },
   openers: { name:'Rappels (veille de test)', type:'rec', goal:"Réveiller les jambes sans fatigue avant un test ou une semaine dure.", steps:[S_(10,55,'Échauffement','warmup'), R_(3,[S_(1,110,'Rappel',null,{cad:100}), S_(2,55,'Récup','rest')]), S_(10,65,'Endurance'), S_(5,50,'Retour au calme','cooldown')] },
 };
+/* ---- échauffement préféré (Profil › Ma semaine) ----
+   profile.warmupMin = durée minimale (min) des paliers d'échauffement en début de séance (0 = selon la séance).
+   Si la séance en prévoit moins, le 1er palier est rallongé de la différence ; si elle en prévoit déjà autant ou plus, rien ne change.
+   Les activations (30 s à 105 %) ne comptent pas. Appliqué à chaque rendu et avant chaque génération de plan. */
+const WU_BASE = Object.fromEntries(Object.entries(WORKOUTS).map(([id, w]) => [id, w.steps]));
+function wuSec(steps){ let t = 0; for (const s of steps) { if (s.repeat || s.int !== 'warmup') break; t += s.d; } return t; }
+function applyWarmupPref(p = S.profile){
+  const want = Math.round((+p?.warmupMin || 0) * 60);
+  for (const id in WU_BASE) {
+    const base = WU_BASE[id], have = wuSec(base);
+    WORKOUTS[id].steps = (!have || want <= have) ? base : [{ ...base[0], d: base[0].d + want - have }, ...base.slice(1)];
+  }
+}
 const HARD = new Set(['test','ss','thr','vo2','force']);
 const isHard = wid => HARD.has(WORKOUTS[wid]?.type);
 function flat(steps){ const out = []; for (const s of steps) { if (s.repeat) for (let i=0;i<s.repeat;i++) out.push(...flat(s.steps)); else out.push(s); } return out; }
