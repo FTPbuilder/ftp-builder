@@ -212,8 +212,8 @@ const Library = (() => {
   /* ---------- carrés du Profil ---------- */
   const IC = { climbs: '<path d="M3 20l6-10 4 6 3-4 5 8z"/><path d="M9 10l1.6-2.6"/>', gpx: '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/>' };
   const sq = (k, col, big, lab) => `<button type="button" data-pp="${k}" style="--sq:${col}"><svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>
-    <span><span class="big num" style="color:${col}">${big}</span><br><span class="lab">${lab}</span></span></button>`;
-  const squaresHTML = () => { let nC = 0; try { nC = Climbs.groups().length; } catch {} return `<div class="dsq pp-sq">${sq('climbs', 'var(--h-nrg)', nC, 'Mes<br>ascensions')}${sq('gpx', 'var(--accent)', book().length, 'Mes<br>GPX')}</div>`; };
+    <span><span class="big num">${big}</span><br><span class="lab" style="color:${col}">${lab}</span></span></button>`;
+  const squaresHTML = () => { let nC = 0; try { nC = Climbs.groups().length; } catch {} return `<div class="dsq pp-sq">${sq('climbs', 'var(--h-prog1)', nC, 'Mes<br>ascensions')}${sq('gpx', 'var(--accent)', book().length, 'Mes<br>GPX')}</div>`; };
   const climbsPane = () => `<div class="pane-in pp-climbs">${paneHead('Ascensions')}${Climbs.html()}</div>`;
 
   /* ---------- photos : IndexedDB (cache local) + stockage privé Supabase (dossier = id du compte) ---------- */
@@ -269,7 +269,7 @@ const Library = (() => {
     setTimeout(() => hydrate($('#racesCard') || document), 0);
     return `<div class="card" id="racesCard"><div class="row between" style="align-items:center;gap:8px"><h2 style="margin:0">Mes courses</h2><button class="btn sm primary" data-rc="new">+ Ajouter</button></div>
       ${L.length ? `<div style="margin-top:6px">${L.map(r => `<div class="race" data-rc="open" data-id="${esc(r.id)}" role="button" tabindex="0" aria-label="Ouvrir ${esc(r.name)}"><span class="race-ic" aria-hidden="true">${(SPORTS[r.sport] || SPORTS.other)[0]}</span>
-        <div style="flex:1;min-width:0"><b>${esc(r.name)}</b><div class="tiny muted">${dateFR(r.date)}${r.time ? ` · <span class="num">${esc(r.time)}</span>` : ''}${r.rank ? ` · ${esc(r.rank)}` : ''}</div></div>
+        <div style="flex:1;min-width:0"><b>${esc(r.name)}</b><div class="tiny muted">${dateFR(r.date)}${r.time ? ` · ${esc(r.time)}` : ''}${r.rank ? ` · ${esc(r.rank)}` : ''}</div></div>
         ${r.photos?.length ? `<div class="race-th">${r.photos.slice(0, 3).map(p => `<img data-ph="${esc(p.id)}" alt="">`).join('')}${r.photos.length > 3 ? `<span class="tiny muted">+${r.photos.length - 3}</span>` : ''}</div>` : ''}</div>`).join('')}</div>`
         : `<p class="small muted" style="margin:10px 0 0">Garde ici tes courses passées : temps, classement, et les photos (médaille, dossard, ligne d'arrivée…).${S.tri?.race?.name ? ` « ${esc(S.tri.race.name)} » s'ajoutera toute seule une fois courue.` : ''}</p>`}</div>`;
   }

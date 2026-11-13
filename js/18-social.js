@@ -80,7 +80,7 @@ const Social = (() => {
     friends:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M19 8v6M16 11h6"/>' };
   const sq = (k, col, big, lab, badge) => `<button type="button" data-socsq="${k}" class="${OPEN === k ? 'on' : ''}" style="--sq:${col}" aria-expanded="${OPEN === k}">
     ${badge ? `<span class="badge">${badge}</span>` : ''}<svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${SQ_IC[k]}</svg>
-    <span><span class="big num" style="color:${col}">${big}</span><br><span class="lab">${lab}</span></span></button>`;
+    <span><span class="big num">${big}</span><br><span class="lab" style="color:${col}">${lab}</span></span></button>`;
   function html(){
     const ok = Cloud.user && D.loaded;
     if (Cloud.user && !D.loaded && !D.err && !D.busy) load().then(() => render());
