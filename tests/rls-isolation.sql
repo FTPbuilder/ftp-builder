@@ -22,6 +22,7 @@ declare
     ['climb_names','user_id',$$(user_id,key) values ('%1$s','k%2$s')$$,$$name='x'$$],
     ['workout_laps','user_id',$$(user_id,icu_id,start_at,sport,laps) values ('%1$s','w%2$s',now(),'run','[]')$$,$$sport='x'$$],
     ['health_samples','user_id',$$(user_id,metric,at,value) values ('%1$s','hr',now(),%2$s)$$,$$value=1$$],
+    ['gpx_book','user_id',$$(user_id,track_id,data) values ('%1$s','t%2$s','{}')$$,$$data='{"x":1}'$$],
     ['members','user_id',$$(user_id,display_name,searchable) values ('%1$s','Testeur%2$s',false)$$,$$display_name='Pirate'$$],
     ['shared_challenges','owner',$$(owner,kind,name,unit,start_date,end_date) values ('%1$s','renfo','Defi%2$s','reps',current_date,current_date+30)$$,$$name='Pirate'$$],
     ['challenge_members','user_id','',$$progress=999$$]];
