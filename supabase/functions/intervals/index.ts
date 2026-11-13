@@ -105,7 +105,8 @@ async function syncUser(user: { id: string }, key: string, days: number) {
       let st = null; try { st = streamsOf(await icu(key, `/activity/${id}/streams.json?types=time,${hasW ? "watts," : ""}heartrate,cadence,velocity_smooth,altitude,distance`)); } catch { /* résumé seul */ }
       const activity = { id, name: a.name, type, start_date: start, start_date_local: a.start_date_local, moving_time: a.moving_time, elapsed_time: a.elapsed_time, distance: a.distance, trainer: a.trainer,
         average_watts: hasW ? watts : null, weighted_average_watts: hasW ? (a.icu_weighted_avg_watts ?? a.weighted_average_watts) : null, average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, training_load: a.icu_training_load, device_watts: hasW,
-        total_elevation_gain: elev(a), average_speed: a.average_speed ?? null, max_speed: a.max_speed ?? null };
+        total_elevation_gain: elev(a), average_speed: a.average_speed ?? null, max_speed: a.max_speed ?? null,
+        gear_id: (a.gear as { id?: string } | null)?.id ?? null, gear_name: (a.gear as { name?: string } | null)?.name ?? null }; // vélo utilisé (Garage)
       await db.from("ext_inbox").upsert({ user_id: user.id, source: "intervals", ext_id: id, activity, streams: st, imported: false }, { onConflict: "user_id,source,ext_id", ignoreDuplicates: true });
       rides++;
     } else {

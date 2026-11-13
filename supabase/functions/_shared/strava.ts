@@ -50,6 +50,7 @@ export async function ingestActivity(db: SupabaseClient, token: string, user_id:
     average_watts: a.average_watts, weighted_average_watts: a.weighted_average_watts, max_watts: a.max_watts, device_watts: a.device_watts,
     average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, average_cadence: a.average_cadence,
     total_elevation_gain: a.total_elevation_gain ?? null, average_speed: a.average_speed ?? null, max_speed: a.max_speed ?? null,
+    gear_id: a.gear_id ?? null, gear_name: a.gear?.name ?? null, // vélo utilisé (Garage)
   };
   const compact = streams ? {
     time: streams.time?.data ?? null, watts: streams.watts?.data ?? null,

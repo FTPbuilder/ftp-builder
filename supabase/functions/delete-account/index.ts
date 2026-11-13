@@ -1,6 +1,6 @@
 // Suppression du compte par l'utilisateur lui-même (JWT Supabase requis) :
 //  1. révoque l'accès Strava et Intervals.icu (OAuth) côté services
-//  2. efface ses photos de courses (stockage race-photos)
+//  2. efface ses photos de courses et les médias du Garage (stockages race-photos, garage-media)
 //  3. supprime l'utilisateur auth : toutes les tables public.* référencent auth.users ON DELETE CASCADE
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -37,11 +37,13 @@ Deno.serve(async (req) => {
       if (acc && String(acc.api_key).startsWith("oauth:"))
         await fetch("https://intervals.icu/api/v1/disconnect-app", { method: "DELETE", headers: { Authorization: "Bearer " + String(acc.api_key).slice(6), "User-Agent": "Mozilla/5.0 (FTP Builder)" } });
     } catch (e) { console.warn("intervals disconnect", e); }
-    // photos des courses (stockage race-photos/<id du compte>/) : les fichiers ne partent pas avec la cascade
-    try {
-      const { data: files } = await db.storage.from("race-photos").list(user.id, { limit: 1000 });
-      if (files?.length) await db.storage.from("race-photos").remove(files.map((f) => `${user.id}/${f.name}`));
-    } catch (e) { console.warn("race photos", e); }
+    // photos des courses et médias du Garage (stockage <bucket>/<id du compte>/) : les fichiers ne partent pas avec la cascade
+    for (const bucket of ["race-photos", "garage-media"]) {
+      try {
+        const { data: files } = await db.storage.from(bucket).list(user.id, { limit: 1000 });
+        if (files?.length) await db.storage.from(bucket).remove(files.map((f) => `${user.id}/${f.name}`));
+      } catch (e) { console.warn(bucket, e); }
+    }
     const { error } = await db.auth.admin.deleteUser(user.id);
     if (error) throw error;
     return json({ deleted: true });
