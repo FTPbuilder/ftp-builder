@@ -16,6 +16,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Intégrité Spec Kit
+        run: node tools/check-speckit.mjs
       - name: Syntaxe et ordre de chargement
         run: node tests/check-syntax.mjs
       - name: Dépendances de test
