@@ -62,3 +62,14 @@ alter table public.strava_tokens enable row level security; -- accès service_ro
 ## Modèles de séance (bibliothèque `WORKOUTS`)
 
 `{ id, name, type, goal, steps:[ {d: secondes, lo: %FTP, hi: %FTP, cad?, label, int:'warmup'|'active'|'rest'|'cooldown'} | {repeat:n, steps:[...]} ] }`
+
+## Garage (`S.garage`, synchronisé avec l'état dans `user_state`)
+
+```
+{ bikes:[{ id, name, model:'aeroad-cfr'|'road', since:'YYYY-MM-DD', km0:{ road, ht }, rule:{ out, ht, taf }, trainer:'direct'|'wheel',
+           tires:{ f, r, internal, setup:'tube'|'latex'|'tubeless', hookless, surface:'new'|'worn'|'poor'|'cobble', speed },
+           parts:{ <clé>:{ at, spec, life } } }],
+  log:[{ id, bikeId, date, part, kind:'replace'|'buy'|'charge'|'lube'|'clean'|'check'|'service', label, price, value }],
+  assign:{ 'a:<id activité>' | 'w:<début séance Santé>' : bikeId | 'none' }, sel }
+```
+Aucune distance stockée : kilométrage et usure se recalculent à partir des sorties (route / home trainer via `isIndoor`, vélotaf via `isVelotaf`).

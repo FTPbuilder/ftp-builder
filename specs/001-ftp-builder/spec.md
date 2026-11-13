@@ -81,6 +81,16 @@ L'utilisateur connecte son compte Strava (OAuth) ; chaque nouvelle activité vé
 
 ---
 
+### User Story 6 - Garage : suivre la vie de son vélo (Priority: P3)
+
+Dans Profil › GARAGE, l'utilisateur ajoute son vélo de tri (Canyon Aeroad CFR Di2 d'abord, d'autres vélos ensuite). Le kilométrage monte tout seul à chaque sortie, séparé entre route et home trainer ; le vélotaf (autre vélo) n'y compte pas. Chaque composant (pneus, chaîne, cassette, plateaux, galets, plaquettes, roulements de direction, boîtier, guidoline, batterie Di2, piles des leviers, capteur de puissance, liquide préventif) affiche une usure ou une charge estimée. Il note ses achats et remplacements, suit l'entretien de la transmission et obtient une pression de pneus conseillée. Une maquette 3D du vélo se tourne dans tous les sens ; un toucher l'éclate en vue d'ingénieur avec un témoin d'usure / batterie par composant.
+
+**Why this priority**: confort et prévention (casse de chaîne, pneus usés avant une course) ; ne touche pas au cœur du plan.
+
+**Independent Test**: ajouter l'Aeroad, importer une sortie route de 80 km et une séance HT de 36 km, vérifier 80 km route / 36 km HT, chaîne usée de 116 km, pneus de 80 km, vélotaf ignoré ; toucher la maquette → vue éclatée avec témoins.
+
+---
+
 ### Edge Cases
 
 - Séance manquée : le plan propose de la reporter dans les 48 h ou de la supprimer, sans casser la règle des 48 h entre séances intenses.
@@ -111,6 +121,10 @@ L'utilisateur connecte son compte Strava (OAuth) ; chaque nouvelle activité vé
 - **FR-014**: Le système DEVRAIT récupérer automatiquement les activités Strava (OAuth + webhook) — V2.
 - **FR-015**: Le système DEVRAIT envoyer une séance directement dans Garmin Connect — V2, sous réserve d'accès à l'API Garmin (voir research.md).
 - **FR-016**: L'utilisateur DOIT pouvoir exporter/importer toutes ses données en JSON.
+- **FR-017**: Le Garage DOIT calculer le kilométrage de chaque vélo à partir des sorties (activités + séances vélo Santé/Intervals), séparé route / home trainer, avec des km initiaux saisissables ; chaque sortie va au premier vélo qui reçoit son type (dehors, home trainer, vélotaf), corrigeable sortie par sortie.
+- **FR-018**: Le Garage DOIT estimer l'usure de chaque composant depuis sa pose (km route, km HT pondérés, jours ou charge), afficher la pièce la plus usée sur la tuile du Profil, et remettre le compteur à zéro au remplacement (date, modèle, prix au journal). Une mesure d'allongement de chaîne corrige l'estimation.
+- **FR-019**: Le Garage DOIT rappeler l'entretien de la transmission (lubrification, nettoyage complet, mesure de chaîne) et proposer une pression avant / arrière (méthode inspirée de SILCA : charge par roue, largeur mesurée, état de la route, montage, vitesse ; plafond 5 bar en hookless), avec lien vers le calculateur SILCA.
+- **FR-020**: Le Garage DOIT montrer une maquette 3D orientable (rotation libre haut/bas, gauche/droite) qui s'éclate au toucher, avec un témoin d'usure ou de batterie par composant ouvrant sa fiche ; sans WebGL ou hors ligne, le reste du Garage fonctionne.
 
 ### Key Entities
 
@@ -121,6 +135,7 @@ L'utilisateur connecte son compte Strava (OAuth) ; chaque nouvelle activité vé
 - **Activité réalisée**: source (fichier, manuel, Strava), date, métriques, flux puissance/FC résumés, lien vers une séance prévue.
 - **Ressenti**: RPE, jambes, souffle, motivation, sommeil, commentaire.
 - **Test FTP**: date, protocole (20 min / rampe), valeur mesurée, FTP retenue.
+- **Vélo (Garage)**: nom, modèle 3D, date de début du suivi, km initiaux, types de sorties reçues, type de home trainer, pneus/jantes, pièces posées (date, modèle, durée de vie) ; journal des achats et entretiens.
 
 ## Success Criteria *(mandatory)*
 
