@@ -1,6 +1,6 @@
 -- Profil › Mes GPX : livre de traces ouvert aux amis, en lecture seule.
 -- Les lignes n'existent que quand l'utilisateur a ouvert son livre (l'app les efface quand il le ferme) ;
--- un ami accepté peut les lire, personne d'autre que le propriétaire ne peut écrire.
+-- un ami accepté peut les lire (private.is_friend : les fonctions d'aide vivent dans le schéma private en production), personne d'autre que le propriétaire ne peut écrire.
 create table public.gpx_book (
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
   track_id text not null check (char_length(track_id) between 1 and 40),
@@ -10,7 +10,7 @@ create table public.gpx_book (
 );
 alter table public.gpx_book enable row level security;
 create policy gpx_book_select on public.gpx_book for select to authenticated
-  using (user_id = (select auth.uid()) or public.is_friend(user_id));
+  using (user_id = (select auth.uid()) or private.is_friend(user_id));
 create policy gpx_book_insert on public.gpx_book for insert to authenticated with check (user_id = (select auth.uid()));
 create policy gpx_book_update on public.gpx_book for update to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
