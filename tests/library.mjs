@@ -44,6 +44,10 @@ const order = await pg.evaluate(() => { const app = document.querySelector('#app
     left: q('.pp-sq button:first-child')?.dataset.pp, right: q('.pp-sq button:last-child')?.dataset.pp }; });
 assert(order.set >= 0 && order.set < order.sq && order.sq < order.races && order.races < order.form, 'Réglages › carrés › Mes courses › questionnaire ' + JSON.stringify(order));
 assert(order.left === 'climbs' && order.right === 'gpx', 'ascensions à gauche, GPX à droite');
+assert(await pg.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Profil : pas de débordement horizontal');
+await pg.tap('button[data-tab="today"]'); await pg.waitForTimeout(200); await pg.evaluate(() => document.querySelector('[data-pane="defis"]')?.click()); await pg.waitForTimeout(300);
+assert(await pg.evaluate(() => document.querySelectorAll('.dsq button').length === 2 && document.documentElement.scrollWidth <= innerWidth + 1), 'Aujourd\'hui › Défis : carrés sans débordement horizontal');
+await pg.evaluate(() => document.querySelector('[data-paneback]')?.click()); await pg.tap('button[data-tab="profile"]'); await pg.waitForTimeout(200);
 
 // --- course objectif passée : ajoutée toute seule avec le temps des séances du jour ---
 const auto = await pg.evaluate(() => FTPB.S.races?.find(r => r.auto));

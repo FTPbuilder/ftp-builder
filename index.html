@@ -276,12 +276,13 @@ dialog.fs3d{background:#0a1020}
 .more{width:100%;margin-top:10px;justify-content:center}
 .chhead{cursor:pointer;border-radius:8px}.chhead:hover b{color:var(--accent)}
 /* défis : 2 carrés (défis partagés / amis) + pile de cartes */
-.dsq{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.dsq{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.dsq button{min-width:0;overflow:hidden}
 .dsq button{aspect-ratio:1;border-radius:24px;background:var(--card);border:1px solid var(--line);padding:16px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;color:var(--text);cursor:pointer;position:relative;font:inherit;box-shadow:var(--shadow,none)}
 .dsq button.on{border-color:var(--sq);box-shadow:inset 0 0 0 1px var(--sq)}
 .dsq svg{width:26px;height:26px}
-.dsq .big{font:italic 900 clamp(56px,18vw,82px)/.85 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.02em;padding-right:.05em;color:var(--text)} /* comme les chiffres d'Aujourd'hui */
-.dsq .lab{font:italic 800 17px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.dsq .big{font:italic 900 clamp(52px,16vw,82px)/.85 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.02em;padding-right:.05em;color:var(--text)} /* comme les chiffres d'Aujourd'hui */
+.dsq .lab{font:italic 800 clamp(14px,4.4vw,17px)/1.05 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.04em;text-transform:uppercase;overflow-wrap:anywhere}
 .dsq .badge{position:absolute;top:14px;right:14px;background:var(--accent);color:#fff;border-radius:999px;font-size:12px;font-weight:700;padding:3px 9px}
 .dstack{display:flex;flex-direction:column;margin-top:12px}
 .dcard{--tint:var(--accent);position:relative;border-radius:20px;padding:14px;background:color-mix(in srgb,var(--tint) 14%,var(--card));border:1px solid color-mix(in srgb,var(--tint) 42%,var(--line))}
@@ -589,29 +590,29 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.36.0';</script>
-<script src="js/00-schema.js?v=0.36.0"></script>
-<script src="js/01-core.js?v=0.36.0"></script>
-<script src="js/02-plan.js?v=0.36.0"></script>
-<script src="js/03-fit-metrics.js?v=0.36.0"></script>
-<script src="js/04-fit-write-coach.js?v=0.36.0"></script>
-<script src="js/05-charts.js?v=0.36.0"></script>
-<script src="js/06-render.js?v=0.36.0"></script>
-<script src="js/07-health-import.js?v=0.36.0"></script>
-<script src="js/08-explain-challenges.js?v=0.36.0"></script>
-<script src="js/09-mobility.js?v=0.36.0"></script>
-<script src="js/10-test-absences.js?v=0.36.0"></script>
-<script src="js/11-session-chart.js?v=0.36.0"></script>
-<script src="js/12-tracks.js?v=0.36.0"></script>
-<script src="js/13-climbs.js?v=0.36.0"></script>
-<script src="js/14-adjust.js?v=0.36.0"></script>
-<script src="js/15-dialogs.js?v=0.36.0"></script>
-<script src="js/16-clicks.js?v=0.36.0"></script>
-<script src="js/17-cloud.js?v=0.36.0"></script>
-<script src="js/18-social.js?v=0.36.0"></script>
-<script src="js/19-onboarding.js?v=0.36.0"></script>
-<script src="js/20-health-shortcut.js?v=0.36.0"></script>
-<script src="js/21-library.js?v=0.36.0"></script>
-<script src="js/22-boot.js?v=0.36.0"></script>
+<script>"use strict"; const APP_VERSION = '0.36.1';</script>
+<script src="js/00-schema.js?v=0.36.1"></script>
+<script src="js/01-core.js?v=0.36.1"></script>
+<script src="js/02-plan.js?v=0.36.1"></script>
+<script src="js/03-fit-metrics.js?v=0.36.1"></script>
+<script src="js/04-fit-write-coach.js?v=0.36.1"></script>
+<script src="js/05-charts.js?v=0.36.1"></script>
+<script src="js/06-render.js?v=0.36.1"></script>
+<script src="js/07-health-import.js?v=0.36.1"></script>
+<script src="js/08-explain-challenges.js?v=0.36.1"></script>
+<script src="js/09-mobility.js?v=0.36.1"></script>
+<script src="js/10-test-absences.js?v=0.36.1"></script>
+<script src="js/11-session-chart.js?v=0.36.1"></script>
+<script src="js/12-tracks.js?v=0.36.1"></script>
+<script src="js/13-climbs.js?v=0.36.1"></script>
+<script src="js/14-adjust.js?v=0.36.1"></script>
+<script src="js/15-dialogs.js?v=0.36.1"></script>
+<script src="js/16-clicks.js?v=0.36.1"></script>
+<script src="js/17-cloud.js?v=0.36.1"></script>
+<script src="js/18-social.js?v=0.36.1"></script>
+<script src="js/19-onboarding.js?v=0.36.1"></script>
+<script src="js/20-health-shortcut.js?v=0.36.1"></script>
+<script src="js/21-library.js?v=0.36.1"></script>
+<script src="js/22-boot.js?v=0.36.1"></script>
 </body>
 </html>
