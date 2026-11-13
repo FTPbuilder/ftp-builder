@@ -28,6 +28,16 @@ S = {
 }
 ```
 
+## Bibliothèque perso (Profil, v0.35)
+
+```js
+S.gpxBook = [ { id, name, km, dp, pts: [[lat, lon, alt]…] /* ≤ 600 */, notes: { fun, diff, asph, boul } /* 0-5 */, comment, added } ]
+S.gpxShare = true | false   // livre ouvert aux amis → lignes dans gpx_book
+S.races = [ { id, name, date, sport: 'tri'|'bike'|'run'|'trail'|'swim'|'other', time, rank, note, photos: [ { id, kind: 'medal'|'bib'|'finish'|'other', up } ], auto? /* 'tri-AAAA-MM-JJ' */ } ]
+S.racesSkip = [ 'tri-AAAA-MM-JJ' ]  // courses auto supprimées à la main : pas recréées
+```
+Supabase : `gpx_book (user_id, track_id, data { meta, pts })` lisible par le propriétaire et ses amis acceptés (`is_friend`) ; photos dans le bucket privé `race-photos/<user_id>/<photo>.jpg`.
+
 ## Supabase (V1.5)
 
 ```sql

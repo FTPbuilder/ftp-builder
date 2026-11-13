@@ -32,7 +32,7 @@ await pg.evaluate(() => {
   rides.forEach(([name, la, lo, L, H, T, prof], i) => { const a = { id:'r'+i, source:'intervals', date:`2026-0${7+Math.floor(i/2)}-1${i}`, startTs: 1785000000 + i*90000, name, durationS: T+2000, hasPower:false, indoor:false };
     FTPB.S.activities.push(a); Tracks.put(a.startTs, mk(la, lo, L, H, T, prof), 'intervals'); });
   FTPB.save(); });
-await pg.evaluate(() => document.querySelector('button[data-tab=prog]').click());
+await pg.evaluate(() => (document.querySelector('button[data-tab=profile]').click(), document.querySelector('[data-pp=climbs]').click()));
 await pg.waitForFunction(() => document.querySelectorAll('.climb').length >= 4, null, { timeout: 8000 }); await pg.waitForTimeout(300);
 await pg.locator('#climbsCard').screenshot({ path: out + '/stack-1.png' });
 const stacked = await pg.evaluate(() => ({ stack: !!document.querySelector('.climbs.stack'), cards: document.querySelectorAll('.climb').length, h: [...document.querySelectorAll('.climb')].map(c => Math.round(c.getBoundingClientRect().height)) }));

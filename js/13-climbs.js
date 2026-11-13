@@ -3,6 +3,7 @@
 /* ============ ascensions (≥ 400 m de D+ consécutifs) ============ */
 // détectées dans les tracés GPS, puissance estimée par la physique (ou mesurée si capteur), prédiction façon loi de Riegel
 const Climbs = (() => {
+  const climbsShown = () => TAB === 'profile' && PROFILE_PANE === 'climbs'; // la bibliothèque vit dans Profil › Mes ascensions
   const MIN_GAIN = 400, K = 0.07, CV = 3; // CV : version de l'analyse (2 : trajet de la montée gardé pour le nommage) // P(t) = P60 × (t/60 min)^−K : l'équivalent vélo de la loi de Riegel (b ≈ 1,07)
   const PHY = { g: 9.81, bike: 8, crr: 0.005, cda: 0.35, eta: 0.975 };
   const COLORS = [[4,'var(--g1)'],[7,'var(--g2)'],[10,'var(--g3)'],[99,'var(--g4)']]; // 4 teintes : < 4 %, 4-7, 7-10, ≥ 10 %
@@ -106,7 +107,7 @@ const Climbs = (() => {
         const tr = Tracks.local(a.startTs) || remote[a.startTs]; if (!tr) continue;
         a.climbs = detect(tr).map(c => applyFix(a, tr, measure(a, tr, c))); a.climbsV = CV; changed++;
       }
-      if (changed) { save(); if (TAB === 'prog') render(); }
+      if (changed) { save(); if (climbsShown()) render(); }
     } catch (e) { console.warn('ascensions', e); }
     finally { scanning = false; }
   }
@@ -151,8 +152,8 @@ const Climbs = (() => {
     catch (e) { S.climbNameErr = String(e?.message || e); console.warn('noms des cols', e); }
     finally {
       naming = false; if (changed) save();
-      if (changed && TAB === 'prog') render();
-      if (again) { polls++; setTimeout(() => { if (TAB === 'prog') autoNames(groups()).then(() => {}); }, 8000); }
+      if (changed && climbsShown()) render();
+      if (again) { polls++; setTimeout(() => { if (climbsShown()) autoNames(groups()).then(() => {}); }, 8000); }
     }
   }
   const autoName = g => { const nm = g.list.map(c => c.name).find(n => /\b(col|mont|côte|cote|alpe|pic|hautacam|ventoux|tourmalet|joux)\b/i.test(n || ''));

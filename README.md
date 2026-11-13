@@ -11,7 +11,7 @@ Projet piloté avec [GitHub Spec Kit](https://github.com/github/spec-kit) :
 Ouvrir `index.html` dans un navigateur (ou GitHub Pages). Données stockées localement (export/import JSON dans Profil).
 
 ## Code
-`index.html` : structure, CSS, `APP_VERSION`. `js/01-core.js` … `js/21-boot.js` : un fichier par domaine, chargés dans l'ordre (un fichier n'utilise au chargement que ceux qui le précèdent).
+`index.html` : structure, CSS, `APP_VERSION`. `js/01-core.js` … `js/22-boot.js` : un fichier par domaine, chargés dans l'ordre (un fichier n'utilise au chargement que ceux qui le précèdent).
 Nouvelle version : `node tools/bump.mjs X.Y.Z`.
 
 ## Tests

@@ -1346,7 +1346,6 @@ function progHTML(){
     h += `<div class="card"><h2>Ressentis</h2><div style="display:flex;align-items:flex-end;gap:4px;height:90px">${felt.slice(-30).map(a=>`<div title="${fmtShort(a.date)} · RPE ${a.feel.rpe}" style="flex:1;max-width:22px;height:${a.feel.rpe*10}%;border-radius:4px 4px 0 0;background:${a.feel.rpe>=9?'var(--bad)':a.feel.rpe>=7?'var(--warn)':'var(--ok)'}"></div>`).join('')}</div>
       <div class="tiny muted" style="margin-top:6px">RPE moyen sur les 5 dernières : <b class="num">${(felt.slice(-5).reduce((a,x)=>a+x.feel.rpe,0)/Math.min(5,felt.length)).toFixed(1)}</b></div></div>`;
   }
-  h += Climbs.html();
   h += `<div class="card"><h2>Historique</h2>${acts.length ? acts.slice().reverse().map(actRow).join('') : '<p class="muted">Aucune séance enregistrée.</p>'}</div>`;
   h += Health.otherSportsHTML();
   return h;
@@ -1516,7 +1515,9 @@ document.addEventListener('click', e => { const b = e.target.closest('[data-sett
   PROFILE_PANE = b.dataset.settings === 'open' ? 'settings' : null; if (dlg.open) closeDlg(); TAB = 'profile'; render(); window.scrollTo(0, 0); });
 function profileHTML(){
   if (PROFILE_PANE === 'settings') return settingsPaneHTML();
-  return settingsBtnHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
+  if (PROFILE_PANE === 'climbs') return Library.climbsPane();
+  if (PROFILE_PANE === 'gpx') return Library.gpxPane();
+  return settingsBtnHTML() + Library.squaresHTML() + Library.racesHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row" style="margin-bottom:8px"><button class="btn" data-tour="open">Revoir la visite guidée</button></div>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>

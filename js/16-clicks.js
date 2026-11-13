@@ -16,7 +16,7 @@ document.addEventListener('click', e => {
   else if (t.dataset.coach) { const n = window._coach?.[+t.dataset.coach]; if (n?.action) { n.action.f(); save(); render(); toast('Cibles ajustées'); } }
   else if (t.id === 'expJson') exportJSON();
   else if (t.id === 'impJson') importJSON();
-  else if (t.id === 'reset') { if (confirmReset()) { S = blank(); _draft = null; save(); render(); } }
+  else if (t.id === 'reset') { if (confirmReset()) { S = blank(); _draft = null; save(); Library.wipeLocal(); render(); } }
 });
 document.addEventListener('click', e => { const b = e.target.closest('[data-export-lib]'); if (b) exportWorkout(b.dataset.exportLib); });
 document.addEventListener('change', e => { if (e.target.id === 'themeSel') { S.settings.theme = e.target.value; save(); applyTheme(); } });

@@ -35,7 +35,7 @@ const res = await pg.evaluate(() => {
   for (const [id, date, name, T, seed] of acts) { const a = { id, source:'intervals', date, startTs: Date.parse(date+'T08:00:00Z')/1000, name, durationS: 12000, hasPower:false, indoor:false, feel:null };
     S.activities.push(a); Tracks.put(a.startTs, ride(T, seed), 'intervals'); }
   FTPB.save(); return true; });
-await pg.evaluate(() => document.querySelector('button[data-tab=prog]').click());
+await pg.evaluate(() => (document.querySelector('button[data-tab=profile]').click(), document.querySelector('[data-pp=climbs]').click()));
 await pg.waitForFunction(() => document.querySelectorAll('.climb').length > 0, null, { timeout: 8000 });
 await pg.waitForTimeout(300);
 const info = await pg.evaluate(() => { const G = Climbs.groups(); return { groups: G.length, list: G[0].list.map(c => ({ L:c.L, H:c.H, T:c.T, wkg:c.wkg, vam:c.vam, gmax:c.gmax })), name: G[0].name,
@@ -62,7 +62,7 @@ console.log('BORNES', JSON.stringify(before), '→', JSON.stringify(after));
 // nouvelle analyse (comme une nouvelle sortie) : la correction doit être réappliquée
 await pg.evaluate(() => { for (const a of FTPB.S.activities) { a.climbsV = 0; a.climbs = null; } FTPB.save(); });
 await pg.waitForTimeout(600); await pg.reload(); await pg.waitForSelector('#tabs:not(.hidden)'); // (pause : en file://, un rechargement immédiat peut devancer l'écriture du stockage)
-await pg.evaluate(() => document.querySelector('button[data-tab=prog]').click()); await pg.waitForTimeout(1200);
+await pg.evaluate(() => (document.querySelector('button[data-tab=profile]').click(), document.querySelector('[data-pp=climbs]').click())); await pg.waitForTimeout(1200);
 const rescan = await pg.evaluate(() => Climbs.groups()[0].list.map(c => c.L));
 console.log('RÉANALYSE', JSON.stringify(rescan));
 await pg.locator('.climb').first().click(); await pg.waitForTimeout(200); await pg.screenshot({ path: out + '/climbs-detail.png' });
