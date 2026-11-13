@@ -86,6 +86,7 @@ function christmasWeeks(p){ // semaines contenant 24/12 et 31/12
   return [...res];
 }
 function generatePlan(p, keepFrom){
+  applyWarmupPref(p);
   p.holidayWeeks = p.holidays ? christmasWeeks(p) : [];
   const kinds = weekKinds(p), days = pickDays(p);
   const testW = p.testProtocol === 'ramp' ? 'ramp' : 'test20';
@@ -251,6 +252,7 @@ function triPhase(k){
   return ['base', 'build', 'build2', 'spec'][k.bi ?? 0] || 'base';
 }
 function generateTri(p, T, keepFrom){
+  applyWarmupPref(p);
   const kinds = weekKinds(p), out = [], race = T.race.date;
   const ok = date => date >= p.startDate && date <= race && !(p.absences || []).some(a => date >= a.from && date <= a.to) && (!keepFrom || date >= keepFrom);
   const add = (k, dow, o) => { const date = addDays(k.ws, dow); if (date > race || !ok(date)) return; out.push({ id: uid(), date, week: k.i, block: k.block, status:'planned', ...o }); };

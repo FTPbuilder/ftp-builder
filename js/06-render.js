@@ -4,7 +4,7 @@
 let TAB = 'today';
 function applyTheme(){ const t = S.settings.theme; if (t === 'auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); }
 function render(){
-  applyTheme();
+  applyTheme(); applyWarmupPref();
   const app = $('#app'); const tabs = $('#tabs');
   // questionnaire déjà affiché : on n'y touche pas (un réaffichage pendant le chargement du compte faisait perdre le focus et la frappe en cours)
   if (!S.profile) { tabs.classList.add('hidden'); if (app.querySelector('.onb #qform')) return; app.innerHTML = onboardingHTML(); bindQuestionnaire(true); return; }
@@ -1374,7 +1374,7 @@ function defaultProfile(){
   const t = todayISO();
   const days = {}; for (let d=0; d<7; d++) days[d] = { avail: [1,3,5].includes(d), max: d>=5 ? 120 : 75 };
   return { name:'', sex:'M', age:'', weightKg:'', heightCm:'', ftp:'', hrMax:'', hrRest:'', goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35,
-    startDate: addDays(t,1), days, keyPerWeek:2, optionalPerWeek:1, otherSports:true, holidays:true, testProtocol:'20min', intensityAdj:1, ctl0: 40 };
+    startDate: addDays(t,1), days, keyPerWeek:2, optionalPerWeek:1, otherSports:true, holidays:true, testProtocol:'20min', warmupMin:0, intensityAdj:1, ctl0: 40 };
 }
 function qHTML(p, onboarding){
   const T0 = triOn() ? tri() : null, tsw = T0 ? T0.swimDays.slice(0, T0.swimPerWeek) : [], trn = T0 ? T0.runDays.slice(0, T0.runPerWeek) : [];
@@ -1409,8 +1409,10 @@ function qHTML(p, onboarding){
       <div><label class="f">Séances clés / semaine (home trainer)</label><div class="seg" data-seg="keyPerWeek">${[1,2,3].map(n=>`<button type="button" class="${p.keyPerWeek===n?'on':''}" data-v="${n}">${n}</button>`).join('')}</div></div>
       <div><label class="f">Séances optionnelles / semaine (endurance)</label><div class="seg" data-seg="optionalPerWeek">${[0,1,2].map(n=>`<button type="button" class="${p.optionalPerWeek===n?'on':''}" data-v="${n}">${n}</button>`).join('')}</div></div>
       <div><label class="f">Test FTP</label><select name="testProtocol"><option value="20min" ${p.testProtocol==='20min'?'selected':''}>20 min (recommandé)</option><option value="ramp" ${p.testProtocol==='ramp'?'selected':''}>Rampe</option></select></div>
+      <div><label class="f">Échauffement préféré</label><select name="warmupMin">${[[0,'Selon la séance'],[10,'10 min mini'],[12,'12 min mini'],[15,'15 min mini'],[20,'20 min mini'],[25,'25 min mini']].map(([v,l])=>`<option value="${v}" ${(+p.warmupMin||0)===v?'selected':''}>${l}</option>`).join('')}</select></div>
       <div><label class="f">Fitness actuelle (CTL estimée)</label><select name="ctl0">${[[20,'Reprise (20)'],[40,'Régulier (40)'],[60,'Bien entraîné (60)'],[80,'Très chargé (80)']].map(([v,l])=>`<option value="${v}" ${+p.ctl0===v?'selected':''}>${l}</option>`).join('')}</select></div>
     </div>
+    <p class="tiny muted" style="margin:8px 0 0">Échauffement préféré : si une séance prévoit moins, son premier palier d'échauffement est rallongé (activations non comptées). Les séances qui en prévoient déjà plus ne changent pas.</p>
     <label class="row small" style="margin-top:12px;gap:8px"><input type="checkbox" name="otherSports" ${p.otherSports?'checked':''}> Je pratique aussi d'autres sports (course, natation…)</label>
     <label class="row small" style="margin-top:6px;gap:8px"><input type="checkbox" name="holidays" ${p.holidays?'checked':''}> Alléger les semaines des fêtes de fin d'année</label>
   </div>
@@ -1425,7 +1427,7 @@ let _draft = null;
 function readForm(base){
   const f = $('#qform'); const fd = new FormData(f); const p = structuredClone(base);
   for (const k of ['name','sex','goalDate','endDate','startDate','testProtocol']) p[k] = fd.get(k);
-  for (const k of ['age','weightKg','heightCm','ftp','hrMax','goalFtp','minSessions','ctl0']) p[k] = fd.get(k) === '' ? '' : +fd.get(k);
+  for (const k of ['age','weightKg','heightCm','ftp','hrMax','goalFtp','minSessions','ctl0','warmupMin']) p[k] = fd.get(k) === '' ? '' : +fd.get(k);
   p.otherSports = !!fd.get('otherSports'); p.holidays = !!fd.get('holidays');
   f.querySelectorAll('.day').forEach(el => { const d = +el.dataset.day; p.days[d].max = +el.querySelector('input').value || 60; });
   return p;
