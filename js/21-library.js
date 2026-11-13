@@ -29,7 +29,10 @@ const Library = (() => {
       .filter(p => isFinite(p[0]) && isFinite(p[1]) && (p[0] || p[1]));
     if (raw.length < 2) return null;
     const nm = [...doc.getElementsByTagName('name')].map(x => x.textContent.trim()).find(Boolean);
-    const name = (nm || fileName.replace(/\.gpx$/i, '') || 'Trace').slice(0, 60);
+    return fromRaw(raw, (nm || fileName.replace(/\.gpx$/i, '') || 'Trace').slice(0, 60));
+  }
+  // points [lat, lon, alt|null] → trace du livre (distance, D+, ≤ 600 points)
+  function fromRaw(raw, name){
     const D = [0]; for (let i = 1; i < raw.length; i++) D.push(D[i-1] + dist(raw[i-1], raw[i]));
     const km = D[D.length - 1]; if (km < 0.2) return null;
     // D+ avec hystérésis de 3 m (filtre le bruit de l'altitude GPS)
@@ -191,6 +194,21 @@ const Library = (() => {
     $('#gxFrAdd').onclick = () => { book().push({ id: rid(), name: t.name, km: t.km, dp: t.dp, pts: t.pts, notes: { fun: 0, diff: 0, asph: 0, boul: 0 }, comment: '', added: todayISO() }); save(); pushSoon(); toast('Trace copiée dans ton livre : à toi de la noter'); };
   }
 
+  /* ---------- depuis une sortie extérieure (Calendrier › séance › « Ajouter à mes traces ») ---------- */
+  const inBook = actId => book().find(t => t.act === actId);
+  const addBtnHTML = a => !a || isIndoor(a) ? '' : inBook(a.id) ? `<button class="btn" data-gxact="${esc(a.id)}" style="margin:4px 0 2px">✓ Dans mes traces · voir</button>` : `<button class="btn" data-gxact="${esc(a.id)}" style="margin:4px 0 2px">⭐ Ajouter à mes traces</button>`;
+  async function addFromActivity(id){
+    const a = S.activities.find(x => x.id === id); if (!a) return;
+    const have = inBook(a.id); if (have) { trackDlg(have.id); return; }
+    const tr = await Tracks.get(a);
+    if (!tr?.lat?.length) { toast(a.startTs ? "Pas encore de tracé GPS pour cette sortie : il arrive avec la synchro Intervals.icu, un fichier .fit ou Strava." : 'Pas de tracé GPS pour cette sortie.'); return; }
+    const raw = tr.lat.map((la, i) => [la, tr.lon[i], tr.alt?.[i] ?? null]).filter(p => p[0] != null && p[1] != null && isFinite(p[0]) && isFinite(p[1]) && (p[0] || p[1]));
+    const pl = a.planId ? S.plan.find(s => s.id === a.planId) : null;
+    const g = fromRaw(raw, ((pl ? WORKOUTS[pl.workoutId]?.name : a.name) || 'Sortie').slice(0, 60)); if (!g) { toast('Tracé trop court pour le livre'); return; }
+    const t = { id: rid(), act: a.id, ...g, notes: { fun: 0, diff: 0, asph: 0, boul: 0 }, comment: '', added: todayISO() };
+    book().push(t); save(); pushSoon(); render(); toast('Ajoutée à Mes GPX : note-la !'); trackDlg(t.id, true);
+  }
+
   /* ---------- carrés du Profil ---------- */
   const IC = { climbs: '<path d="M3 20l6-10 4 6 3-4 5 8z"/><path d="M9 10l1.6-2.6"/>', gpx: '<circle cx="6" cy="18" r="2"/><circle cx="18" cy="6" r="2"/><path d="M8 18h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7"/>' };
   const sq = (k, col, big, lab) => `<button type="button" data-pp="${k}" style="--sq:${col}"><svg viewBox="0 0 24 24" fill="none" stroke="${col}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[k]}</svg>
@@ -319,6 +337,7 @@ const Library = (() => {
       else if (a === 'fopen') friendDlg(gx.dataset.u, gx.dataset.id);
       else if (a === 'retry') { FR.loaded = false; render(); }
       return; }
+    const ga = e.target.closest('[data-gxact]'); if (ga) { addFromActivity(ga.dataset.gxact); return; }
     const rc = e.target.closest('[data-rc]');
     if (rc) raceDlg(rc.dataset.rc === 'open' ? rc.dataset.id : null);
   });
@@ -329,5 +348,5 @@ const Library = (() => {
     catch (er) { S.gpxShare = !on; save(); e.target.checked = !on; toast('Partage impossible pour l\'instant : ' + (er?.message || er)); } });
 
   const wipeLocal = () => { try { indexedDB.deleteDatabase('ftpb-photos'); localStorage.removeItem(PUSH_KEY); } catch {} };
-  return { wipeLocal, squaresHTML, racesHTML, gpxPane, climbsPane, parseGPX, toGPX, pushBook, autoRace, get FR(){ return FR; } };
+  return { addBtnHTML, addFromActivity, wipeLocal, squaresHTML, racesHTML, gpxPane, climbsPane, parseGPX, toGPX, pushBook, autoRace, get FR(){ return FR; } };
 })();
