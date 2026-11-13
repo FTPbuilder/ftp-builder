@@ -211,7 +211,7 @@ const Library = (() => {
   }
   function trackDlg(id, fresh){
     const t = book().find(x => x.id === id); if (!t) return;
-    openDlg(`<div class="row" style="gap:8px;margin:0 30px 8px 0"><input id="gxName" value="${esc(t.name)}" aria-label="Nom de la trace" style="flex:1;min-width:0"><button class="btn sm" id="gxRename">Renommer</button></div>
+    openDlg(`<div class="row" style="gap:8px;margin:0 30px 8px 0"><input type="text" id="gxName" value="${esc(t.name)}" aria-label="Nom de la trace" style="flex:1;min-width:0"><button class="btn sm" id="gxRename">Renommer</button></div>
       <p class="muted small" style="margin:0 0 8px">${f1(t.km)} km · ${t.dp} m D+${isLoop(t) ? ' · boucle' : ''} · ajoutée le ${dateFR(t.added || todayISO())}</p>
       <div class="gx-big">${mapSVG(t.pts, 640, 360, 'gpxmap big')}</div>${eleSVG(t.pts)}
       ${fresh ? '<div class="note" style="margin:8px 0">Note ta trace : touche les étoiles.</div>' : ''}
@@ -288,7 +288,7 @@ const Library = (() => {
     return { m, L, draw, sug };
   }
   const bkListHTML = (t, ro) => (t.bk || []).length ? t.bk.map((b, i) => ro ? `<div class="bk-row"><span aria-hidden="true">🥐</span><span>${esc(b.n || 'Boulangerie')}</span></div>`
-      : `<div class="bk-row"><span aria-hidden="true">🥐</span><input data-bkn="${i}" value="${esc(b.n || '')}" placeholder="Nom de la boulangerie" maxlength="60" aria-label="Nom de la boulangerie"><button type="button" class="btn sm ghost" data-bkdel="${i}" aria-label="Retirer cette boulangerie">×</button></div>`).join('')
+      : `<div class="bk-row"><span aria-hidden="true">🥐</span><input type="text" data-bkn="${i}" value="${esc(b.n || '')}" placeholder="Nom de la boulangerie" maxlength="60" aria-label="Nom de la boulangerie"><button type="button" class="btn sm ghost" data-bkdel="${i}" aria-label="Retirer cette boulangerie">×</button></div>`).join('')
     : `<p class="tiny muted" style="margin:6px 0 0">${ro ? 'Aucune boulangerie notée.' : "Touche la carte à l'endroit d'une boulangerie pour l'ajouter, ou cherche celles du parcours."}</p>`;
   // boulangeries OpenStreetMap à moins de 300 m du tracé (quelques points du parcours, au rythme du géocodeur)
   async function findBakeries(t, onStep){
@@ -367,9 +367,8 @@ const Library = (() => {
   function autoRace(){
     const r = S.tri?.race; if (!r?.date || !r.name || r.date >= todayISO()) return;
     const key = 'tri-' + r.date; if (races().some(x => x.auto === key) || (S.racesSkip || []).includes(key)) return;
-    let ex = []; try { ex = Health.extraWorkouts() || []; } catch {}
-    const sec = S.activities.filter(a => a.date === r.date).reduce((s, a) => s + (a.durationS || 0), 0) + ex.filter(e => e.date === r.date).reduce((s, e) => s + (e.w?.duration_min || 0)*60, 0);
-    races().push({ id: rid(), auto: key, name: r.name, date: r.date, sport: 'tri', time: sec ? hms(sec) : '', rank: '', note: '', photos: [] }); save();
+    const sp = daySplits(r.date), sec = Object.values(sp).reduce((a, b) => a + b, 0);
+    races().push({ id: rid(), auto: key, name: r.name, date: r.date, sport: 'tri', time: sec ? hms(sec) : '', splits: sp, rank: '', note: '', photos: [] }); save();
   }
   function racesHTML(){
     autoRace();
@@ -378,9 +377,26 @@ const Library = (() => {
     setTimeout(() => hydrate($('#racesCard') || document), 0);
     return `<div class="card" id="racesCard"><div class="row between" style="align-items:center;gap:8px"><h2 style="margin:0">Mes courses</h2><button class="btn sm primary" data-rc="new">+ Ajouter</button></div>
       ${L.length ? `<div style="margin-top:6px">${L.map(r => `<div class="race" data-rc="open" data-id="${esc(r.id)}" role="button" tabindex="0" aria-label="Ouvrir ${esc(r.name)}"><span class="race-ic" aria-hidden="true">${(SPORTS[r.sport] || SPORTS.other)[0]}</span>
-        <div style="flex:1;min-width:0"><b>${esc(r.name)}</b><div class="tiny muted">${dateFR(r.date)}${r.time ? ` · ${esc(r.time)}` : ''}${r.rank ? ` · ${esc(r.rank)}` : ''}</div></div>
+        <div style="flex:1;min-width:0"><b>${esc(r.name)}</b><div class="tiny muted">${dateFR(r.date)}${r.time ? ` · ${esc(r.time)}` : ''}${r.rank ? ` · ${esc(r.rank)}` : ''}</div>${splitsLine(r) ? `<div class="tiny muted">${splitsLine(r)}</div>` : ''}</div>
         ${r.photos?.length ? `<div class="race-th">${r.photos.slice(0, 3).map(p => `<img data-ph="${esc(p.id)}" alt="">`).join('')}${r.photos.length > 3 ? `<span class="tiny muted">+${r.photos.length - 3}</span>` : ''}</div>` : ''}</div>`).join('')}</div>`
         : `<p class="small muted" style="margin:10px 0 0">Garde ici tes courses passées : temps, classement, et les photos (médaille, dossard, ligne d'arrivée…).${S.tri?.race?.name ? ` « ${esc(S.tri.race.name)} » s'ajoutera toute seule une fois courue.` : ''}</p>`}</div>`;
+  }
+  /* ---------- temps : 3 cases h / min / s (clavier numérique) ; triathlon : nat, T1, vélo, T2, course ---------- */
+  const SPLITS = [['swim', '🏊', 'Natation'], ['t1', '↔', 'T1'], ['bike', '🚴', 'Vélo'], ['t2', '↔', 'T2'], ['run', '🏃', 'Course']];
+  const toSec = s => { if (s == null || s === '') return 0; if (typeof s === 'number') return s; const p = String(s).split(':').map(x => +x || 0); while (p.length < 3) p.unshift(0); return p[0]*3600 + p[1]*60 + p[2]; };
+  const fmtT = s => { s = Math.round(s || 0); const hh = Math.floor(s/3600), mm = Math.floor(s%3600/60), ss = s%60; return hh ? `${hh}:${pad(mm)}:${pad(ss)}` : `${mm}:${pad(ss)}`; };
+  const timeIn = (k, sec, lab) => { sec = Math.round(sec || 0); const v = sec ? [Math.floor(sec/3600), Math.floor(sec%3600/60), sec%60] : ['', '', ''];
+    return `<div class="tm" data-tm="${k}" role="group" aria-label="${lab}">${['h', 'min', 's'].map((u, i) => `<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" data-u="${i}" value="${v[i] === '' ? '' : i ? pad(v[i]) : v[i]}" placeholder="${i ? '00' : '0'}" aria-label="${lab} : ${u}"><span>${u}</span>`).join('')}</div>`; };
+  const readTm = k => { const I = [...dlgBody.querySelectorAll(`[data-tm="${k}"] input`)].map(x => +x.value || 0); return I[0]*3600 + Math.min(59, I[1])*60 + Math.min(59, I[2]); };
+  const setTm = (k, sec) => { sec = Math.round(sec); const I = dlgBody.querySelectorAll(`[data-tm="${k}"] input`); if (!I.length) return; const v = [Math.floor(sec/3600), Math.floor(sec%3600/60), sec%60]; I.forEach((x, i) => x.value = sec ? (i ? pad(v[i]) : v[i]) : ''); };
+  const splitsLine = r => r.sport === 'tri' && r.splits && SPLITS.some(([k]) => r.splits[k]) ? SPLITS.filter(([k]) => r.splits[k] && !k.startsWith('t')).map(([k, ic]) => `${ic} ${fmtT(r.splits[k])}`).join(' · ') : '';
+  // séances du jour de la course, par discipline (pré-remplissage)
+  function daySplits(date){
+    let ex = []; try { ex = Health.extraWorkouts() || []; } catch {}
+    const o = { swim: 0, t1: 0, bike: 0, t2: 0, run: 0 };
+    for (const a of S.activities.filter(a => a.date === date)) o.bike += a.durationS || 0;
+    for (const e of ex.filter(e => e.date === date)) if (o[e.sport] != null && !e.sport.startsWith('t')) o[e.sport] += (e.w?.duration_min || 0)*60;
+    return o;
   }
   let draft = null;
   function raceDlg(id){
@@ -388,20 +404,29 @@ const Library = (() => {
     draft = r || { id: null, name: '', date: todayISO(), sport: 'tri', time: '', rank: '', note: '', photos: [] };
     const d = draft;
     openDlg(`<h2 style="margin-right:30px">${r ? esc(r.name) : 'Nouvelle course'}</h2>
-      <label class="f" for="rcName">Nom</label><input id="rcName" value="${esc(d.name)}" maxlength="80" placeholder="AlpsMan Half, Marmotte, semi de Paris…">
+      <label class="f" for="rcName">Nom</label><input type="text" id="rcName" value="${esc(d.name)}" maxlength="80" placeholder="AlpsMan Half, Marmotte, semi de Paris…">
       <div class="grid2"><div><label class="f" for="rcDate">Date</label><input type="date" id="rcDate" value="${d.date}" max="${todayISO()}"></div>
         <div><label class="f" for="rcSport">Sport</label><select id="rcSport">${Object.entries(SPORTS).map(([k, [ic, l]]) => `<option value="${k}"${d.sport === k ? ' selected' : ''}>${ic} ${l}</option>`).join('')}</select></div></div>
-      <div class="grid2"><div><label class="f" for="rcTime">Temps</label><input id="rcTime" value="${esc(d.time)}" placeholder="5:42:10" inputmode="numeric" maxlength="12"></div>
-        <div><label class="f" for="rcRank">Classement</label><input id="rcRank" value="${esc(d.rank)}" placeholder="152e / 900" maxlength="40"></div></div>
-      ${d.auto ? `<p class="tiny muted" style="margin:6px 0 0">Ajoutée toute seule après ta course objectif. ${d.time ? 'Temps calculé avec tes séances du jour (transitions non comprises) : corrige-le avec ton temps officiel.' : 'Saisis ton temps officiel.'}</p>` : ''}
+      <label class="f">Temps total</label>${timeIn('total', toSec(d.time), 'Temps total')}
+      <div id="rcSplits"${d.sport === 'tri' ? '' : ' hidden'}><label class="f" style="margin-top:10px">Par discipline <span class="tiny muted">(le total se calcule tout seul)</span></label>
+        <div class="rc-spl">${SPLITS.map(([k, ic, l]) => `<div class="rc-sp${k.startsWith('t') ? ' tr' : ''}"><span class="rc-spl-l"><span aria-hidden="true">${ic}</span> ${l}</span>${timeIn(k, d.splits?.[k], l)}</div>`).join('')}</div></div>
+      <label class="f" for="rcRank">Classement</label><input type="text" id="rcRank" value="${esc(d.rank)}" placeholder="152e / 900" maxlength="40">
+      ${d.auto ? `<p class="tiny muted" style="margin:6px 0 0">Ajoutée toute seule après ta course objectif, temps pré-remplis avec tes séances du jour (transitions non comprises) : corrige avec ton temps officiel.</p>` : ''}
       <label class="f" for="rcNote">Souvenirs</label><textarea id="rcNote" rows="2" maxlength="500" placeholder="Météo, sensations, ravitos…">${esc(d.note)}</textarea>
       <h3 style="margin-top:14px">Photos</h3><div class="rc-ph" id="rcPh">${photosHTML(d)}</div>
       <button class="btn" id="rcAdd" style="margin-top:8px">📷 Ajouter des photos</button>
       <div class="row between" style="margin-top:14px;gap:8px"><button class="btn primary" id="rcSave">Enregistrer</button>${r ? '<button class="btn danger sm" id="rcDel">Supprimer la course</button>' : ''}</div>`);
     hydrate(dlgBody);
-    const read = () => { d.name = $('#rcName').value.trim().slice(0, 80); d.date = $('#rcDate').value || d.date; d.sport = $('#rcSport').value; d.time = $('#rcTime').value.trim().slice(0, 12); d.rank = $('#rcRank').value.trim().slice(0, 40); d.note = $('#rcNote').value.trim().slice(0, 500); };
+    const read = () => { d.name = $('#rcName').value.trim().slice(0, 80); d.date = $('#rcDate').value || d.date; d.sport = $('#rcSport').value; const tot = readTm('total'); d.time = tot ? hms(tot) : ''; if (d.sport === 'tri') { d.splits = Object.fromEntries(SPLITS.map(([k]) => [k, readTm(k)])); if (!Object.values(d.splits).some(Boolean)) delete d.splits; } else delete d.splits; d.rank = $('#rcRank').value.trim().slice(0, 40); d.note = $('#rcNote').value.trim().slice(0, 500); };
     const commit = () => { read(); if (!d.name) { toast('Donne un nom à ta course'); $('#rcName').focus(); return false; }
       if (!d.id) { d.id = rid(); races().push(d); } save(); render(); return true; };
+    $('#rcSport').onchange = () => { $('#rcSplits').hidden = $('#rcSport').value !== 'tri'; };
+    // saisie : 2 chiffres → case suivante ; les étapes du tri recalculent le total
+    dlgBody.querySelectorAll('.tm input').forEach(x => {
+      x.oninput = () => { x.value = x.value.replace(/\D/g, '').slice(0, 2); const nx = x.nextElementSibling?.nextElementSibling; if (x.value.length === 2 && nx?.tagName === 'INPUT') { nx.focus(); nx.select?.(); }
+        if (x.closest('#rcSplits')) { const s = SPLITS.reduce((a, [k]) => a + readTm(k), 0); if (s) setTm('total', s); } };
+      x.onfocus = () => x.select?.(); x.onblur = () => { if (x.value && +x.dataset.u) x.value = pad(Math.min(59, +x.value)); }; });
+    if (d.sport === 'tri' && d.splits && !toSec(d.time)) { const s = SPLITS.reduce((a, [k]) => a + (d.splits[k] || 0), 0); if (s) setTm('total', s); }
     $('#rcSave').onclick = () => { if (commit()) { closeDlg(); toast('Course enregistrée'); } };
     $('#rcAdd').onclick = () => { if (!commit()) return;
       const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.multiple = true;

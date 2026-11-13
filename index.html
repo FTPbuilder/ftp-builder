@@ -73,7 +73,7 @@ h2[data-i]::after{content:"i";display:inline-block;margin-left:8px;width:17px;he
 .btn.danger{color:var(--bad)}
 .btn:disabled{opacity:.5;cursor:not-allowed}
 label.f{display:block;font-size:12.5px;color:var(--muted);margin:10px 0 4px}
-input[type=text],input[type=number],input[type=date],select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px}
+input:not([type]),input[type=text],input[type=number],input[type=date],select,textarea{width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:42px}
 textarea{min-height:70px;resize:vertical}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:0;border-color:transparent}
 nav.tabs{position:fixed;left:0;right:0;bottom:calc(14px + env(safe-area-inset-bottom));display:flex;justify-content:center;padding:0 22px;z-index:20;pointer-events:none}
@@ -538,6 +538,14 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 .bk-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .bk-row:last-child{border-bottom:0}
 .bk-row input{flex:1;min-width:0;min-height:36px;padding:6px 10px}
+.tm{display:flex;align-items:center;gap:4px}
+.tm input{width:3.2em;flex:none;text-align:center;padding:8px 4px;min-height:44px;font-size:17px;font-variant-numeric:tabular-nums}
+.tm span{font-size:13px;color:var(--muted);margin-right:6px}
+.rc-spl{display:flex;flex-direction:column;gap:6px}
+.rc-sp{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.rc-sp.tr .rc-spl-l{color:var(--muted);font-size:13px}
+.rc-sp.tr .tm input{min-height:38px;font-size:15px}
+.rc-spl-l{font-weight:600;font-size:15px}
 /* ----- Écran d'ouverture : logo, roues qui tournent, éclairs (2 s, le temps que les données arrivent) ----- */
 #splash{position:fixed;inset:0;z-index:1000;background:#0f0d14;display:grid;place-items:center;transition:opacity .45s ease,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
@@ -590,29 +598,29 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.36.1';</script>
-<script src="js/00-schema.js?v=0.36.1"></script>
-<script src="js/01-core.js?v=0.36.1"></script>
-<script src="js/02-plan.js?v=0.36.1"></script>
-<script src="js/03-fit-metrics.js?v=0.36.1"></script>
-<script src="js/04-fit-write-coach.js?v=0.36.1"></script>
-<script src="js/05-charts.js?v=0.36.1"></script>
-<script src="js/06-render.js?v=0.36.1"></script>
-<script src="js/07-health-import.js?v=0.36.1"></script>
-<script src="js/08-explain-challenges.js?v=0.36.1"></script>
-<script src="js/09-mobility.js?v=0.36.1"></script>
-<script src="js/10-test-absences.js?v=0.36.1"></script>
-<script src="js/11-session-chart.js?v=0.36.1"></script>
-<script src="js/12-tracks.js?v=0.36.1"></script>
-<script src="js/13-climbs.js?v=0.36.1"></script>
-<script src="js/14-adjust.js?v=0.36.1"></script>
-<script src="js/15-dialogs.js?v=0.36.1"></script>
-<script src="js/16-clicks.js?v=0.36.1"></script>
-<script src="js/17-cloud.js?v=0.36.1"></script>
-<script src="js/18-social.js?v=0.36.1"></script>
-<script src="js/19-onboarding.js?v=0.36.1"></script>
-<script src="js/20-health-shortcut.js?v=0.36.1"></script>
-<script src="js/21-library.js?v=0.36.1"></script>
-<script src="js/22-boot.js?v=0.36.1"></script>
+<script>"use strict"; const APP_VERSION = '0.36.2';</script>
+<script src="js/00-schema.js?v=0.36.2"></script>
+<script src="js/01-core.js?v=0.36.2"></script>
+<script src="js/02-plan.js?v=0.36.2"></script>
+<script src="js/03-fit-metrics.js?v=0.36.2"></script>
+<script src="js/04-fit-write-coach.js?v=0.36.2"></script>
+<script src="js/05-charts.js?v=0.36.2"></script>
+<script src="js/06-render.js?v=0.36.2"></script>
+<script src="js/07-health-import.js?v=0.36.2"></script>
+<script src="js/08-explain-challenges.js?v=0.36.2"></script>
+<script src="js/09-mobility.js?v=0.36.2"></script>
+<script src="js/10-test-absences.js?v=0.36.2"></script>
+<script src="js/11-session-chart.js?v=0.36.2"></script>
+<script src="js/12-tracks.js?v=0.36.2"></script>
+<script src="js/13-climbs.js?v=0.36.2"></script>
+<script src="js/14-adjust.js?v=0.36.2"></script>
+<script src="js/15-dialogs.js?v=0.36.2"></script>
+<script src="js/16-clicks.js?v=0.36.2"></script>
+<script src="js/17-cloud.js?v=0.36.2"></script>
+<script src="js/18-social.js?v=0.36.2"></script>
+<script src="js/19-onboarding.js?v=0.36.2"></script>
+<script src="js/20-health-shortcut.js?v=0.36.2"></script>
+<script src="js/21-library.js?v=0.36.2"></script>
+<script src="js/22-boot.js?v=0.36.2"></script>
 </body>
 </html>
