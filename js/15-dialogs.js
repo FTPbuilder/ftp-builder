@@ -214,7 +214,7 @@ function activityDlg(id){
   openDlg(`<span class="muted small">${fmtDate(a.date)} · ${ {fit:'fichier .fit', manual:'saisie manuelle', strava:'Strava', intervals:'Intervals.icu', health:'Apple Santé'}[a.source] || a.source }</span>
     <h2 style="margin:6px 0">${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</h2>
     ${a.source==='health' ? `<p class="tiny muted" style="margin:0 0 6px">Venue d'Apple Santé (${isIndoor(a)?'home trainer':'extérieur'}, sans puissance). Si tu importes le .fit de cette sortie, il la remplacera automatiquement.</p><div class="row" style="margin-bottom:8px"><button class="btn sm" data-toggleindoor="${a.id}">Marquer comme ${isIndoor(a)?'extérieur':'home trainer'}</button></div>` : ''}
-    ${!isIndoor(a) ? `<button class="btn primary" data-track3d="${a.id}" style="margin:4px 0 2px">🗺️ Tracé 3D · ▶</button>` : ''}
+    ${!isIndoor(a) ? `<div class="row" style="gap:8px"><button class="btn primary" data-track3d="${a.id}" style="margin:4px 0 2px">🗺️ Tracé 3D · ▶</button>${Library.addBtnHTML(a)}</div>` : ''}
     <div class="grid4" style="margin:8px 0">${actKpis(a).map(([l,v])=>`<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
     ${a.best?`<div class="small muted">Records : ${[['5 s',a.best.s5],['1 min',a.best.m1],['5 min',a.best.m5],['20 min',a.best.m20]].filter(x=>x[1]).map(([l,v])=>`<b class="num" style="color:var(--text)">${v} W</b> ${l}`).join(' · ')}</div>`:''}
     ${ActChart.html(a)}

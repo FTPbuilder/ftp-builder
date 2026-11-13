@@ -98,8 +98,29 @@ await pg.tap('[data-pp="climbs"]'); await pg.waitForTimeout(200);
 assert(await pg.locator('#climbsCard').count() === 1 && await pg.locator('.pane-head h2', { hasText: 'Ascensions' }).count() === 1, 'carré Ascensions → bibliothèque des ascensions');
 await pg.tap('button[data-tab="prog"]'); await pg.waitForTimeout(200);
 assert(await pg.locator('#climbsCard').count() === 0, 'ascensions sorties de Progression');
+// --- Calendrier › sortie extérieure › « Ajouter à mes traces » ---
+await pg.evaluate(() => { const n = 400, lat = [], lon = [], alt = [];
+  for (let i = 0; i < n; i++) { lat.push(45.9 + i*0.0005); lon.push(6.6 + i*0.0003); alt.push(500 + i*1.5); }
+  const a = { id: 'o1', source: 'intervals', date: '2026-11-08', startTs: 1794150000, name: 'Sortie Vallée de Chevreuse', durationS: 7200, hasPower: false, indoor: false };
+  FTPB.S.activities.push(a); Tracks.put(a.startTs, Tracks.build({ lat, lon, alt }), 'intervals'); FTPB.save(); activityDlg('o1'); });
+await pg.waitForSelector('[data-gxact="o1"]');
+assert((await pg.locator('[data-gxact="o1"]').innerText()).includes('Ajouter à mes traces'), 'bouton « Ajouter à mes traces » sur une sortie extérieure');
+await pg.screenshot({ path: out + '/library-act-btn.png' });
+await pg.tap('[data-gxact="o1"]'); await pg.waitForSelector('#gxName');
+const fromAct = await pg.evaluate(() => FTPB.S.gpxBook.find(t => t.act === 'o1'));
+console.log('DEPUIS SORTIE', fromAct?.name, fromAct?.km, 'km', fromAct?.dp, 'm');
+assert(fromAct && fromAct.name === 'Sortie Vallée de Chevreuse' && fromAct.km > 5 && fromAct.dp > 500, 'sortie ajoutée au livre (nom, km, D+), fiche de notation ouverte');
+await pg.tap('[data-gstar="boul"] button[data-v="4"]'); await pg.tap('#dlg [data-close]');
+await pg.evaluate(() => activityDlg('o1')); await pg.waitForSelector('[data-gxact="o1"]');
+assert((await pg.locator('[data-gxact="o1"]').innerText()).includes('Dans mes traces'), 'déjà dans le livre : bouton « Dans mes traces »');
+await pg.tap('[data-gxact="o1"]'); await pg.waitForSelector('#gxName');
+assert(await pg.evaluate(() => FTPB.S.gpxBook.filter(t => t.act === 'o1').length === 1), 'pas de doublon : rouvre la fiche existante');
+await pg.tap('#dlg [data-close]');
+await pg.evaluate(() => { FTPB.S.activities.push({ id: 'h1', date: '2026-11-09', durationS: 3600, hasPower: true, indoor: true, name: 'HT' }); activityDlg('h1'); });
+assert(await pg.locator('[data-gxact]').count() === 0, 'pas de bouton sur une séance home trainer');
+await pg.tap('#dlg [data-close]');
 // sauvegarde JSON → réimport : traces et courses conservées
 const st = await pg.evaluate(() => ({ g: FTPB.S.gpxBook.length, r: FTPB.S.races.length }));
-assert(st.g === 2 && st.r === 1, 'état : 2 traces, 1 course');
+assert(st.g === 3 && st.r === 1, 'état : 3 traces, 1 course');
 assert(!errs.length, 'pas d’erreur JS ' + errs.join(' | '));
 await b.close();
