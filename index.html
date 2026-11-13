@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,500;0,600;0,700;0,800;0,900;1,700;1,800;1,900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-:root{--swim:#19c3c9;--run:#2fbf71;
+:root{color-scheme:dark;--swim:#19c3c9;--run:#2fbf71;
   --bg:#0f1115; --bg2:#171a21; --card:#1c2029; --line:#2a2f3b; --text:#eef0f4; --muted:#9aa1b0;
   --accent:#ff8a4c; --accent2:#ffb02e; --ok:#3ecf8e; --warn:#ffb02e; --bad:#ff4d5e;
   --z1:#6b7280; --z2:#3b82f6; --z3:#22c55e; --z4:#facc15; --z5:#f97316; --z6:#ef4444;
@@ -23,10 +23,10 @@
 :root{ --g1:#b9d98c; --g2:#efd27e; --g3:#e99a7c; --g4:#9c86c7; --gt:#1d1b20; }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){ --g1:#cfe59f; --g2:#f6dc8f; --g3:#ef9f86; --g4:#5d4e7a; }
-  :root:not([data-theme="dark"]){ --bg:#f5f4f1; --bg2:#ecebe7; --card:#ffffff; --line:#e1dfda; --text:#16181d; --muted:#666c78; --shadow:0 1px 2px rgba(0,0,0,.05); }
+  :root:not([data-theme="dark"]){ color-scheme:light; --bg:#f5f4f1; --bg2:#ecebe7; --card:#ffffff; --line:#e1dfda; --text:#16181d; --muted:#666c78; --shadow:0 1px 2px rgba(0,0,0,.05); }
 }
 :root[data-theme="light"]{ --g1:#cfe59f; --g2:#f6dc8f; --g3:#ef9f86; --g4:#5d4e7a; }
-:root[data-theme="light"]{ --bg:#f5f4f1; --bg2:#ecebe7; --card:#ffffff; --line:#e1dfda; --text:#16181d; --muted:#666c78; --shadow:0 1px 2px rgba(0,0,0,.05); }
+:root[data-theme="light"]{ color-scheme:light; --bg:#f5f4f1; --bg2:#ecebe7; --card:#ffffff; --line:#e1dfda; --text:#16181d; --muted:#666c78; --shadow:0 1px 2px rgba(0,0,0,.05); }
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
 h1,h2,h3,.disp{font-family:"Barlow Condensed","Arial Narrow",Inter,system-ui,sans-serif;letter-spacing:.01em;margin:0}
@@ -276,12 +276,13 @@ dialog.fs3d{background:#0a1020}
 .more{width:100%;margin-top:10px;justify-content:center}
 .chhead{cursor:pointer;border-radius:8px}.chhead:hover b{color:var(--accent)}
 /* défis : 2 carrés (défis partagés / amis) + pile de cartes */
-.dsq{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.dsq{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px}
+.dsq button{min-width:0;overflow:hidden}
 .dsq button{aspect-ratio:1;border-radius:24px;background:var(--card);border:1px solid var(--line);padding:16px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left;color:var(--text);cursor:pointer;position:relative;font:inherit;box-shadow:var(--shadow,none)}
 .dsq button.on{border-color:var(--sq);box-shadow:inset 0 0 0 1px var(--sq)}
 .dsq svg{width:26px;height:26px}
-.dsq .big{font:italic 900 clamp(56px,18vw,82px)/.85 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.02em;padding-right:.05em;color:var(--text)} /* comme les chiffres d'Aujourd'hui */
-.dsq .lab{font:italic 800 17px/1.05 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.05em;text-transform:uppercase}
+.dsq .big{font:italic 900 clamp(52px,16vw,82px)/.85 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:-.02em;padding-right:.05em;color:var(--text)} /* comme les chiffres d'Aujourd'hui */
+.dsq .lab{font:italic 800 clamp(14px,4.4vw,17px)/1.05 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.04em;text-transform:uppercase;overflow-wrap:anywhere}
 .dsq .badge{position:absolute;top:14px;right:14px;background:var(--accent);color:#fff;border-radius:999px;font-size:12px;font-weight:700;padding:3px 9px}
 .dstack{display:flex;flex-direction:column;margin-top:12px}
 .dcard{--tint:var(--accent);position:relative;border-radius:20px;padding:14px;background:color-mix(in srgb,var(--tint) 14%,var(--card));border:1px solid color-mix(in srgb,var(--tint) 42%,var(--line))}
@@ -518,6 +519,25 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 .rc-bigw{margin-top:8px;border-radius:12px;overflow:hidden;background:var(--bg2);min-height:120px}
 .rc-big{width:100%;max-height:68vh;object-fit:contain;display:block}
 .miss img{opacity:.25}
+/* bandeau de filtres, carte des boulangeries */
+.gx-bar{position:sticky;top:6px;z-index:5;padding:10px 12px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 20px rgba(0,0,0,.25)}
+.gx-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 -2px;padding:0 2px}
+.gx-row::-webkit-scrollbar{display:none}
+.gx-row button{flex:none;border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:999px;padding:7px 12px;font-size:13px;white-space:nowrap;cursor:pointer;min-height:36px}
+.gx-row button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.gx-n{opacity:.7;font-size:11px;margin-left:2px}
+.gxc-z{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gx-lmap{height:240px;border-radius:12px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)}
+.gx-lmap.off{height:auto}
+.gx-lmap .leaflet-control-attribution{font-size:9px;background:color-mix(in srgb,var(--card) 80%,transparent);color:var(--muted)}
+.gx-lmap .leaflet-control-attribution a{color:var(--muted)}
+.gx-lmap .leaflet-bar a{background:var(--card);color:var(--text);border-color:var(--line)}
+.leaflet-tooltip{background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:none}
+.leaflet-tooltip-top:before,.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{display:none}
+.bk-ic{font-size:24px;line-height:30px;text-align:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
+.bk-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
+.bk-row:last-child{border-bottom:0}
+.bk-row input{flex:1;min-width:0;min-height:36px;padding:6px 10px}
 /* ----- Écran d'ouverture : logo, roues qui tournent, éclairs (2 s, le temps que les données arrivent) ----- */
 #splash{position:fixed;inset:0;z-index:1000;background:#0f0d14;display:grid;place-items:center;transition:opacity .45s ease,visibility .45s}
 #splash.out{opacity:0;visibility:hidden}
@@ -570,29 +590,29 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.35.2';</script>
-<script src="js/00-schema.js?v=0.35.2"></script>
-<script src="js/01-core.js?v=0.35.2"></script>
-<script src="js/02-plan.js?v=0.35.2"></script>
-<script src="js/03-fit-metrics.js?v=0.35.2"></script>
-<script src="js/04-fit-write-coach.js?v=0.35.2"></script>
-<script src="js/05-charts.js?v=0.35.2"></script>
-<script src="js/06-render.js?v=0.35.2"></script>
-<script src="js/07-health-import.js?v=0.35.2"></script>
-<script src="js/08-explain-challenges.js?v=0.35.2"></script>
-<script src="js/09-mobility.js?v=0.35.2"></script>
-<script src="js/10-test-absences.js?v=0.35.2"></script>
-<script src="js/11-session-chart.js?v=0.35.2"></script>
-<script src="js/12-tracks.js?v=0.35.2"></script>
-<script src="js/13-climbs.js?v=0.35.2"></script>
-<script src="js/14-adjust.js?v=0.35.2"></script>
-<script src="js/15-dialogs.js?v=0.35.2"></script>
-<script src="js/16-clicks.js?v=0.35.2"></script>
-<script src="js/17-cloud.js?v=0.35.2"></script>
-<script src="js/18-social.js?v=0.35.2"></script>
-<script src="js/19-onboarding.js?v=0.35.2"></script>
-<script src="js/20-health-shortcut.js?v=0.35.2"></script>
-<script src="js/21-library.js?v=0.35.2"></script>
-<script src="js/22-boot.js?v=0.35.2"></script>
+<script>"use strict"; const APP_VERSION = '0.36.1';</script>
+<script src="js/00-schema.js?v=0.36.1"></script>
+<script src="js/01-core.js?v=0.36.1"></script>
+<script src="js/02-plan.js?v=0.36.1"></script>
+<script src="js/03-fit-metrics.js?v=0.36.1"></script>
+<script src="js/04-fit-write-coach.js?v=0.36.1"></script>
+<script src="js/05-charts.js?v=0.36.1"></script>
+<script src="js/06-render.js?v=0.36.1"></script>
+<script src="js/07-health-import.js?v=0.36.1"></script>
+<script src="js/08-explain-challenges.js?v=0.36.1"></script>
+<script src="js/09-mobility.js?v=0.36.1"></script>
+<script src="js/10-test-absences.js?v=0.36.1"></script>
+<script src="js/11-session-chart.js?v=0.36.1"></script>
+<script src="js/12-tracks.js?v=0.36.1"></script>
+<script src="js/13-climbs.js?v=0.36.1"></script>
+<script src="js/14-adjust.js?v=0.36.1"></script>
+<script src="js/15-dialogs.js?v=0.36.1"></script>
+<script src="js/16-clicks.js?v=0.36.1"></script>
+<script src="js/17-cloud.js?v=0.36.1"></script>
+<script src="js/18-social.js?v=0.36.1"></script>
+<script src="js/19-onboarding.js?v=0.36.1"></script>
+<script src="js/20-health-shortcut.js?v=0.36.1"></script>
+<script src="js/21-library.js?v=0.36.1"></script>
+<script src="js/22-boot.js?v=0.36.1"></script>
 </body>
 </html>

@@ -75,24 +75,75 @@ const Library = (() => {
   const starsIn = (k, v, lab) => `<span class="stars" data-gstar="${k}" role="group" aria-label="${lab}">${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" class="${i <= v ? 'on' : ''}" aria-label="${lab} : ${i} étoile${i > 1 ? 's' : ''}">★</button>`).join('')}</span>`;
   const notesRO = n => `<div class="gnotes">${CRIT.map(([k, l, ic]) => `<span class="gn" title="${l}"><span aria-hidden="true">${ic}</span>${starsRO(n?.[k] || 0)}</span>`).join('')}</div>`;
 
-  /* ---------- tri du livre ---------- */
-  let sortK = 'recent';
+  /* ---------- bandeau : zone, autour de moi, filtres par note, tri ---------- */
+  // zones d'Île-de-France (centre, rayon km) ; ailleurs, la ville de départ (géocodeur Photon / OpenStreetMap)
+  const ZONES = [
+    { l: 'Bords de Marne', c: [48.845, 2.58], r: 13 }, { l: 'Vallée de Chevreuse', c: [48.71, 2.03], r: 14 },
+    { l: 'Vexin', c: [49.13, 1.85], r: 22 }, { l: 'Forêt de Rambouillet', c: [48.64, 1.80], r: 14 },
+    { l: 'Fontainebleau', c: [48.40, 2.68], r: 20 }, { l: 'Paris', c: [48.858, 2.345], r: 8 },
+  ];
+  const ptsOf = t => t.pts?.length ? t.pts : [];
+  function zoneOf(t){
+    const P = ptsOf(t); if (!P.length) return t.town || 'Autre';
+    let best = null, bf = 0.25; for (const z of ZONES) { const f = P.filter(p => dist(p, z.c) <= z.r).length/P.length; if (f > bf) { bf = f; best = z; } }
+    return best ? best.l : (t.town || 'Autre');
+  }
+  let sortK = 'recent', zoneF = null, here = null; const filt = { fun: 0, diff: 0, asph: 0, boul: 0 };
   const SORTS = [['recent', 'Récentes'], ...CRIT.map(([k, l]) => [k, l])];
-  const sorted = (L, key = sortK) => L.slice().sort(key === 'recent' ? (a, b) => (b.added || '').localeCompare(a.added || '') : (a, b) => (b.notes?.[key] || 0) - (a.notes?.[key] || 0) || a.name.localeCompare(b.name));
-  const sortHTML = () => `<div class="seg gx-sort" role="group" aria-label="Trier par">${SORTS.map(([k, l]) => `<button type="button" data-gxsort="${k}" class="${sortK === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
-  const cardHTML = (t, act, extra = '') => `<div class="gxc" data-gx="${act}" data-id="${esc(t.id)}"${extra} role="button" tabindex="0" aria-label="Ouvrir ${esc(t.name)}">
-    <div class="gxc-map">${mapSVG(t.pts, 120, 96)}</div><div class="gxc-b"><b>${esc(t.name)}</b><div class="tiny muted">${f1(t.km)} km · ${t.dp} m D+${t.loop ?? isLoop(t) ? ' · boucle' : ''}</div>${notesRO(t.notes)}</div></div>`;
+  const nearKm = t => here ? Math.min(...ptsOf(t).map(p => dist(p, here))) : null;
+  function view(L){
+    let V = L.filter(t => CRIT.every(([k]) => !filt[k] || (t.notes?.[k] || 0) >= filt[k]));
+    if (zoneF === 'near') V = V.filter(t => nearKm(t) <= 30).sort((a, b) => nearKm(a) - nearKm(b));
+    else { if (zoneF) V = V.filter(t => zoneOf(t) === zoneF);
+      V.sort(sortK === 'recent' ? (a, b) => (b.added || '').localeCompare(a.added || '') : (a, b) => (b.notes?.[sortK] || 0) - (a.notes?.[sortK] || 0) || a.name.localeCompare(b.name)); }
+    return V;
+  }
+  const chip = (attr, v, on, lab) => `<button type="button" ${attr}="${esc(v)}" class="${on ? 'on' : ''}">${lab}</button>`;
+  function barHTML(L){
+    if (L.length < 2 && !zoneF && !CRIT.some(([k]) => filt[k])) return '';
+    const zs = {}; for (const t of L) { const z = zoneOf(t); zs[z] = (zs[z] || 0) + 1; }
+    const zl = Object.keys(zs).sort((a, b) => zs[b] - zs[a] || a.localeCompare(b));
+    const any = zoneF || CRIT.some(([k]) => filt[k]);
+    return `<div class="card gx-bar"><div class="gx-row" role="group" aria-label="Zone">${chip('data-gxzone', 'near', zoneF === 'near', '📍 Autour de moi')}${chip('data-gxzone', '', !zoneF, 'Toutes')}${zl.map(z => chip('data-gxzone', z, zoneF === z, `${esc(z)} <span class="gx-n">${zs[z]}</span>`)).join('')}</div>
+      <div class="gx-row" role="group" aria-label="Filtrer par note">${CRIT.map(([k, l, ic]) => chip('data-gxfilt', k, filt[k], `${ic} ${l}${filt[k] ? ` ≥ ${filt[k]}★` : ''}`)).join('')}${any ? chip('data-gxfilt', '_reset', false, '✕ Effacer') : ''}</div>
+      ${zoneF === 'near' ? `<p class="tiny muted" style="margin:6px 0 0">Traces passant à moins de 30 km de toi, les plus proches d'abord.</p>` : `<div class="gx-row" role="group" aria-label="Trier par"><span class="tiny muted" style="align-self:center">Trier :</span>${SORTS.map(([k, l]) => chip('data-gxsort', k, sortK === k, l)).join('')}</div>`}</div>`;
+  }
+  function locate(){
+    if (!navigator.geolocation) { toast('Localisation indisponible sur cet appareil'); return; }
+    toast('Recherche de ta position…');
+    navigator.geolocation.getCurrentPosition(p => { here = [p.coords.latitude, p.coords.longitude]; zoneF = 'near'; render(); },
+      () => { toast('Position refusée : autorise la localisation pour l\'app dans Réglages › Safari (ou ton navigateur)'); }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 });
+  }
+  // ville de départ (une requête par trace, au rythme du géocodeur)
+  const PHOTON = 'https://photon.komoot.io/reverse';
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  let townBusy = false; const townTried = new Set();
+  async function fillTowns(){
+    if (townBusy || !navigator.onLine) return; townBusy = true;
+    try { for (const t of book()) { if (t.town !== undefined || townTried.has(t.id) || !t.pts?.length) continue; townTried.add(t.id);
+        try { const q = new URLSearchParams({ lat: t.pts[0][0], lon: t.pts[0][1], limit: '1', lang: 'fr', radius: '8' }); for (const g of ['place:city', 'place:town', 'place:village']) q.append('osm_tag', g);
+          const r = await fetch(`${PHOTON}?${q}`, { signal: AbortSignal.timeout?.(8000) }); if (!r.ok) continue;
+          const f = (await r.json()).features?.[0]?.properties; t.town = (f?.name || f?.city || '').slice(0, 40); save(); pushSoon();
+          if (TAB === 'profile' && PROFILE_PANE === 'gpx') render(); } catch (e) { console.warn('ville', e); }
+        await wait(1200); } } finally { townBusy = false; }
+  }
+  const cardHTML = (t, act, extra = '') => { const nk = zoneF === 'near' ? nearKm(t) : null;
+    return `<div class="gxc" data-gx="${act}" data-id="${esc(t.id)}"${extra} role="button" tabindex="0" aria-label="Ouvrir ${esc(t.name)}">
+    <div class="gxc-map">${mapSVG(t.pts, 120, 96)}</div><div class="gxc-b"><b>${esc(t.name)}</b><div class="tiny muted">${f1(t.km)} km · ${t.dp} m D+${t.loop ?? isLoop(t) ? ' · boucle' : ''}</div>
+    <div class="tiny muted gxc-z">📍 ${esc(zoneOf(t))}${t.town && zoneOf(t) !== t.town ? ` · départ ${esc(t.town)}` : ''}${nk != null ? ` · à ${f1(nk)} km` : ''}${t.bk?.length ? ` · 🥐 ${t.bk.length}` : ''}</div>${notesRO(t.notes)}</div></div>`; };
+  const listHTML = (L, act, extra) => { const V = view(L);
+    return V.length ? `<div class="gxlist">${V.map(t => cardHTML(t, act, extra)).join('')}</div>` : `<div class="card"><p class="muted small" style="margin:0 0 8px">Aucune trace ne correspond${zoneF === 'near' ? ' autour de toi' : ''}.</p><button class="btn sm" data-gxfilt="_reset">Tout afficher</button></div>`; };
 
   /* ---------- volet Mes GPX ---------- */
   let friendView = null; // id d'un ami dont on lit le livre
   const FR = { loaded: false, busy: false, err: null, list: [], names: {} };
   function gpxPane(){
     if (friendView) return friendPane();
-    const L = sorted(book());
+    const L = book(); setTimeout(fillTowns, 0);
     let h = `<div class="pane-in">${paneHead('Mes GPX')}<div class="card"><div class="row between" style="align-items:center;gap:8px"><h2 style="margin:0">Mon livre de traces</h2><button class="btn sm primary" data-gx="import">+ Importer un GPX</button></div>
-      <p class="tiny muted" style="margin:6px 0 ${L.length > 1 ? 10 : 0}px">Tes parcours préférés notés de 1 à 5 : 😄 fun, 🔥 difficulté, 🛣️ asphalte (qualité du revêtement), 🥐 boulangerie (les pauses gourmandes).</p>${L.length > 1 ? sortHTML() : ''}</div>`;
-    h += L.length ? `<div class="gxlist">${L.map(t => cardHTML(t, 'open')).join('')}</div>`
-      : `<div class="card"><p class="muted small" style="margin:0">Aucune trace pour l'instant. Importe un fichier .gpx exporté de Strava, Komoot, Garmin Connect ou RideWithGPS.</p></div>`;
+      <p class="tiny muted" style="margin:6px 0 0">Tes parcours préférés notés de 1 à 5 : 😄 fun, 🔥 difficulté, 🛣️ asphalte (qualité du revêtement), 🥐 boulangerie (les pauses gourmandes).</p></div>`;
+    h += L.length ? barHTML(L) + listHTML(L, 'open', '')
+      : `<div class="card"><p class="muted small" style="margin:0">Aucune trace pour l'instant. Importe un fichier .gpx exporté de Strava, Komoot, Garmin Connect ou RideWithGPS, ou ajoute une sortie depuis le Calendrier.</p></div>`;
     return h + shareHTML() + '</div>';
   }
   function shareHTML(){
@@ -109,9 +160,9 @@ const Library = (() => {
   }
   const friendTracks = u => FR.list.filter(r => r.user_id === u).map(r => ({ id: r.track_id, ...(r.meta || {}), pts: r.meta?.prev || [] }));
   function friendPane(){
-    const L = sorted(friendTracks(friendView));
-    return `<div class="pane-in">${paneHead(esc(FR.names[friendView] || 'Ami'), 'fback')}<div class="card"><h2 style="margin:0 0 4px">Son livre de traces</h2><p class="tiny muted" style="margin:0 0 ${L.length > 1 ? 10 : 0}px">Lecture seule : ses notes à lui. Touche une trace pour la voir et télécharger le GPX.</p>${L.length > 1 ? sortHTML() : ''}</div>
-      ${L.length ? `<div class="gxlist">${L.map(t => cardHTML(t, 'fopen', ` data-u="${friendView}"`)).join('')}</div>` : '<div class="card"><p class="muted small" style="margin:0">Ce livre est vide ou n\'est plus partagé.</p></div>'}</div>`;
+    const L = friendTracks(friendView);
+    return `<div class="pane-in">${paneHead(esc(FR.names[friendView] || 'Ami'), 'fback')}<div class="card"><h2 style="margin:0 0 4px">Son livre de traces</h2><p class="tiny muted" style="margin:0">Lecture seule : ses notes à lui. Touche une trace pour la voir et télécharger le GPX.</p></div>
+      ${L.length ? barHTML(L) + listHTML(L, 'fopen', ` data-u="${friendView}"`) : '<div class="card"><p class="muted small" style="margin:0">Ce livre est vide ou n\'est plus partagé.</p></div>'}</div>`;
   }
   async function loadFriends(){
     if (!sb() || !uid()) return; FR.busy = true;
@@ -125,7 +176,7 @@ const Library = (() => {
 
   /* ---------- synchro du livre partagé (seulement s'il est ouvert) ---------- */
   const PUSH_KEY = 'ftpb-gpx-pushed';
-  const meta = t => ({ name: t.name, km: t.km, dp: t.dp, loop: isLoop(t), notes: t.notes || {}, comment: t.comment || '', added: t.added || null,
+  const meta = t => ({ name: t.name, km: t.km, dp: t.dp, loop: isLoop(t), notes: t.notes || {}, comment: t.comment || '', added: t.added || null, town: t.town || '', bk: (t.bk || []).map(b => ({ la: b.la, lo: b.lo, n: b.n })),
     prev: t.pts.filter((_, i, a) => i % Math.max(1, Math.ceil(a.length/80)) === 0 || i === a.length - 1).map(p => [p[0], p[1]]) }); // aperçu léger pour la liste
   let pushT = null, pushing = false;
   const pushSoon = () => { clearTimeout(pushT); pushT = setTimeout(() => pushBook().catch(e => { console.warn('gpx partage', e); }), 1500); };
@@ -166,6 +217,8 @@ const Library = (() => {
       ${fresh ? '<div class="note" style="margin:8px 0">Note ta trace : touche les étoiles.</div>' : ''}
       <div class="gx-rate">${CRIT.map(([k, l, ic]) => `<div class="gx-rr"><span class="gx-rl"><span aria-hidden="true">${ic}</span> ${l}</span>${starsIn(k, t.notes?.[k] || 0, l)}</div>`).join('')}</div>
       <label class="f" for="gxCom">Mon commentaire</label><textarea id="gxCom" rows="2" maxlength="300" placeholder="La boulangerie de Dampierre, le revêtement refait après Senlisse…">${esc(t.comment || '')}</textarea>
+      <h3 style="margin:14px 0 6px">🥐 Mes boulangeries</h3><div class="gx-lmap" id="gxLmap" role="application" aria-label="Carte du parcours : touche pour placer une boulangerie"></div>
+      <div id="gxBk">${bkListHTML(t)}</div><button type="button" class="btn sm" id="gxBkFind" style="margin-top:8px">🔍 Chercher les boulangeries sur le parcours</button><div id="gxBkSug"></div>
       <div class="row between" style="margin-top:12px;gap:8px"><button class="btn primary" id="gxDl">Télécharger le GPX</button><button class="btn danger sm" id="gxDel">Supprimer</button></div>`);
     const commit = () => { save(); pushSoon(); render(); };
     $('#gxRename').onclick = () => { const v = $('#gxName').value.trim().slice(0, 60); if (!v) return; t.name = v; commit(); toast('Trace renommée'); };
@@ -174,6 +227,7 @@ const Library = (() => {
       const k = g.dataset.gstar, v = +b.dataset.v; t.notes ||= {}; t.notes[k] = t.notes[k] === v ? v - 1 : v; // retoucher la même étoile retire une étoile
       g.querySelectorAll('button').forEach(x => x.classList.toggle('on', +x.dataset.v <= t.notes[k])); commit(); });
     $('#gxDl').onclick = () => dlGPX(t);
+    wireBakeries(t, commit);
     $('#gxDel').onclick = () => { if (!confirmDel.armed) { confirmDel.armed = true; $('#gxDel').textContent = 'Confirmer la suppression'; setTimeout(() => confirmDel.armed = false, 4000); return; }
       confirmDel.armed = false; S.gpxBook = book().filter(x => x !== t); closeDlg(); commit(); toast('Trace supprimée'); };
   }
@@ -189,9 +243,11 @@ const Library = (() => {
     box.innerHTML = `<div class="gx-big">${mapSVG(t.pts, 640, 360, 'gpxmap big')}</div>${eleSVG(t.pts)}
       <div class="gx-rate">${CRIT.map(([k, l, ic]) => `<div class="gx-rr"><span class="gx-rl"><span aria-hidden="true">${ic}</span> ${l}</span>${starsRO(t.notes?.[k] || 0)}</div>`).join('')}</div>
       ${t.comment ? `<p class="small" style="margin:10px 0 0">« ${esc(t.comment)} »</p>` : ''}
+      <h3 style="margin:14px 0 6px">🥐 Ses boulangeries</h3><div class="gx-lmap" id="gxFrMap"></div><div>${bkListHTML(t, true)}</div>
       <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" id="gxFrDl">Télécharger le GPX</button><button class="btn" id="gxFrAdd">Copier dans mon livre</button></div>`;
     $('#gxFrDl').onclick = () => dlGPX(t);
-    $('#gxFrAdd').onclick = () => { book().push({ id: rid(), name: t.name, km: t.km, dp: t.dp, pts: t.pts, notes: { fun: 0, diff: 0, asph: 0, boul: 0 }, comment: '', added: todayISO() }); save(); pushSoon(); toast('Trace copiée dans ton livre : à toi de la noter'); };
+    bakeryMap($('#gxFrMap'), t, null);
+    $('#gxFrAdd').onclick = () => { book().push({ id: rid(), name: t.name, km: t.km, dp: t.dp, pts: t.pts, bk: (t.bk || []).map(b => ({ id: rid(), ...b })), notes: { fun: 0, diff: 0, asph: 0, boul: 0 }, comment: '', added: todayISO() }); save(); pushSoon(); toast('Trace copiée dans ton livre : à toi de la noter'); };
   }
 
   /* ---------- depuis une sortie extérieure (Calendrier › séance › « Ajouter à mes traces ») ---------- */
@@ -207,6 +263,59 @@ const Library = (() => {
     const g = fromRaw(raw, ((pl ? WORKOUTS[pl.workoutId]?.name : a.name) || 'Sortie').slice(0, 60)); if (!g) { toast('Tracé trop court pour le livre'); return; }
     const t = { id: rid(), act: a.id, ...g, notes: { fun: 0, diff: 0, asph: 0, boul: 0 }, comment: '', added: todayISO() };
     book().push(t); save(); pushSoon(); render(); toast('Ajoutée à Mes GPX : note-la !'); trackDlg(t.id, true);
+  }
+
+  /* ---------- carte des boulangeries (Leaflet chargé à la demande, fond CARTO / OpenStreetMap) ---------- */
+  const LEAF = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/';
+  let leafP = null;
+  const loadLeaflet = () => window.L?.map ? Promise.resolve(window.L) : leafP ||= new Promise((ok, ko) => {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = LEAF + 'leaflet.css'; document.head.appendChild(l);
+    const s = document.createElement('script'); s.src = LEAF + 'leaflet.js'; s.onload = () => ok(window.L); s.onerror = () => { leafP = null; ko(new Error('carte indisponible')); }; document.head.appendChild(s); });
+  const darkMap = () => { const th = document.documentElement.getAttribute('data-theme'); return th ? th === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches; };
+  async function bakeryMap(box, t, onAdd){
+    let L; try { L = await loadLeaflet(); } catch { box.classList.add('off'); box.innerHTML = '<p class="tiny muted" style="margin:0;padding:12px">Carte indisponible hors connexion.</p>'; return null; }
+    if (!box.isConnected || !t.pts?.length) return null;
+    const m = L.map(box, { zoomControl: true, attributionControl: true });
+    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${darkMap() ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`, { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO' }).addTo(m);
+    const line = L.polyline(t.pts.map(p => [p[0], p[1]]), { color: '#ff8a4c', weight: 4, opacity: 0.9 }).addTo(m);
+    m.fitBounds(line.getBounds(), { padding: [18, 18] });
+    const icon = () => L.divIcon({ className: 'bk-ic', html: '🥐', iconSize: [30, 30], iconAnchor: [15, 15] });
+    const layer = L.layerGroup().addTo(m), sug = L.layerGroup().addTo(m);
+    const draw = () => { layer.clearLayers(); for (const b of t.bk || []) L.marker([b.la, b.lo], { icon: icon(), title: b.n || 'Boulangerie', keyboard: false }).bindTooltip(esc(b.n || 'Boulangerie')).addTo(layer); };
+    draw();
+    if (onAdd) m.on('click', e => onAdd(+e.latlng.lat.toFixed(5), +e.latlng.lng.toFixed(5)));
+    setTimeout(() => m.invalidateSize(), 60);
+    return { m, L, draw, sug };
+  }
+  const bkListHTML = (t, ro) => (t.bk || []).length ? t.bk.map((b, i) => ro ? `<div class="bk-row"><span aria-hidden="true">🥐</span><span>${esc(b.n || 'Boulangerie')}</span></div>`
+      : `<div class="bk-row"><span aria-hidden="true">🥐</span><input data-bkn="${i}" value="${esc(b.n || '')}" placeholder="Nom de la boulangerie" maxlength="60" aria-label="Nom de la boulangerie"><button type="button" class="btn sm ghost" data-bkdel="${i}" aria-label="Retirer cette boulangerie">×</button></div>`).join('')
+    : `<p class="tiny muted" style="margin:6px 0 0">${ro ? 'Aucune boulangerie notée.' : "Touche la carte à l'endroit d'une boulangerie pour l'ajouter, ou cherche celles du parcours."}</p>`;
+  // boulangeries OpenStreetMap à moins de 300 m du tracé (quelques points du parcours, au rythme du géocodeur)
+  async function findBakeries(t, onStep){
+    const P = t.pts, n = Math.min(12, Math.max(3, Math.round(t.km/8))), seen = new Map();
+    for (let k = 0; k < n; k++) { const p = P[Math.round(k*(P.length - 1)/Math.max(1, n - 1))]; onStep(k + 1, n);
+      try { const q = new URLSearchParams({ lat: p[0], lon: p[1], limit: '8', lang: 'fr', radius: '1', osm_tag: 'shop:bakery' });
+        const r = await fetch(`${PHOTON}?${q}`, { signal: AbortSignal.timeout?.(8000) });
+        if (r.ok) for (const f of (await r.json()).features || []) { const [lo, la] = f.geometry?.coordinates || []; if (la == null) continue;
+          const key = la.toFixed(4) + ',' + lo.toFixed(4); if (!seen.has(key)) seen.set(key, { la: +la.toFixed(5), lo: +lo.toFixed(5), n: (f.properties?.name || 'Boulangerie').slice(0, 60), city: f.properties?.city || '' }); } } catch (e) { console.warn('boulangeries', e); }
+      if (k < n - 1) await wait(1100); }
+    return [...seen.values()].filter(s => Math.min(...P.map(p => dist(p, [s.la, s.lo]))) < 0.3 && !(t.bk || []).some(b => dist([b.la, b.lo], [s.la, s.lo]) < 0.05));
+  }
+  function wireBakeries(t, commit){
+    const box = $('#gxLmap'), list = $('#gxBk'), sugBox = $('#gxBkSug'); let M = null, found = [];
+    const refresh = () => { list.innerHTML = bkListHTML(t); M?.draw(); };
+    const add = (la, lo, n = 'Boulangerie') => { (t.bk ||= []).push({ id: rid(), la, lo, n }); refresh(); commit(); };
+    bakeryMap(box, t, add).then(x => M = x);
+    list.oninput = e => { const i = e.target.dataset?.bkn; if (i == null || !t.bk[i]) return; t.bk[i].n = e.target.value.slice(0, 60); };
+    list.onchange = e => { if (e.target.dataset?.bkn != null) { M?.draw(); commit(); } };
+    list.onclick = e => { const d = e.target.closest('[data-bkdel]'); if (!d) return; t.bk.splice(+d.dataset.bkdel, 1); refresh(); commit(); };
+    const drawSug = () => { if (M) { M.sug.clearLayers(); for (const s of found) M.L.circleMarker([s.la, s.lo], { radius: 7, color: '#ffb02e', weight: 2, fillOpacity: 0.25 }).bindTooltip(esc(s.n)).addTo(M.sug); }
+      sugBox.innerHTML = found.length ? `<p class="tiny muted" style="margin:8px 0 2px">Trouvées près du parcours (OpenStreetMap) :</p>${found.map((s, i) => `<div class="bk-row"><span aria-hidden="true">🥐</span><span style="flex:1;min-width:0">${esc(s.n)}${s.city ? ` <span class="tiny muted">· ${esc(s.city)}</span>` : ''}</span><button type="button" class="btn sm" data-bksug="${i}">+ Ajouter</button></div>`).join('')}` : ''; };
+    sugBox.onclick = e => { const b = e.target.closest('[data-bksug]'); if (!b) return; const s = found.splice(+b.dataset.bksug, 1)[0]; if (s) { add(s.la, s.lo, s.n); drawSug(); } };
+    const fb = $('#gxBkFind'); fb.onclick = async () => { fb.disabled = true;
+      found = await findBakeries(t, (k, n) => fb.textContent = `Recherche… ${k}/${n}`);
+      fb.disabled = false; fb.textContent = '🔍 Chercher les boulangeries sur le parcours';
+      if (!found.length) sugBox.innerHTML = '<p class="tiny muted" style="margin:8px 0 0">Aucune boulangerie connue d\'OpenStreetMap à moins de 300 m du parcours (ou recherche impossible hors connexion).</p>'; else drawSug(); };
   }
 
   /* ---------- carrés du Profil ---------- */
@@ -329,6 +438,8 @@ const Library = (() => {
       if (v === 'fback') friendView = null; else { PROFILE_PANE = v === 'back' ? null : v; friendView = null; if (v === 'gpx') FR.loaded = false; }
       if (dlg.open) closeDlg(); TAB = 'profile'; render(); window.scrollTo(0, 0); return; }
     const gs = e.target.closest('[data-gxsort]'); if (gs) { sortK = gs.dataset.gxsort; render(); return; }
+    const gz = e.target.closest('[data-gxzone]'); if (gz) { const v = gz.dataset.gxzone; if (v === 'near') { if (zoneF === 'near') { zoneF = null; render(); } else locate(); } else { zoneF = v || null; render(); } return; }
+    const gf = e.target.closest('[data-gxfilt]'); if (gf) { const k = gf.dataset.gxfilt; if (k === '_reset') { CRIT.forEach(([c]) => filt[c] = 0); zoneF = null; } else filt[k] = [0, 3, 4, 5][([0, 3, 4, 5].indexOf(filt[k]) + 1) % 4]; render(); return; }
     const gx = e.target.closest('[data-gx]');
     if (gx) { const a = gx.dataset.gx;
       if (a === 'import') importGPX();

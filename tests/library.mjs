@@ -12,8 +12,19 @@ fs.writeFileSync(f1, gpx('Boucle Chevreuse')); fs.writeFileSync(f2, gpx('Vexin &
 // photo de test : PNG de la fixture
 const photo = new URL('./fixtures/tile.png', import.meta.url).pathname;
 
-const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark', acceptDownloads: true });
+const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark', acceptDownloads: true, geolocation: { latitude: 48.72, longitude: 2.02 }, permissions: ['geolocation'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
+// réseau simulé : Leaflet local, tuiles de carte, géocodeur Photon (ville de départ, boulangeries)
+const LEAF = path.join(out, 'node_modules/leaflet/dist');
+await pg.route('**/leaflet@1.9.4/dist/leaflet.js', r => r.fulfill({ path: LEAF + '/leaflet.js', contentType: 'application/javascript' }));
+await pg.route('**/leaflet@1.9.4/dist/leaflet.css', r => r.fulfill({ path: LEAF + '/leaflet.css', contentType: 'text/css' }));
+let tiles = 0; await pg.route('**/*.basemaps.cartocdn.com/**', r => { tiles++; return r.fulfill({ path: new URL('./fixtures/tile.png', import.meta.url).pathname, contentType: 'image/png' }); });
+const photon = { town: 0, bakery: 0 };
+await pg.route('**/photon.komoot.io/reverse**', r => { const u = new URL(r.request().url()), bak = u.searchParams.getAll('osm_tag').includes('shop:bakery');
+  const lat = +u.searchParams.get('lat'), lon = +u.searchParams.get('lon'); bak ? photon.bakery++ : photon.town++;
+  const feats = bak ? (photon.bakery === 1 ? [{ geometry: { coordinates: [lon + 0.0004, lat + 0.0003] }, properties: { name: 'Au Pain de Dampierre', city: 'Dampierre-en-Yvelines' } }, { geometry: { coordinates: [lon + 0.03, lat] }, properties: { name: 'Trop loin', city: 'X' } }] : [])
+    : [{ geometry: { coordinates: [lon, lat] }, properties: { name: 'Dampierre-en-Yvelines', osm_key: 'place' } }];
+  return r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ features: feats }) }); });
 await pg.addInitScript(() => {
   if (localStorage.getItem('ftpb_state_v1')) return;
   const days = {}; for (let d = 0; d < 7; d++) days[d] = { avail: [1, 3, 5].includes(d), max: 75 };
@@ -33,6 +44,10 @@ const order = await pg.evaluate(() => { const app = document.querySelector('#app
     left: q('.pp-sq button:first-child')?.dataset.pp, right: q('.pp-sq button:last-child')?.dataset.pp }; });
 assert(order.set >= 0 && order.set < order.sq && order.sq < order.races && order.races < order.form, 'Réglages › carrés › Mes courses › questionnaire ' + JSON.stringify(order));
 assert(order.left === 'climbs' && order.right === 'gpx', 'ascensions à gauche, GPX à droite');
+assert(await pg.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Profil : pas de débordement horizontal');
+await pg.tap('button[data-tab="today"]'); await pg.waitForTimeout(200); await pg.evaluate(() => document.querySelector('[data-pane="defis"]')?.click()); await pg.waitForTimeout(300);
+assert(await pg.evaluate(() => document.querySelectorAll('.dsq button').length === 2 && document.documentElement.scrollWidth <= innerWidth + 1), 'Aujourd\'hui › Défis : carrés sans débordement horizontal');
+await pg.evaluate(() => document.querySelector('[data-paneback]')?.click()); await pg.tap('button[data-tab="profile"]'); await pg.waitForTimeout(200);
 
 // --- course objectif passée : ajoutée toute seule avec le temps des séances du jour ---
 const auto = await pg.evaluate(() => FTPB.S.races?.find(r => r.auto));
@@ -89,6 +104,46 @@ await pg.tap('[data-gstar="boul"] button[data-v="5"]'); await pg.tap('[data-gsta
 const byName = async k => { await pg.tap(`[data-gxsort="${k}"]`); await pg.waitForTimeout(100); return pg.$$eval('.gxc b', x => x.map(e => e.textContent)); };
 assert((await byName('boul'))[0] === 'Vexin & boulangeries' && (await byName('fun'))[0] === 'Boucle Chevreuse', 'tri par boulangerie / par fun');
 assert(await pg.locator('.gxc').first().locator('.gnotes .gn').count() === 4, 'chaque trace affiche ses 4 notes');
+// bandeau : filtres par note (cycle ≥3 → ≥4 → 5 → off)
+await pg.tap('[data-gxfilt="boul"]'); await pg.waitForTimeout(100);
+let shown = await pg.$$eval('.gxc b', x => x.map(e => e.textContent));
+assert(JSON.stringify(shown) === '["Vexin & boulangeries"]' && (await pg.locator('[data-gxfilt="boul"]').innerText()).includes('≥ 3★'), 'filtre 🥐 ≥ 3★ : seule la trace gourmande ' + JSON.stringify(shown));
+await pg.tap('[data-gxfilt="fun"]'); await pg.waitForTimeout(100);
+assert(await pg.locator('.gxc').count() === 1, 'filtres cumulés (😄 ≥ 3 et 🥐 ≥ 3)');
+await pg.tap('[data-gxfilt="fun"]'); await pg.tap('[data-gxfilt="fun"]'); await pg.waitForTimeout(100);
+assert((await pg.locator('[data-gxfilt="fun"]').innerText()).includes('5★') && await pg.locator('.gxc').count() === 0 && await pg.locator('.gxlist').count() === 0, '😄 = 5★ et 🥐 ≥ 3 : aucune trace, message « aucune ne correspond »');
+await pg.tap('[data-gxfilt="_reset"] >> nth=0'); await pg.waitForTimeout(100);
+assert(await pg.locator('.gxc').count() === 2, 'Effacer : tout revient');
+// zones : Vallée de Chevreuse détectée, ville de départ (géocodeur)
+await pg.waitForFunction(() => FTPB.S.gpxBook.every(t => t.town !== undefined), null, { timeout: 8000 }).catch(() => {});
+const zones = await pg.$$eval('[data-gxzone]', x => x.map(e => e.textContent.trim()));
+const card0 = await pg.locator('.gxc-z').first().innerText();
+console.log('ZONES', JSON.stringify(zones), '| carte :', card0);
+assert(zones.includes('📍 Autour de moi') && zones.some(z => z.startsWith('Vallée de Chevreuse')) && card0.includes('Vallée de Chevreuse') && card0.includes('départ Dampierre-en-Yvelines'), 'zone Vallée de Chevreuse + ville de départ sur la carte');
+await pg.tap('[data-gxzone="Vallée de Chevreuse"]'); await pg.waitForTimeout(100);
+assert(await pg.locator('.gxc').count() === 2, 'filtre zone');
+await pg.tap('[data-gxzone="near"]'); await pg.waitForFunction(() => document.querySelector('[data-gxzone="near"].on'), null, { timeout: 5000 });
+const near = await pg.locator('.gxc-z').first().innerText();
+assert(/à \d+(,\d)? km/.test(near), 'Autour de moi : distance affichée ' + near);
+await pg.screenshot({ path: out + '/library-filters.png', fullPage: true });
+await pg.tap('[data-gxzone=""]'); await pg.waitForTimeout(100);
+// carte des boulangeries : toucher la carte ajoute 🥐, recherche OpenStreetMap près du parcours
+await pg.locator('.gxc', { hasText: 'Boucle Chevreuse' }).tap(); await pg.waitForSelector('#gxLmap .leaflet-tile-pane', { state: 'attached', timeout: 8000 });
+await pg.waitForTimeout(300);
+await pg.locator('#gxLmap').scrollIntoViewIfNeeded(); await pg.waitForTimeout(300);
+const box = await pg.locator('#gxLmap').boundingBox(); await pg.touchscreen.tap(box.x + box.width*0.5, box.y + box.height*0.5); await pg.waitForTimeout(400);
+await pg.fill('#gxBk input[data-bkn="0"]', 'Chez Paul'); await pg.locator('#gxBk input[data-bkn="0"]').dispatchEvent('change');
+await pg.tap('#gxBkFind'); await pg.waitForSelector('[data-bksug="0"]', { timeout: 30000 });
+const sug = await pg.$$eval('#gxBkSug .bk-row', x => x.map(e => e.textContent));
+assert(sug.length === 1 && sug[0].includes('Au Pain de Dampierre'), 'boulangerie trouvée près du parcours, celle trop loin écartée ' + JSON.stringify(sug));
+await pg.tap('[data-bksug="0"]'); await pg.waitForTimeout(200);
+const bk = await pg.evaluate(() => FTPB.S.gpxBook.find(t => t.name === 'Boucle Chevreuse').bk.map(b => b.n));
+assert(JSON.stringify(bk) === '["Chez Paul","Au Pain de Dampierre"]' && await pg.locator('#gxLmap .bk-ic').count() === 2 && tiles > 0, 'deux 🥐 sur la carte (placée à la main + trouvée) ' + JSON.stringify(bk));
+await pg.screenshot({ path: out + '/library-bakeries.png', fullPage: true });
+await pg.tap('#gxBk [data-bkdel="0"]'); await pg.waitForTimeout(100);
+assert(await pg.evaluate(() => FTPB.S.gpxBook.find(t => t.name === 'Boucle Chevreuse').bk.length === 1), 'retirer une boulangerie');
+await pg.tap('#dlg [data-close]'); await pg.waitForTimeout(100);
+assert((await pg.locator('.gxc', { hasText: 'Boucle Chevreuse' }).innerText()).includes('🥐 1'), 'nombre de boulangeries sur la carte de la trace');
 assert(await pg.locator('[data-auth="open"]').count() >= 1, 'hors connexion : invitation à se connecter pour partager');
 await pg.screenshot({ path: out + '/library-gpx.png', fullPage: true });
 // carré mis à jour, retour

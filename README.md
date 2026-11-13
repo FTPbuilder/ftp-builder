@@ -17,7 +17,7 @@ Nouvelle version : `node tools/bump.mjs X.Y.Z`.
 ## Tests
 ```
 node tests/check-syntax.mjs     # compilation de chaque fichier + cohérence des versions (sans navigateur)
-node tests/run-all.mjs [filtre] # tous les tests Playwright ; SCRATCH = dossier avec fit-file-parser, @garmin/fitsdk, @supabase/supabase-js@2.45.4, three@0.147.0
+node tests/run-all.mjs [filtre] # tous les tests Playwright ; SCRATCH = dossier avec fit-file-parser, @garmin/fitsdk, @supabase/supabase-js@2.45.4, three@0.147.0, leaflet@1.9.4
 ```
 La CI (`.github/workflows/tests.yml`) les lance à chaque push. `tests/quarantine.txt` liste les tests périmés à réparer (ils ne bloquent pas).
 
