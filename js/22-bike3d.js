@@ -19,13 +19,15 @@ const Bike3D = (() => {
   // reconnaissance des composants d'un GLB d'après le nom des objets (français / anglais)
   const NAME_RX = [
     ['tireF', /(front|avant|_f\b|\bf_).*(tire|tyre|pneu)|(tire|tyre|pneu).*(front|avant)/i], ['tireR', /(rear|arri|_r\b|\br_).*(tire|tyre|pneu)|(tire|tyre|pneu).*(rear|arri)/i],
-    ['rotors', /rotor|disc\b|disque/i], ['cassette', /cassette|sprocket|pignon|cog/i], ['chain', /cha[iî]ne?\b|chain/i], ['rd', /rear.?derail|d[ée]railleur.?(ar|arri)|\brd\b|jockey|galet|pulley/i],
-    ['fd', /front.?derail|d[ée]railleur.?(av|avant)|\bfd\b/i], ['crank', /crank|manivelle|chainring|plateau|p[ée]dalier|spider|power/i], ['bb', /bottom.?bracket|bo[iî]tier|\bbb\b/i],
-    ['calipers', /caliper|[ée]trier|brake|frein|pad|patin|plaquette/i], ['levers', /lever|levier|shifter|hood|cocotte/i], ['cockpit', /handle|cintre|cockpit|stem|potence|\bbar|tape|guidoline/i],
+    ['frame', /stay|hauban|\bbases?\b|\btube\b|downtube|top.?tube|frame|cadre|logo|badge/i], // tubes et haubans avant « chain » (chain stay) et « seat » (seat tube)
+    ['rotors', /rotor|\bdisc\b|disque/i], ['cassette', /cassette|sprocket|pignon|\bcog/i], ['chain', /\bchain\b(?!\s*-?(stay|ring|line))|\bcha[iî]ne\b/i], ['rd', /rear.?derail|d[ée]railleur.?(ar|arri)|\brd\b|jockey|galet|pulley/i],
+    ['fd', /front.?derail|d[ée]railleur.?(av|avant)|\bfd\b/i], ['crank', /crank|manivelle|chainring|plateau|p[ée]dalier|spider|power|pedal|p[ée]dale/i], ['bb', /bottom.?bracket|bo[iî]tier|\bbb\b/i],
+    ['calipers', /caliper|[ée]trier|brake(?!\s*-?(track|rotor|disc))|frein|\bpads?\b|patin|plaquette/i], ['levers', /lever|levier|shifter|hood|cocotte/i], ['cockpit', /handle|cintre|cockpit|stem|potence|\bbar|tape|guidoline/i],
     ['headset', /headset|direction|spacer/i], ['saddle', /saddle|selle\b/i], ['seatpost', /seat.?post|tige/i], ['battery', /batter|di2/i],
     ['fork', /fork|fourche/i], ['wheelF', /(front|avant).*(wheel|roue|rim|jante|hub|moyeu|spoke|rayon)|(wheel|roue|rim|jante).*(front|avant)/i],
-    ['wheelR', /(rear|arri).*(wheel|roue|rim|jante|hub|moyeu|spoke|rayon)|(wheel|roue|rim|jante).*(rear|arri)/i], ['frame', /frame|cadre/i],
+    ['wheelR', /(rear|arri).*(wheel|roue|rim|jante|hub|moyeu|spoke|rayon)|(wheel|roue|rim|jante).*(rear|arri)/i],
   ];
+  const clean = n => String(n || '').replace(/[_.\-]+/g, ' ').replace(/\s\d+$/, ''); // GLTFLoader remplace les espaces par « _ »
   const OFF = { frame: [0, 0, 0], fork: [.17, -.05, 0], wheelF: [.36, -.02, 0], tireF: [.6, .1, .12], rotors: [0, 0, -.3], wheelR: [-.28, -.02, 0], tireR: [-.52, .1, .12],
     cassette: [-.17, 0, .34], rd: [-.11, -.15, .38], chain: [.05, -.34, .28], crank: [.15, -.2, .46], bb: [0, -.34, 0], fd: [.07, .02, .32], seatpost: [-.05, .22, 0], saddle: [-.08, .42, 0],
     battery: [-.26, .12, 0], cockpit: [.17, .27, 0], levers: [.34, .36, 0], headset: [.03, .15, .32], calipers: [0, .02, -.42] };
@@ -207,21 +209,31 @@ const Bike3D = (() => {
     const buf = glb.blob ? await glb.blob.arrayBuffer() : await (await fetch(glb.url)).arrayBuffer();
     const gl = await new Promise((ok, ko) => loader.parse(buf, '', ok, e => ko(new Error('modèle illisible : ' + (e?.message || e)))));
     const scene = gl.scene || gl.scenes?.[0]; scene.updateMatrixWorld(true);
-    // orientation : le vélo doit être long selon x ; quart de tour si besoin, puis rotation choisie (avant / arrière)
-    const holder = new T.Group(); holder.add(scene);
-    let bx = new T.Box3().setFromObject(holder), sz = bx.getSize(new T.Vector3());
-    if (sz.z > sz.x*1.15) holder.rotation.y = Math.PI/2;
+    // orientation : beaucoup d'outils exportent en z vers le haut (Blender sans conversion, trimesh…) ; on pose le vélo debout, long selon x,
+    // l'avant (fourche, roue avant) vers +x, puis la rotation choisie par l'utilisateur. Hauteur = dimension intermédiaire, largeur = la plus petite.
+    const upFix = new T.Group(), holder = new T.Group(); upFix.add(scene); holder.add(upFix);
+    const box = () => { holder.updateMatrixWorld(true); return new T.Box3().setFromObject(holder); };
+    let bx = box(), sz = bx.getSize(new T.Vector3()); const dims = [sz.x, sz.y, sz.z], order = [0, 1, 2].sort((a, b) => dims[a] - dims[b]), up = order[1];
+    if (up === 2) upFix.rotation.x = -Math.PI/2; else if (up === 0) upFix.rotation.z = Math.PI/2;
+    const centerOf = rx => { const b = new T.Box3(); let n = 0; holder.updateMatrixWorld(true); scene.traverse(o => { if (o.isMesh && rx.test(clean(o.name || o.parent?.name))) { b.expandByObject(o); n++; } }); return n ? b.getCenter(new T.Vector3()) : null; };
+    bx = box(); sz = bx.getSize(new T.Vector3()); if (sz.z > sz.x) holder.rotation.y = Math.PI/2;
+    const sad = centerOf(/saddle|selle/i), tir = centerOf(/tire|tyre|pneu|wheel|roue|rim|jante/i);
+    if (sad && tir && sad.y < tir.y) { upFix.rotation.x += Math.PI; } // posé à l'envers
+    const fr = centerOf(/front|avant|fork|fourche|stem|potence/i), rr = centerOf(/rear|arri|cassette|derail|saddle|selle/i);
+    if (fr && rr && fr.x < rr.x) holder.rotation.y += Math.PI;
     holder.rotation.y += (glb.rotY || 0)*Math.PI/180;
-    holder.updateMatrixWorld(true); bx = new T.Box3().setFromObject(holder); sz = bx.getSize(new T.Vector3());
+    bx = box(); sz = bx.getSize(new T.Vector3());
     holder.scale.setScalar(1.66/Math.max(sz.x, .01)); holder.updateMatrixWorld(true);
     bx = new T.Box3().setFromObject(holder); const c = bx.getCenter(new T.Vector3()); holder.position.set(-c.x, -bx.min.y, -c.z); holder.updateMatrixWorld(true);
     // répartition des objets en composants
     const root = new T.Group(), groups = {}, names = [], map = glb.map || {};
     const grp = key => { if (!groups[key]) { const g = new T.Group(); g.userData.g = key; groups[key] = g; root.add(g); } return groups[key]; };
     const meshes = []; holder.traverse(o => { if (o.isMesh) meshes.push(o); });
-    const keyOf = o => { for (let p = o; p && p !== holder; p = p.parent) { if (p.name && map[p.name]) return map[p.name]; for (const [key, rx] of NAME_RX) if (p.name && rx.test(p.name)) return key; } return 'frame'; };
-    for (const m of meshes) { const key = keyOf(m); if (m.name && !names.includes(m.name)) names.push(m.name);
-      m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); m.castShadow = m.receiveShadow = true; m.userData.g = key; grp(key).attach(m); }
+    const keyOf = o => { for (let p = o; p && p !== holder; p = p.parent) { if (p.name && map[p.name]) return map[p.name]; const nm = clean(p.name); for (const [key, rx] of NAME_RX) if (nm && rx.test(nm)) return key; } return 'frame'; };
+    for (const m of meshes) { if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals(); // fichiers sans normales (trimesh…) : sinon l'éclairage est faux
+      const key = keyOf(m); if (m.name && !names.includes(m.name)) names.push(m.name);
+      m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone();
+      for (const x of [].concat(m.material)) if ('envMapIntensity' in x) x.envMapIntensity = .65; /* reflets du studio adoucis : sinon les teintes sombres virent au gris */ m.castShadow = m.receiveShadow = true; m.userData.g = key; grp(key).attach(m); }
     return { root, groups, len: 1.66, names: names.slice(0, 120), glb: true };
   }
 

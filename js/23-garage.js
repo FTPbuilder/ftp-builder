@@ -330,7 +330,7 @@ const Garage = (() => {
   let glbNames = null;
   function glbMapHTML(b){
     if (!glbNames) return '<p class="tiny muted">Ouvre la vue 3D pour lister les objets du modèle.</p>';
-    const map = b.glb.map || {}, auto = n => { for (const [k, rx] of Bike3D.NAME_RX) if (rx.test(n)) return k; return 'frame'; };
+    const map = b.glb.map || {}, auto = n => { const c = String(n).replace(/[_.\-]+/g, ' '); for (const [k, rx] of Bike3D.NAME_RX) if (rx.test(c)) return k; return 'frame'; };
     return `<details style="margin-top:8px"><summary class="small">Composants du modèle (${glbNames.length} objets)</summary><div class="gr-map">${glbNames.map(n => `<label><span class="tiny">${esc(n)}</span><select data-grmap="${esc(n)}">${['', ...Bike3D.KEYS].map(k => `<option value="${k}"${(map[n] || '') === k ? ' selected' : ''}>${k ? Bike3D.LABEL[k] : 'Auto : ' + Bike3D.LABEL[auto(n)]}</option>`).join('')}</select></label>`).join('')}</div></details>`;
   }
 
