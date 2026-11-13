@@ -483,6 +483,34 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 .hero h1 b{color:var(--accent)}
 /* ----- Profil : Mes GPX (livre de traces noté) et Mes courses ----- */
 .pp-sq{margin-top:2px}
+/* Garage */
+.gr-tile{display:flex;align-items:center;gap:14px;width:100%;color:var(--text);font:inherit;cursor:pointer;text-align:left}
+.gr-tl{font:italic 900 30px/.9 "Barlow Condensed","Arial Narrow",sans-serif;letter-spacing:.02em;text-transform:uppercase;color:var(--accent)}
+.gr-bar{position:relative;display:inline-block;flex:0 0 auto;width:64px;height:8px;border-radius:99px;background:color-mix(in srgb,var(--text) 12%,transparent);overflow:hidden;vertical-align:middle}
+.gr-bar i{position:absolute;left:0;top:0;bottom:0;border-radius:99px}
+.gr-bar.bat{height:11px;border-radius:3px;border:1.5px solid color-mix(in srgb,var(--text) 45%,transparent);background:transparent;overflow:visible;margin-right:3px}
+.gr-bar.bat i{border-radius:1px;top:1px;bottom:1px;left:1px;max-width:calc(100% - 2px)}
+.gr-bar.bat::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:5px;border-radius:0 2px 2px 0;background:color-mix(in srgb,var(--text) 45%,transparent)}
+.gr-bikes{margin:0 0 12px}.gr-bikes button,.seg.gr-bikes button{border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}.gr-bikes button.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 18%,var(--bg2))}
+.gr-km{font:italic 900 34px/1 "Barlow Condensed","Arial Narrow",sans-serif}.gr-km small{font-size:15px;color:var(--muted)}
+.gr-view{position:relative;width:100%;aspect-ratio:4/3.1;margin-top:8px;border-radius:12px;overflow:hidden;background:radial-gradient(120% 90% at 50% 35%,color-mix(in srgb,var(--text) 9%,var(--card)),var(--card) 70%);touch-action:none;user-select:none;-webkit-user-select:none}
+.gr-load{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px}
+.gr-tags{position:absolute;inset:0;pointer-events:none;transition:opacity .2s}
+.gr-tag{position:absolute;left:0;top:0;display:flex;flex-direction:column;gap:2px;padding:3px 6px 4px;border-radius:7px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);background:color-mix(in srgb,var(--card) 88%,transparent);color:var(--text);font:inherit;cursor:pointer;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.gr-tag>span:first-child{display:flex;gap:5px;align-items:baseline}.gr-tag b{font-size:10px;font-weight:700;line-height:1.1}.gr-tag em{font-style:normal;font-size:10px;font-weight:800;color:var(--c);line-height:1}
+.gr-tb{display:block;height:3px;border-radius:2px;background:color-mix(in srgb,var(--text) 14%,transparent);overflow:hidden}.gr-tb i{display:block;height:100%;background:var(--c)}
+.gr-view[data-exploded="1"]{aspect-ratio:4/4}
+.gr-kms{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.gr-kms div{background:var(--bg2);border-radius:10px;padding:8px 10px}.gr-kms small{display:block;font-size:11px;color:var(--muted)}.gr-kms b{font:italic 800 22px/1.1 "Barlow Condensed","Arial Narrow",sans-serif}
+.gr-parts{display:flex;flex-direction:column}
+.gr-part{display:flex;align-items:center;gap:10px;padding:9px 2px;border:0;border-top:1px solid var(--line);background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;width:100%}
+.gr-pl{flex:1;min-width:0;display:flex;flex-direction:column}.gr-pl b{font-size:14px}.gr-pv{min-width:56px;text-align:right;font-size:13px}
+.gr-care{padding:9px 0;border-top:1px solid var(--line)}.gr-care summary{cursor:pointer;margin-top:4px}.gr-st{font-size:12px;font-weight:700;white-space:nowrap}
+.gr-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}.gr-grid input,.gr-grid select{width:100%}
+.gr-prout{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 4px}.gr-prout div{background:var(--bg2);border-radius:12px;padding:10px 12px}.gr-prout small{display:block;font-size:11.5px;color:var(--muted)}.gr-prout b{font:italic 900 34px/1 "Barlow Condensed","Arial Narrow",sans-serif}.gr-prout .tiny{display:block}
+.gr-log{display:flex;flex-direction:column;margin-top:6px}.gr-le{display:flex;gap:10px;align-items:center;padding:8px 2px;border:0;border-top:1px solid var(--line);background:none;color:var(--text);font:inherit;text-align:left;cursor:pointer;width:100%}
+.gr-rides{display:flex;flex-direction:column;max-height:420px;overflow:auto}.gr-ride{display:flex;gap:10px;align-items:center;padding:7px 0;border-top:1px solid var(--line)}.gr-ride select{width:auto;max-width:42%;font-size:12.5px;padding:4px 6px}
+.gr-big{display:flex;align-items:baseline;gap:8px;margin:12px 0 6px}.gr-big .num{font:italic 900 44px/1 "Barlow Condensed","Arial Narrow",sans-serif}
+#dlg .gr-bar,.gr-big + .gr-bar{width:100%;height:10px}#dlg .gr-bar.bat{height:16px}
 .pp-climbs .pane-head + .card > h2:first-child{display:none}
 .gxlist{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
 .gxc{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:10px;cursor:pointer;-webkit-tap-highlight-color:transparent}
@@ -598,29 +626,31 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.36.2';</script>
-<script src="js/00-schema.js?v=0.36.2"></script>
-<script src="js/01-core.js?v=0.36.2"></script>
-<script src="js/02-plan.js?v=0.36.2"></script>
-<script src="js/03-fit-metrics.js?v=0.36.2"></script>
-<script src="js/04-fit-write-coach.js?v=0.36.2"></script>
-<script src="js/05-charts.js?v=0.36.2"></script>
-<script src="js/06-render.js?v=0.36.2"></script>
-<script src="js/07-health-import.js?v=0.36.2"></script>
-<script src="js/08-explain-challenges.js?v=0.36.2"></script>
-<script src="js/09-mobility.js?v=0.36.2"></script>
-<script src="js/10-test-absences.js?v=0.36.2"></script>
-<script src="js/11-session-chart.js?v=0.36.2"></script>
-<script src="js/12-tracks.js?v=0.36.2"></script>
-<script src="js/13-climbs.js?v=0.36.2"></script>
-<script src="js/14-adjust.js?v=0.36.2"></script>
-<script src="js/15-dialogs.js?v=0.36.2"></script>
-<script src="js/16-clicks.js?v=0.36.2"></script>
-<script src="js/17-cloud.js?v=0.36.2"></script>
-<script src="js/18-social.js?v=0.36.2"></script>
-<script src="js/19-onboarding.js?v=0.36.2"></script>
-<script src="js/20-health-shortcut.js?v=0.36.2"></script>
-<script src="js/21-library.js?v=0.36.2"></script>
-<script src="js/22-boot.js?v=0.36.2"></script>
+<script>"use strict"; const APP_VERSION = '0.37.0';</script>
+<script src="js/00-schema.js?v=0.37.0"></script>
+<script src="js/01-core.js?v=0.37.0"></script>
+<script src="js/02-plan.js?v=0.37.0"></script>
+<script src="js/03-fit-metrics.js?v=0.37.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.37.0"></script>
+<script src="js/05-charts.js?v=0.37.0"></script>
+<script src="js/06-render.js?v=0.37.0"></script>
+<script src="js/07-health-import.js?v=0.37.0"></script>
+<script src="js/08-explain-challenges.js?v=0.37.0"></script>
+<script src="js/09-mobility.js?v=0.37.0"></script>
+<script src="js/10-test-absences.js?v=0.37.0"></script>
+<script src="js/11-session-chart.js?v=0.37.0"></script>
+<script src="js/12-tracks.js?v=0.37.0"></script>
+<script src="js/13-climbs.js?v=0.37.0"></script>
+<script src="js/14-adjust.js?v=0.37.0"></script>
+<script src="js/15-dialogs.js?v=0.37.0"></script>
+<script src="js/16-clicks.js?v=0.37.0"></script>
+<script src="js/17-cloud.js?v=0.37.0"></script>
+<script src="js/18-social.js?v=0.37.0"></script>
+<script src="js/19-onboarding.js?v=0.37.0"></script>
+<script src="js/20-health-shortcut.js?v=0.37.0"></script>
+<script src="js/21-library.js?v=0.37.0"></script>
+<script src="js/22-bike3d.js?v=0.37.0"></script>
+<script src="js/23-garage.js?v=0.37.0"></script>
+<script src="js/24-boot.js?v=0.37.0"></script>
 </body>
 </html>
