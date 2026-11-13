@@ -1,5 +1,5 @@
 "use strict";
-// FTP Builder · Garage : scène 3D du vélo (three.js) — studio, rotation libre, vue éclatée « mode ingénieur », témoins d'usure ; import d'un vrai modèle GLB ; film image par image
+// FTP Builder · Garage : scène 3D du vélo (three.js) — studio, rotation libre, zoom sur une zone, vue éclatée « mode ingénieur », témoins d'usure ; import d'un vrai modèle GLB
 /* ============ Bike3D ============
    Deux sources de maquette :
    - « glb » : le vrai modèle de l'utilisateur (fichier .glb importé), découpé en composants d'après le nom de ses objets (ou le réglage manuel) ;
@@ -19,18 +19,21 @@ const Bike3D = (() => {
   // reconnaissance des composants d'un GLB d'après le nom des objets (français / anglais)
   const NAME_RX = [
     ['tireF', /(front|avant|_f\b|\bf_).*(tire|tyre|pneu)|(tire|tyre|pneu).*(front|avant)/i], ['tireR', /(rear|arri|_r\b|\br_).*(tire|tyre|pneu)|(tire|tyre|pneu).*(rear|arri)/i],
-    ['rotors', /rotor|disc\b|disque/i], ['cassette', /cassette|sprocket|pignon|cog/i], ['chain', /cha[iî]ne?\b|chain/i], ['rd', /rear.?derail|d[ée]railleur.?(ar|arri)|\brd\b|jockey|galet|pulley/i],
-    ['fd', /front.?derail|d[ée]railleur.?(av|avant)|\bfd\b/i], ['crank', /crank|manivelle|chainring|plateau|p[ée]dalier|spider|power/i], ['bb', /bottom.?bracket|bo[iî]tier|\bbb\b/i],
-    ['calipers', /caliper|[ée]trier|brake|frein|pad|patin|plaquette/i], ['levers', /lever|levier|shifter|hood|cocotte/i], ['cockpit', /handle|cintre|cockpit|stem|potence|\bbar|tape|guidoline/i],
+    ['frame', /stay|hauban|\bbases?\b|\btube\b|downtube|top.?tube|frame|cadre|logo|badge/i], // tubes et haubans avant « chain » (chain stay) et « seat » (seat tube)
+    ['rotors', /rotor|\bdisc\b|disque/i], ['cassette', /cassette|sprocket|pignon|\bcog/i], ['chain', /\bchain\b(?!\s*-?(stay|ring|line))|\bcha[iî]ne\b/i], ['rd', /rear.?derail|d[ée]railleur.?(ar|arri)|\brd\b|jockey|galet|pulley/i],
+    ['fd', /front.?derail|d[ée]railleur.?(av|avant)|\bfd\b/i], ['crank', /crank|manivelle|chainring|plateau|p[ée]dalier|spider|power|pedal|p[ée]dale/i], ['bb', /bottom.?bracket|bo[iî]tier|\bbb\b/i],
+    ['calipers', /caliper|[ée]trier|brake(?!\s*-?(track|rotor|disc))|frein|\bpads?\b|patin|plaquette/i], ['levers', /lever|levier|shifter|hood|cocotte/i], ['cockpit', /handle|cintre|cockpit|stem|potence|\bbar|tape|guidoline/i],
     ['headset', /headset|direction|spacer/i], ['saddle', /saddle|selle\b/i], ['seatpost', /seat.?post|tige/i], ['battery', /batter|di2/i],
     ['fork', /fork|fourche/i], ['wheelF', /(front|avant).*(wheel|roue|rim|jante|hub|moyeu|spoke|rayon)|(wheel|roue|rim|jante).*(front|avant)/i],
-    ['wheelR', /(rear|arri).*(wheel|roue|rim|jante|hub|moyeu|spoke|rayon)|(wheel|roue|rim|jante).*(rear|arri)/i], ['frame', /frame|cadre/i],
+    ['wheelR', /(rear|arri).*(wheel|roue|rim|jante|hub|moyeu|spoke|rayon)|(wheel|roue|rim|jante).*(rear|arri)/i],
   ];
+  const ZONE_SPREAD = .55;
+  const clean = n => String(n || '').replace(/[_.\-]+/g, ' ').replace(/\s\d+$/, ''); // GLTFLoader remplace les espaces par « _ »
   const OFF = { frame: [0, 0, 0], fork: [.17, -.05, 0], wheelF: [.36, -.02, 0], tireF: [.6, .1, .12], rotors: [0, 0, -.3], wheelR: [-.28, -.02, 0], tireR: [-.52, .1, .12],
     cassette: [-.17, 0, .34], rd: [-.11, -.15, .38], chain: [.05, -.34, .28], crank: [.15, -.2, .46], bb: [0, -.34, 0], fd: [.07, .02, .32], seatpost: [-.05, .22, 0], saddle: [-.08, .42, 0],
     battery: [-.26, .12, 0], cockpit: [.17, .27, 0], levers: [.34, .36, 0], headset: [.03, .15, .32], calipers: [0, .02, -.42] };
   let R = null; // scène courante
-  const st = { t: 0, target: 0, opts: null, el: null, raf: 0, last: 0, sel: null, idle: 0, intro: null, introDone: false, focus: null, busy: 0 };
+  const st = { t: 0, target: 0, opts: null, el: null, raf: 0, last: 0, sel: null, idle: 0, intro: null, introDone: false, focus: null, busy: 0, zone: null, zlast: null, zt: 0 };
   const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
   const smooth = (a, b, k) => a + (b - a)*k;
 
@@ -207,21 +210,31 @@ const Bike3D = (() => {
     const buf = glb.blob ? await glb.blob.arrayBuffer() : await (await fetch(glb.url)).arrayBuffer();
     const gl = await new Promise((ok, ko) => loader.parse(buf, '', ok, e => ko(new Error('modèle illisible : ' + (e?.message || e)))));
     const scene = gl.scene || gl.scenes?.[0]; scene.updateMatrixWorld(true);
-    // orientation : le vélo doit être long selon x ; quart de tour si besoin, puis rotation choisie (avant / arrière)
-    const holder = new T.Group(); holder.add(scene);
-    let bx = new T.Box3().setFromObject(holder), sz = bx.getSize(new T.Vector3());
-    if (sz.z > sz.x*1.15) holder.rotation.y = Math.PI/2;
+    // orientation : beaucoup d'outils exportent en z vers le haut (Blender sans conversion, trimesh…) ; on pose le vélo debout, long selon x,
+    // l'avant (fourche, roue avant) vers +x, puis la rotation choisie par l'utilisateur. Hauteur = dimension intermédiaire, largeur = la plus petite.
+    const upFix = new T.Group(), holder = new T.Group(); upFix.add(scene); holder.add(upFix);
+    const box = () => { holder.updateMatrixWorld(true); return new T.Box3().setFromObject(holder); };
+    let bx = box(), sz = bx.getSize(new T.Vector3()); const dims = [sz.x, sz.y, sz.z], order = [0, 1, 2].sort((a, b) => dims[a] - dims[b]), up = order[1];
+    if (up === 2) upFix.rotation.x = -Math.PI/2; else if (up === 0) upFix.rotation.z = Math.PI/2;
+    const centerOf = rx => { const b = new T.Box3(); let n = 0; holder.updateMatrixWorld(true); scene.traverse(o => { if (o.isMesh && rx.test(clean(o.name || o.parent?.name))) { b.expandByObject(o); n++; } }); return n ? b.getCenter(new T.Vector3()) : null; };
+    bx = box(); sz = bx.getSize(new T.Vector3()); if (sz.z > sz.x) holder.rotation.y = Math.PI/2;
+    const sad = centerOf(/saddle|selle/i), tir = centerOf(/tire|tyre|pneu|wheel|roue|rim|jante/i);
+    if (sad && tir && sad.y < tir.y) { upFix.rotation.x += Math.PI; } // posé à l'envers
+    const fr = centerOf(/front|avant|fork|fourche|stem|potence/i), rr = centerOf(/rear|arri|cassette|derail|saddle|selle/i);
+    if (fr && rr && fr.x < rr.x) holder.rotation.y += Math.PI;
     holder.rotation.y += (glb.rotY || 0)*Math.PI/180;
-    holder.updateMatrixWorld(true); bx = new T.Box3().setFromObject(holder); sz = bx.getSize(new T.Vector3());
+    bx = box(); sz = bx.getSize(new T.Vector3());
     holder.scale.setScalar(1.66/Math.max(sz.x, .01)); holder.updateMatrixWorld(true);
     bx = new T.Box3().setFromObject(holder); const c = bx.getCenter(new T.Vector3()); holder.position.set(-c.x, -bx.min.y, -c.z); holder.updateMatrixWorld(true);
     // répartition des objets en composants
     const root = new T.Group(), groups = {}, names = [], map = glb.map || {};
     const grp = key => { if (!groups[key]) { const g = new T.Group(); g.userData.g = key; groups[key] = g; root.add(g); } return groups[key]; };
     const meshes = []; holder.traverse(o => { if (o.isMesh) meshes.push(o); });
-    const keyOf = o => { for (let p = o; p && p !== holder; p = p.parent) { if (p.name && map[p.name]) return map[p.name]; for (const [key, rx] of NAME_RX) if (p.name && rx.test(p.name)) return key; } return 'frame'; };
-    for (const m of meshes) { const key = keyOf(m); if (m.name && !names.includes(m.name)) names.push(m.name);
-      m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone(); m.castShadow = m.receiveShadow = true; m.userData.g = key; grp(key).attach(m); }
+    const keyOf = o => { for (let p = o; p && p !== holder; p = p.parent) { if (p.name && map[p.name]) return map[p.name]; const nm = clean(p.name); for (const [key, rx] of NAME_RX) if (nm && rx.test(nm)) return key; } return 'frame'; };
+    for (const m of meshes) { if (!m.geometry.attributes.normal) m.geometry.computeVertexNormals(); // fichiers sans normales (trimesh…) : sinon l'éclairage est faux
+      const key = keyOf(m); if (m.name && !names.includes(m.name)) names.push(m.name);
+      m.material = Array.isArray(m.material) ? m.material.map(x => x.clone()) : m.material.clone();
+      for (const x of [].concat(m.material)) if ('envMapIntensity' in x) x.envMapIntensity = .65; /* reflets du studio adoucis : sinon les teintes sombres virent au gris */ m.castShadow = m.receiveShadow = true; m.userData.g = key; grp(key).attach(m); }
     return { root, groups, len: 1.66, names: names.slice(0, 120), glb: true };
   }
 
@@ -267,7 +280,7 @@ const Bike3D = (() => {
   }
   const HOME = { polar: Math.PI*.455, az: Math.PI*.09, dist: 2.45 };
   function home(now){ if (!R) return; const T = THREE, dist = HOME.dist*(1 + 1.0*ease(st.t)), dir = new T.Vector3().setFromSphericalCoords(1, HOME.polar, HOME.az);
-    R.ctl.target.set(0, .5, 0); R.cam.position.copy(R.ctl.target).addScaledVector(dir, dist); R.cam.lookAt(R.ctl.target); R.ctl.update(); st.sel = null; st.focus = null; if (!now) wake(); }
+    R.ctl.target.set(0, .5, 0); R.cam.position.copy(R.ctl.target).addScaledVector(dir, dist); R.cam.lookAt(R.ctl.target); R.ctl.update(); st.sel = null; st.focus = null; if (st.zone) { st.zlast = st.zone; st.zone = null; } if (!now) wake(); }
 
   function tap(e){
     const T = THREE, cv = R.r.domElement, rc = cv.getBoundingClientRect(), m = new T.Vector2((e.clientX - rc.left)/rc.width*2 - 1, -(e.clientY - rc.top)/rc.height*2 + 1);
@@ -283,12 +296,12 @@ const Bike3D = (() => {
       g.traverse(m => { if (!m.isMesh || m.isInstancedMesh || m.userData.noEdges || !m.geometry?.attributes?.position || m.geometry.attributes.position.count > 60000) return;
         const ls = new T.LineSegments(new T.EdgesGeometry(m.geometry, 28), mat); ls.raycast = () => {}; m.add(ls); R.edges.push(ls); }); } }
   const C_LINE = 0x8cc8ff, C_SEL = 0xffb27a;
-  function applyLook(k){
-    const sel = st.sel;
+  function applyLook(k, zk = 0){
+    const sel = st.sel, zone = st.zone;
     for (const g of Object.values(R.groups)) {
-      const dim = sel && g.userData.g !== sel, target = dim ? .14 : 1;
+      const inZ = zone?.has(g.userData.g), dim = (sel && g.userData.g !== sel) || (!sel && zone && !inZ), target = dim ? .14 : 1;
       for (const m of g.userData.mats) { const op = smooth(m.opacity, target*(m.userData.op0 ?? 1), .18); m.opacity = op; m.transparent = op < .99 || m.userData.tr0; m.depthWrite = op > .6; }
-      const lm = g.userData.lineMat; if (lm) { lm.opacity = smooth(lm.opacity, k*(sel ? (dim ? .08 : .95) : .7), .15); lm.color.setHex(sel && !dim ? C_SEL : C_LINE).convertSRGBToLinear(); }
+      const lm = g.userData.lineMat; if (lm) { lm.opacity = smooth(lm.opacity, Math.max(k, inZ ? zk : 0)*(sel ? (dim ? .08 : .95) : .7), .15); lm.color.setHex(sel && !dim ? C_SEL : C_LINE).convertSRGBToLinear(); }
     }
   }
 
@@ -300,16 +313,16 @@ const Bike3D = (() => {
       <div class="gr-dots">${keys.map(k => `<button type="button" data-gd="${k}" style="--c:${tg[k].col}" aria-label="${LABEL[k] || tg[k].l} : ${tg[k].txt}"><i></i></button>`).join('')}</div>`;
   }
   // étiquette affichée : composant choisi, ce qui demande de l'attention, ou toutes sur grand écran ; sinon un simple témoin de couleur
-  const labelled = (key, w) => { const t = st.opts?.tags?.[key]; return key === st.sel || (t && t.rem < .6) || w >= 620 || st.opts?.allTags; };
+  const labelled = (key, w) => { const t = st.opts?.tags?.[key]; if (st.zone) return st.zone.has(key); return key === st.sel || (t && t.rem < .6) || w >= 620 || st.opts?.allTags; };
   function placeOverlay(w, h){
     const el = st.el; if (!el) return; const box = el.querySelector('.gr-tags'), svg = el.querySelector('.gr-lines'), dots = el.querySelector('.gr-dots'); if (!box) return;
-    const k = ease(st.t), show = k > .55, op = show ? Math.min(1, (k - .55)/.35) : 0;
-    box.style.opacity = svg.style.opacity = String(op); box.style.pointerEvents = show && st.target ? 'auto' : 'none';
+    const k = ease(st.t), zk = st.zone ? ease(st.zt) : 0, show = k > .55 || zk > .5, op = show ? Math.min(1, Math.max((k - .55)/.35, (zk - .5)/.35)) : 0;
+    box.style.opacity = svg.style.opacity = String(op); box.style.pointerEvents = show && (st.target || st.zone) ? 'auto' : 'none';
     const v = new THREE.Vector3(), A = {};
     for (const [key, g] of Object.entries(R.groups)) { v.copy(g.userData.center).add(g.position).add(R.root.position).project(R.cam); A[key] = [(v.x*.5 + .5)*w, (-v.y*.5 + .5)*h]; }
     // témoins : vélo monté → seulement ce qui demande de l'attention ; éclaté → un point par composant (touchable)
     for (const d of dots.children) { const key = d.dataset.gd, a = A[key], t = st.opts?.tags?.[key], att = t && t.rem < .6;
-      const o = k < .3 ? (att ? 1 - k/.3 : 0) : show ? op*(st.sel && st.sel !== key ? .3 : 1) : 0; d.style.opacity = String(o); d.style.pointerEvents = o > .3 ? 'auto' : 'none';
+      const inZ = !st.zone || st.zone.has(key), o = show ? op*(st.sel && st.sel !== key ? .3 : 1)*(inZ ? 1 : 0) : k < .3 ? (att ? 1 - k/.3 : 0) : 0; d.style.opacity = String(o); d.style.pointerEvents = o > .3 ? 'auto' : 'none';
       if (a) d.style.transform = `translate(${a[0]}px, ${a[1]}px) translate(-50%, -50%)`; d.classList.toggle('on', key === st.sel); }
     if (!show) { svg.innerHTML = ''; return; }
     const L = [];
@@ -337,18 +350,20 @@ const Bike3D = (() => {
     if (k !== prev && !st.focus && !st.intro) { const f = (1 + 1.0*k)/(1 + 1.0*prev), off = R.cam.position.clone().sub(R.ctl.target); R.cam.position.copy(R.ctl.target).addScaledVector(off, f); }
     // éclaté échelonné : les composants se détachent l'un après l'autre
     const gs = Object.values(R.groups);
-    gs.forEach((g, i) => { const delay = (i/gs.length)*.35, kk = ease(clamp((st.t - delay)/.65, 0, 1)); g.position.copy(g.userData.off).multiplyScalar(kk); if (g.userData.hideAssembled) g.visible = kk > .06; });
-    if (k > 0 || st.sel) ensureEdges(); if (R.edges) applyLook(k);
+    st.zt = st.zone ? Math.min(1, st.zt + dt*1.8) : Math.max(0, st.zt - dt*2.2); const zk = ease(st.zt), zs = st.zone || st.zlast;
+    gs.forEach((g, i) => { const delay = (i/gs.length)*.35, kk = Math.max(ease(clamp((st.t - delay)/.65, 0, 1)), zs?.has(g.userData.g) ? zk*ZONE_SPREAD : 0);
+      g.position.copy(g.userData.off).multiplyScalar(kk); if (g.userData.hideAssembled) g.visible = kk > .06; });
+    if (k > 0 || st.sel || st.zt > 0) ensureEdges(); if (R.edges) applyLook(k, zk);
     // intro : travelling depuis le profil côté transmission
     if (st.intro) { const u = clamp((now - st.intro.t0)/1700, 0, 1), e = ease(u), dir = new T.Vector3().setFromSphericalCoords(1, smooth(Math.PI*.5, HOME.polar, e), smooth(-Math.PI*.12, HOME.az, e));
       R.cam.position.copy(R.ctl.target).addScaledVector(dir, smooth(3.9, HOME.dist, e)*(1 + 1.0*k)); if (u >= 1) { st.intro = null; st.idle = now; } }
     // focus sur le composant choisi
     if (st.focus) { R.ctl.target.lerp(st.focus.p, .1); const off = R.cam.position.clone().sub(R.ctl.target); off.setLength(smooth(off.length(), st.focus.d, .08)); R.cam.position.copy(R.ctl.target).add(off); }
     // présentoir : rotation lente quand on ne touche à rien (vélo monté)
-    const idle = now - st.idle; R.ctl.autoRotate = !st.intro && !st.target && !st.sel && !navigator.webdriver && idle > 6000 && idle < 30000;
+    const idle = now - st.idle; R.ctl.autoRotate = !st.intro && !st.target && !st.sel && !st.zone && !navigator.webdriver && idle > 6000 && idle < 30000;
     if (R.ctl.update()) st.busy = Math.max(st.busy, now + 250); const [w, h] = size(); R.r.render(R.scene, R.cam); placeOverlay(w, h);
     // rendu à la demande : on s'arrête dès que plus rien ne bouge (batterie du téléphone)
-    const moving = st.intro || R.ctl.autoRotate || (st.target ? st.t < 1 : st.t > 0) || now < st.busy;
+    const moving = st.intro || R.ctl.autoRotate || (st.target ? st.t < 1 : st.t > 0) || (st.zone ? st.zt < 1 : st.zt > 0) || now < st.busy;
     st.raf = moving ? requestAnimationFrame(frame) : 0;
   }
   const kick = () => { if (!st.raf && st.el?.isConnected) { st.last = 0; st.raf = requestAnimationFrame(frame); } };
@@ -358,7 +373,7 @@ const Bike3D = (() => {
   /* ---------- API ---------- */
   async function mount(el, opts){
     await loadLibs();
-    if (R && R.key !== opts.key) { R.r.dispose(); R = null; st.t = 0; st.sel = null; st.focus = null; }
+    if (R && R.key !== opts.key) { R.r.dispose(); R = null; st.t = 0; st.sel = null; st.focus = null; st.zone = st.zlast = null; st.zt = 0; }
     if (!R) await setup(opts);
     st.el = el; st.opts = opts; st.target = opts.exploded ? 1 : 0; if (opts.exploded && st.t === 0) st.t = 1;
     el.querySelector('.gr-load')?.remove(); el.querySelectorAll('canvas,.gr-tags,.gr-lines,.gr-dots').forEach(x => x.remove());
@@ -366,7 +381,7 @@ const Bike3D = (() => {
     for (const c of el.querySelectorAll('.gr-tags,.gr-dots')) c.addEventListener('click', e => { const b = e.target.closest('[data-g3],[data-gd]'); if (b) st.opts?.onTap?.(b.dataset.g3 || b.dataset.gd, true); });
     R.w = R.h = 0; idleNow(); wake(2000); return { names: R.names || null, glb: !!R.glb, groups: Object.keys(R.groups) };
   }
-  function explode(on){ st.target = on ? 1 : 0; if (!on) { st.sel = null; st.focus = null; } wake(2500); }
+  function explode(on){ st.target = on ? 1 : 0; if (st.zone) { st.zlast = st.zone; st.zone = null; } if (!on) { st.sel = null; st.focus = null; } wake(2500); }
   function select(key){ if (!R) return; st.sel = key && R.groups[key] ? key : null;
     if (st.sel) { const T = THREE, bx = new T.Box3().setFromObject(R.groups[key]), c = bx.getCenter(new T.Vector3()), r = bx.getSize(new T.Vector3()).length(); st.focus = { p: c, d: clamp(r*2.6, .7, 3.2) }; setTimeout(() => { if (st.focus?.p === c) st.focus = null; }, 1800); }
     else if (st.focus) { st.focus = { p: new THREE.Vector3(0, .5, 0), d: HOME.dist*(1 + 1.0*ease(st.t)) }; setTimeout(() => { if (!st.sel) st.focus = null; }, 900); }
@@ -386,39 +401,15 @@ const Bike3D = (() => {
   }
   function stop(){ if (st.raf) cancelAnimationFrame(st.raf); st.raf = 0; }
   function labels(on){ if (st.opts) st.opts.allTags = on; wake(600); }
-  return { mount, explode, select, snapshot, stop, labels, resetView: () => home(false), LABEL, NAME_RX, KEYS: Object.keys(LABEL), get R(){ return R; }, get t(){ return st.t; }, get sel(){ return st.sel; } };
-})();
-
-/* ============ Film : animation montage → éclaté image par image (vidéo générée par l'utilisateur, ex. Higgsfield, Kling, Veo) ============
-   La vidéo est décodée une fois en 24 à 96 images, puis on la fait défiler au doigt ou en lecture aller / retour, comme un configurateur. */
-const BikeFilm = (() => {
-  let cur = null; // { id, frames, w, h }
-  async function decode(blob, id, onProgress){
-    if (cur?.id === id) return cur;
-    const url = URL.createObjectURL(blob), v = document.createElement('video'); v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
-    try {
-      await new Promise((ok, ko) => { v.onloadeddata = ok; v.onerror = () => ko(new Error('vidéo illisible sur cet appareil')); });
-      if (!isFinite(v.duration)) await new Promise(ok => { v.onseeked = ok; v.currentTime = 1e7; }); // webm sans durée (enregistrement direct)
-      if (!isFinite(v.duration) || !v.duration) throw new Error('vidéo sans durée lisible');
-      const N = clamp(Math.round(v.duration*12), 24, 96), W = Math.min(960, v.videoWidth || 960), H = Math.round(W*(v.videoHeight || 540)/(v.videoWidth || 960)), frames = [];
-      for (let i = 0; i < N; i++) {
-        await new Promise(ok => { v.onseeked = ok; v.currentTime = Math.min(v.duration - .001, i/(N - 1)*v.duration); });
-        const c = document.createElement('canvas'); c.width = W; c.height = H; c.getContext('2d').drawImage(v, 0, 0, W, H);
-        frames.push(window.createImageBitmap ? await createImageBitmap(c) : c); onProgress?.((i + 1)/N);
-      }
-      return cur = { id, frames, w: W, h: H };
-    } finally { URL.revokeObjectURL(url); }
+  // zone touchée : on rapproche la caméra de ses pièces, on les écarte un peu et on estompe le reste ; la navigation reste libre
+  function zone(keys){
+    if (!R) return; const T = THREE, ks = keys && keys.filter(k => R.groups[k]);
+    if (!ks?.length) { if (st.zone) st.zlast = st.zone; st.zone = null; st.sel = null; const f = { p: new T.Vector3(0, .5, 0), d: HOME.dist*(1 + ease(st.t)) }; st.focus = f; setTimeout(() => { if (st.focus === f) st.focus = null; }, 1500); wake(2000); return; }
+    st.zone = new Set(ks); st.zlast = null; st.sel = null;
+    const bx = new T.Box3(); for (const k of ks) { const g = R.groups[k], b = new T.Box3().setFromObject(g), d = g.userData.off.clone().multiplyScalar(ZONE_SPREAD).sub(g.position); b.translate(d); bx.union(b); }
+    const c = bx.getCenter(new T.Vector3()), r = bx.getSize(new T.Vector3()).length(), f = { p: c, d: clamp(r*1.9, .8, 3.4) }; st.focus = f;
+    setTimeout(() => { if (st.focus === f) st.focus = null; }, 1800); wake(2200);
   }
-  function mount(el, film){
-    const cv = document.createElement('canvas'); cv.className = 'gr-film'; cv.width = film.w; cv.height = film.h; el.querySelectorAll('canvas').forEach(x => x.remove()); el.prepend(cv);
-    const ctx = cv.getContext('2d'), n = film.frames.length; let f = 0, target = 0, raf = 0, drag = null;
-    const draw = () => { ctx.clearRect(0, 0, cv.width, cv.height); ctx.drawImage(film.frames[clamp(Math.round(f), 0, n - 1)], 0, 0); };
-    const loop = () => { f += (target - f)*.2; draw(); raf = Math.abs(target - f) > .05 && cv.isConnected ? requestAnimationFrame(loop) : 0; };
-    const go = t => { target = clamp(t, 0, n - 1); if (!raf) raf = requestAnimationFrame(loop); };
-    cv.addEventListener('pointerdown', e => { drag = { x: e.clientX, f: target }; cv.setPointerCapture?.(e.pointerId); });
-    cv.addEventListener('pointermove', e => { if (drag) go(drag.f + (e.clientX - drag.x)/cv.clientWidth*n*1.2); });
-    cv.addEventListener('pointerup', () => { drag = null; });
-    draw(); return { play: fwd => go(fwd ? n - 1 : 0), get pos(){ return n > 1 ? f/(n - 1) : 0; } };
-  }
-  return { decode, mount, get cur(){ return cur; } };
+  function zoom(f){ if (!R) return; st.focus = null; const off = R.cam.position.clone().sub(R.ctl.target); off.setLength(clamp(off.length()*f, R.ctl.minDistance, R.ctl.maxDistance)); R.cam.position.copy(R.ctl.target).add(off); idleNow(); wake(600); }
+  return { mount, explode, select, snapshot, stop, labels, zone, zoom, resetView: () => home(false), LABEL, NAME_RX, KEYS: Object.keys(LABEL), get R(){ return R; }, get t(){ return st.t; }, get sel(){ return st.sel; }, get zoneKeys(){ return st.zone ? [...st.zone] : null; } };
 })();
