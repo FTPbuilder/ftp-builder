@@ -69,4 +69,5 @@
 - [x] T056 [US6] Lecture d'une facture PDF : cadre, génération, groupe, date d'achat et montant reconnus, écran de confirmation, vélo créé (ou complété) avec son achat ; test `tests/garage-catalog.mjs`
 - [x] T058 [US6] SRAM mécanique : Rival / Force / Red 22 (11 v, patins ou disques HRD) dans le catalogue et la lecture de facture
 - [x] T059 [US6] Facture : texte PDF recollé par position (fragments pdf.js), dates « 14 nov. 2026 », total TTC ; cadre hors catalogue deviné (marque + modèle) et vélo créé avec la maquette générique ; bouton « Demander l'ajout au catalogue » (table `bike_requests`, traitée par l'admin)
+- [x] T060 [US6] Catalogue : Factor Ostro VAM (2021-2024, 2.0 2025+) ; compte admin (`admins`, `is_admin()`) ; Profil : tuile Réglages réduite + carré 📮 « Demandes » (admin seul) — liste, copie pour Claude, statut Ajoutée / Refusée / Rouvrir ; test `tests/admin-requests.mjs`
 - [ ] T057 [US6] Charger un vélo depuis un lien (Edge Function qui lit la page) ; facture en photo (OCR)

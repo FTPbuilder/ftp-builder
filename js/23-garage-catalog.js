@@ -29,6 +29,9 @@ const BIKE_CAT = (() => {
       { k: 'gen8', l: 'Gen 8 (2025+)', brakes: ['disc'], tire: 32, spec: { bb: 'Boîtier T47 fileté' } } ] },
     { k: 'canyon-ultimate', brand: 'Canyon', model: 'Ultimate', gens: [
       { k: 'cf', l: 'CF SL / CF SLX (2021+, disques)', brakes: ['disc'], tire: 30, spec: { bb: 'Boîtier PF86' } } ] },
+    { k: 'factor-ostro', brand: 'Factor', model: 'Ostro VAM', gens: [
+      { k: 'v2', l: 'Ostro VAM 2.0 (2025+)', brakes: ['disc'], tire: 32, elecOnly: true, spec: { bb: 'Boîtier T47a fileté (77 mm, CeramicSpeed)', headset: 'CeramicSpeed (IS41 / IS49)', seatpost: 'Factor Ostro VAM (aéro)', cockpit: 'Black Inc Aero Barstem (intégré)' } },
+      { k: 'v1', l: 'Ostro VAM (2021-2024)', brakes: ['disc'], tire: 32, elecOnly: true, spec: { bb: 'Boîtier T47a fileté (77 mm, CeramicSpeed)', headset: 'CeramicSpeed (IS41 / IS49)', seatpost: 'Factor Ostro VAM (aéro)', cockpit: 'Black Inc Aero Barstem (intégré)' } } ] },
     { k: 'giant-tcr', brand: 'Giant', model: 'TCR Advanced', gens: [
       { k: '2021', l: '2021+ (disques)', brakes: ['disc'], tire: 32, spec: { bb: 'Boîtier PowerCore pressfit', seatpost: 'Giant Variant (carbone)' } } ] },
   ];
@@ -88,7 +91,7 @@ const BIKE_CAT = (() => {
   const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
   const FRAME_RX = { 'canyon-aeroad': [/aeroad/, { cfsl: /cf ?sl(?!x)/, cfr: /cfr|cf ?slx|disc/ }], 'scott-addict-rc': [/addict ?rc/], 'look-795': [/795/, { 1: /blade rs(?! ?2)|light/, 2: /blade ?2|2023|2024|2025/ }],
     'lapierre-xelius': [/xelius/, { drs: /drs/, sl3: /\bsl\b/ }], 'look-765': [/765/], 'pinarello-dogma': [/dogma/, { f12: /f12/, f25: /2025|2026/, f: /dogma f\b/ }], 'specialized-tarmac': [/tarmac/, { sl7: /sl ?7/, sl8: /sl ?8/ }],
-    'trek-madone': [/madone/], 'canyon-ultimate': [/ultimate/], 'giant-tcr': [/\btcr\b/] };
+    'trek-madone': [/madone/], 'factor-ostro': [/ostro/, { v2: /ostro (vam )?2\.0|vam 2/, v1: /ostro/ }], 'canyon-ultimate': [/ultimate/], 'giant-tcr': [/\btcr\b/] };
   // références précises d'abord, puis noms de gamme (un « Ultegra Di2 » sans référence est supposé 12 v, le plus courant depuis 2021)
   const MARQUES = [['factor', 'Factor'], ['cervelo', 'Cervélo'], ['bmc', 'BMC'], ['colnago', 'Colnago'], ['cannondale', 'Cannondale'], ['orbea', 'Orbea'], ['wilier', 'Wilier'], ['bianchi', 'Bianchi'], ['ridley', 'Ridley'], ['merida', 'Merida'], ['cube', 'Cube'],
     ['time', 'Time'], ['argon 18', 'Argon 18'], ['felt', 'Felt'], ['ventum', 'Ventum'], ['de rosa', 'De Rosa'], ['3t', '3T'], ['van rysel', 'Van Rysel'], ['basso', 'Basso'], ['storck', 'Storck'], ['rose', 'Rose'], ['focus', 'Focus'], ['fuji', 'Fuji'], ['quintana roo', 'Quintana Roo'], ['bh', 'BH'],
@@ -119,7 +122,7 @@ const BIKE_CAT = (() => {
     // cadre hors catalogue : marque connue + 2 mots du modèle (« kit cadre factor ostro 2.0 scarab 56 » → Factor Ostro 2.0)
     if (!out.frame) { const lines = t.split('\n');
       for (const [low, disp] of MARQUES) { const rx = new RegExp(`\\b${low.replace(/ /g, '\\s')}\\b\\s+([a-z0-9][\\w.+-]*)(?:\\s+([a-z0-9][\\w.+-]*))?`); const ln = lines.find(l => rx.test(l) && !/@|www\.|tel/.test(l)); if (!ln) continue;
-        const m = ln.match(rx), stop = w => !w || /^(kit|cadre|frame|velo|taille|size|disc|disque|\d{2})$/.test(w), toks = [m[1], m[2]].filter(w => !stop(w));
+        const m = ln.match(rx), stop = w => !w || /^(kit|cadre|frame|velo|taille|size|disc|disque|\d{2}|20\d\d)$/.test(w), toks = [m[1], m[2]].filter(w => !stop(w));
         if (toks.length) { out.guess = { brand: disp, model: toks.map(w => /^[a-z]/.test(w) ? w[0].toUpperCase() + w.slice(1) : w.toUpperCase()).join(' ') }; break; } } }
     const gl = t.split('\n').find(l => /groupe|groupset|di2|axs|etap|ultegra|dura.?ace|\b105\b|rival|force|chorus|record|grx/.test(l)); if (gl) out.groupLine = gl.trim().slice(0, 120);
     return out;
