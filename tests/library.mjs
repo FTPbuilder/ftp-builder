@@ -81,6 +81,7 @@ await pg.tap('[data-rc="new"]'); await pg.waitForSelector('#rcName'); await pg.f
 const names = await pg.$$eval('#racesCard .race b', x => x.map(e => e.textContent));
 assert(JSON.stringify(names) === '["AlpsMan Half","Marmotte"]', 'courses triées de la plus récente à la plus ancienne ' + JSON.stringify(names));
 // suppression de la course auto : elle ne revient pas
+await pg.locator('#racesCard [data-rc="open"]').first().evaluate(e => e.scrollIntoView({ block: 'center' })); // hors de la barre d'onglets fixe
 await pg.tap('#racesCard [data-rc="open"] >> nth=0'); await pg.waitForSelector('#rcDel'); await pg.tap('#rcDel'); await pg.tap('#rcDel'); await pg.waitForTimeout(200);
 await pg.tap('button[data-tab="today"]'); await pg.tap('button[data-tab="profile"]'); await pg.waitForTimeout(200);
 assert(await pg.evaluate(() => FTPB.S.races.length === 1 && FTPB.S.racesSkip?.includes('tri-2026-06-07')), 'course auto supprimée : pas recréée');
