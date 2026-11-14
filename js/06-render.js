@@ -1333,6 +1333,7 @@ function progHTML(){
   const todayX = parseD(t).getTime();
   h += `<div class="card"><h2>FTP vs objectif</h2>${lineChart({ series, xMin:x0, xMax:x1, yMin, yMax, xLabels:xl })}
     <div class="legend"><span><i style="background:var(--accent)"></i>Tests FTP</span><span><i style="background:var(--muted)"></i>Trajectoire cible</span><span><i style="background:var(--z2)"></i>95 % du meilleur 20 min de chaque séance</span></div></div>`;
+  h += Levels.html();
   // records
   // records actuels, ou projetés à la FTP objectif : l'aérobie suit la FTP, le sprint beaucoup moins
   const rGoal = p.goalFtp && ftp() ? p.goalFtp / ftp() : 1, showGoal = recGoal && rGoal > 1;
@@ -1529,7 +1530,7 @@ function profileHTML(){
       <li>Branche l'Edge à l'ordinateur en USB et copie le fichier dans <b>Garmin/NewFiles</b>.</li>
       <li>Débranche : la séance apparaît dans <b>Entraînement › Entraînements</b>. Connecte le Flux 2 comme home trainer : l'Edge règle la résistance (ERG) à chaque palier.</li>
       <li>Les paliers « À FOND » des tests n'ont pas de cible : passe le Flux 2 en mode résistance/pente pour l'effort.</li></ol></div>
-    <div class="card"><h2>Bibliothèque de séances</h2>${Object.entries(WORKOUTS).map(([id,W])=>`<div class="hist"><div style="flex:1"><b>${esc(W.name)}</b><div class="tiny muted">${fmtDur(wDur(id))} · TSS ${wTSS(id)}</div></div><button class="btn sm" data-lib="${id}">Voir</button></div>`).join('')}</div>`;
+    <div class="card"><h2>Bibliothèque de séances</h2>${Object.entries(WORKOUTS).map(([id,W])=>`<div class="hist"><div style="flex:1"><b>${esc(W.name)}</b><div class="tiny muted">${fmtDur(wDur(id))} · TSS ${wTSS(id)}${WLVL[id] != null ? ` · niveau ${Levels.fmt(WLVL[id])}` : ''}</div></div><button class="btn sm" data-lib="${id}">Voir</button></div>`).join('')}</div>`;
 }
 function exportJSON(){ download(`ftp-builder-${todayISO()}.json`, new TextEncoder().encode(JSON.stringify(S, null, 1)), 'application/json'); }
 function importJSON(){

@@ -360,6 +360,9 @@ function evalHTML(a, pl){
   if (e.C.drift) crit.push(chip(e.C.drift.lvl, `Dérive cardiaque ${(e.C.drift.v*100).toFixed(1).replace('.',',')} %`));
   crit.push(e.rpe ? chip(e.C.rpe.lvl, `RPE ${e.rpe} · attendu ${e.rpeRange[0]}-${e.rpeRange[1]}`) : chip(null, 'RPE à saisir'));
   if (e.legs) crit.push(chip(null, `Jambes ${LEGS[e.legs-1].toLowerCase()}`));
+  const lv = !e.pending && a.planId === pl.id ? Levels.compute().byAct[a.id] : null; // niveau de progression de la zone
+  if (lv) { const z = (LZONES.find(x => x[0] === lv.z) || [])[1], d = Math.round((lv.to - lv.from)*10)/10;
+    crit.push(chip(d > 0 ? 0 : d < 0 ? 2 : null, `${z} ${Levels.fmt(lv.from)}${d ? ` → ${Levels.fmt(lv.to)}` : ''} · séance niv. ${Levels.fmt(lv.wl)}`)); }
   const blocks = e.units.length ? `<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap">${e.units.map(u => `<span class="chip num" title="cible ${u.target} W" style="color:var(--text)">${dot(u.cover < 0.5 ? 2 : u.lvl)}${esc(u.label.replace('Bloc ','B').replace('Série ','S'))} · ${u.cover < 0.5 ? 'non fait' : `${u.got} W · ${pctTxt(u.r)}`}</span>`).join('')}</div>` : '';
   return `<div class="note ${['ok','warn','bad'][e.lvl]}" style="margin-top:12px"><b>${e.icon} ${esc(e.title)}${e.pending ? ' <span class="tiny muted">(provisoire)</span>' : ''}</b>
     <div class="small" style="margin-top:4px">${esc(e.advice)}</div>${blocks}

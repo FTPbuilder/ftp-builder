@@ -162,8 +162,10 @@ function showLogResult(){
     const acc = $('#lAcceptFtp');
     if (acc && acc.checked) { const v = +$('#lFtpVal').value; if (v) { S.ftpHistory.push({ date: a.date, ftp: v, source:'test', protocol: S.plan.find(s=>s.id===pid)?.workoutId }); S.ftpHistory.sort((x,y)=>x.date.localeCompare(y.date)); S.profile.ftp = S.ftpHistory[S.ftpHistory.length-1].ftp; S.profile.intensityAdj = 1; } }
     computeLoad(a);
-    S.activities.push(a); save(); closeDlg(); render();
-    toast(acc && acc.checked ? `Nouvelle FTP : ${S.profile.ftp} W 🎯` : 'Séance enregistrée 💪');
+    S.activities.push(a); save();
+    const cal = acc && acc.checked ? Levels.calibrate('test') : null; // nouvelle FTP : on recale les séances à venir sur les niveaux
+    closeDlg(); render();
+    toast(acc && acc.checked ? `Nouvelle FTP : ${S.profile.ftp} W 🎯${cal?.changes.length ? ` · ${cal.changes.length} séance${cal.changes.length > 1 ? 's' : ''} recalée${cal.changes.length > 1 ? 's' : ''}` : ''}` : 'Séance enregistrée 💪');
   };
 }
 const fmtKmh = v => v ? `${(+v).toFixed(1).replace('.', ',')}<small> km/h</small>` : '—';

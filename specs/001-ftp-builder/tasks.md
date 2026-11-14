@@ -61,3 +61,6 @@
 - [x] T050 [US6] v0.39 : film retiré ; composants sans tige de selle, cockpit ni rayons ; transmission Di2 / AXS / mécanique (piles des cocottes SRAM) ; recharge datée ; zones touchables (zoom, pièces de la zone, boutons − / +) ; onglet Position (étude posturale PDF / photo, lecture des cotes Paris Bike Co) ; import GLB robuste
 - [ ] T051 [US6] Maquettes d'autres marques
 
+## Phase 6 — Over-unders et niveaux de progression (v0.40)
+- [x] T052 5 séances : over-unders 3 × 12 (95/108), longs 3 × 12 (95/110, overs 1 min 30), 2 × 18 (96/110), seuil avec relances 3 × 12 (94 % + 30 s à 125 %) et 2 × 20 (95 % + 15 s à 150 %) ; échelles « plus facile / plus dur », bloc VO2max · Spécifique et semaines de consolidation
+- [x] T053 Niveaux de progression Sweet spot / Seuil / VO2max rejoués depuis les séances évaluées et les tests FTP ; calibrage (test FTP, mensuel, bouton) qui recale les séances clés à venir dans leur famille (FR-027) ; carte « Niveaux de progression » dans Progression, niveau de chaque séance dans la bibliothèque et l'évaluation ; test `tests/levels.mjs`

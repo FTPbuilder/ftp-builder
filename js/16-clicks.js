@@ -19,6 +19,8 @@ document.addEventListener('click', e => {
   else if (t.id === 'reset') { if (confirmReset()) { S = blank(); _draft = null; save(); Library.wipeLocal(); Garage.wipeLocal(); render(); } }
 });
 document.addEventListener('click', e => { const b = e.target.closest('[data-export-lib]'); if (b) exportWorkout(b.dataset.exportLib); });
+document.addEventListener('click', e => { if (!e.target.closest('[data-calib]')) return; const c = Levels.calibrate('manuel'); if (!c) return; render();
+  toast(c.changes.length ? `${c.changes.length} séance${c.changes.length > 1 ? 's' : ''} recalée${c.changes.length > 1 ? 's' : ''} sur tes niveaux` : c.seen.length ? 'Programme déjà au bon niveau' : "Pas encore assez de séances évaluées pour recaler le programme"); });
 document.addEventListener('change', e => { if (e.target.id === 'themeSel') { S.settings.theme = e.target.value; save(); applyTheme(); } });
 let _resetArm = 0;
 function confirmReset(){ const now = Date.now(); if (now - _resetArm < 4000) return true; _resetArm = now; toast('Touchez encore « Tout effacer » pour confirmer'); return false; }
