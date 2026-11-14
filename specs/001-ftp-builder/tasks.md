@@ -64,3 +64,4 @@
 ## Phase 6 — Over-unders et niveaux de progression (v0.40)
 - [x] T052 5 séances : over-unders 3 × 12 (95/108), longs 3 × 12 (95/110, overs 1 min 30), 2 × 18 (96/110), seuil avec relances 3 × 12 (94 % + 30 s à 125 %) et 2 × 20 (95 % + 15 s à 150 %) ; échelles « plus facile / plus dur », bloc VO2max · Spécifique et semaines de consolidation
 - [x] T053 Niveaux de progression Sweet spot / Seuil / VO2max rejoués depuis les séances évaluées et les tests FTP ; calibrage (test FTP, mensuel, bouton) qui recale les séances clés à venir dans leur famille (FR-027) ; carte « Niveaux de progression » dans Progression, niveau de chaque séance dans la bibliothèque et l'évaluation ; test `tests/levels.mjs`
+- [x] T054 [US6] Garage : « Je n'ai plus ce vélo » (vendu, volé, cassé, donné : date, prix, note) → carnet et km gardés, plus de sorties attribuées après la date, puce « ancien vélo », annulable ; suppression définitive expliquée ; test `tests/garage-retire.mjs`
