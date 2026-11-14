@@ -66,6 +66,23 @@ const r3 = await ev(() => { const g = S.garage, b = g.bikes.find(x => x.frame?.k
 console.log(JSON.stringify(r3));
 assert(r3 && r3.gs === 'sh-ult-12:elec:disc' && r3.purchased === '2023-03-12' && r3.buy === 4999 && r3.n === 2, 'vélo créé depuis la facture, avec son achat');
 assert(r3 && !r3.rule.out && !r3.rule.ht, '2e vélo : ne prend pas les sorties du premier sans qu\'on le coche');
+// cadre hors catalogue (Factor) : vélo créé quand même avec le groupe lu, et demande d'ajout envoyée à l'admin
+await ev(() => { window._sent = []; const fake = { from: t => ({ insert: async row => { window._sent.push({ t, row }); return { error: null }; } }) };
+  Object.defineProperty(Cloud, 'sb', { get: () => fake, configurable: true }); Object.defineProperty(Cloud, 'user', { get: () => ({ id: 'u1' }), configurable: true }); });
+await pg.tap('[data-gr="addask"]'); await pg.waitForTimeout(150);
+const fc3 = pg.waitForEvent('filechooser'); await wz('inv');
+(await fc3).setFiles({ name: 'devis.pdf', mimeType: 'application/pdf', buffer: mkPdf(['PROPOSITION COMMERCIALE', 'DATE: 14 nov. 2026 10:26:26', 'KIT CADRE FACTOR OSTRO 2.0 SCARAB 56 (DAG-FS-Q56SC) 1 4250.00 20.00 4250.00 5100.00', 'GROUPE SRAM FORCE AXS 2x E1 (COT-108996) 1 1457.50 20.00 1457.50 1749.00', 'TOTAL (HT) TOTAL TVA TOTAL (TTC)', '5000.01 999.99 6000.00 EUR', 'Conditions : la totalite du montant 2000 EUR']) });
+await pg.waitForSelector('text=Facture lue', { timeout: 15000 });
+const fx = await sheet(); console.log('FACTOR:', fx.replace(/\n+/g, ' | '));
+assert(/Factor Ostro 2\.0/.test(fx) && /hors catalogue/.test(fx) && /Force eTap AXS/.test(fx) && /14 nov/.test(fx) && /6\s?000/.test(fx), 'cadre hors catalogue deviné, groupe, date « 14 nov. 2026 », total TTC');
+await wz('req'); const pre = await ev(() => ['grRqB', 'grRqM', 'grRqY', 'grRqG'].map(id => document.getElementById(id).value));
+assert(pre[0] === 'Factor' && pre[1] === 'Ostro 2.0' && pre[2] === '2026' && /sram force axs 2x e1/i.test(pre[3]), `formulaire prérempli (${pre})`);
+await pg.fill('#grRqN', 'Freins disques, taille 56'); await wz('send'); await pg.waitForTimeout(200);
+const sent = await ev(() => window._sent); assert(sent.length === 1 && sent[0].t === 'bike_requests' && sent[0].row.brand === 'Factor' && sent[0].row.note === 'Freins disques, taille 56', 'demande envoyée dans bike_requests');
+assert(/Demande envoyée/.test(await sheet()), 'retour à la facture, demande marquée envoyée');
+await wz('pick'); await pg.waitForTimeout(300);
+const fb = await ev(() => { const b = S.garage.bikes.find(x => x.name === 'Factor Ostro 2.0'); return b && { gs: b.groupset, brand: b.brand, frame: b.frame || null, buy: S.garage.log.find(e => e.bikeId === b.id && e.kind === 'buy')?.price }; });
+assert(fb && fb.gs === 'sr-force:elec:disc' && fb.brand === 'Factor' && !fb.frame && fb.buy === 6000, `vélo hors catalogue créé (${JSON.stringify(fb)})`);
 // facture scannée (aucun texte) : message clair, choix à la main
 await pg.tap('[data-gr="addask"]'); await pg.waitForTimeout(150);
 const fc2 = pg.waitForEvent('filechooser'); await wz('inv'); (await fc2).setFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: mkPdf([]) });

@@ -90,6 +90,9 @@ const BIKE_CAT = (() => {
     'lapierre-xelius': [/xelius/, { drs: /drs/, sl3: /\bsl\b/ }], 'look-765': [/765/], 'pinarello-dogma': [/dogma/, { f12: /f12/, f25: /2025|2026/, f: /dogma f\b/ }], 'specialized-tarmac': [/tarmac/, { sl7: /sl ?7/, sl8: /sl ?8/ }],
     'trek-madone': [/madone/], 'canyon-ultimate': [/ultimate/], 'giant-tcr': [/\btcr\b/] };
   // références précises d'abord, puis noms de gamme (un « Ultegra Di2 » sans référence est supposé 12 v, le plus courant depuis 2021)
+  const MARQUES = [['factor', 'Factor'], ['cervelo', 'Cervélo'], ['bmc', 'BMC'], ['colnago', 'Colnago'], ['cannondale', 'Cannondale'], ['orbea', 'Orbea'], ['wilier', 'Wilier'], ['bianchi', 'Bianchi'], ['ridley', 'Ridley'], ['merida', 'Merida'], ['cube', 'Cube'],
+    ['time', 'Time'], ['argon 18', 'Argon 18'], ['felt', 'Felt'], ['ventum', 'Ventum'], ['de rosa', 'De Rosa'], ['3t', '3T'], ['van rysel', 'Van Rysel'], ['basso', 'Basso'], ['storck', 'Storck'], ['rose', 'Rose'], ['focus', 'Focus'], ['fuji', 'Fuji'], ['quintana roo', 'Quintana Roo'], ['bh', 'BH'],
+    ['scott', 'Scott'], ['look', 'Look'], ['lapierre', 'Lapierre'], ['pinarello', 'Pinarello'], ['specialized', 'Specialized'], ['trek', 'Trek'], ['canyon', 'Canyon'], ['giant', 'Giant'], ['cipollini', 'Cipollini'], ['ribble', 'Ribble'], ['vitus', 'Vitus']];
   const GROUP_RX = [['sh-da-12', /dura.?ace|r92[057]0/], ['sh-ult-11', /r80[0257]0|ultegra[^\n]{0,20}11 ?v/], ['sh-ult-12', /r81[057]0|ultegra[^\n]{0,20}(di2|12 ?v)/], ['sh-ult-11', /ultegra/],
     ['sh-105-11', /r70[027]0|105[^\n]{0,20}11 ?v/], ['sh-105-12', /r71[0257]0|105 ?di2|105[^\n]{0,20}12 ?v/], ['sh-105-11', /shimano 105\b(?![,.]\d)/], ['sr-22', /(rival|force|red) ?22\b/], ['sr-red', /\bred\b.*axs|red etap/], ['sr-force', /force.*axs|force etap/], ['sr-rival', /rival.*axs|rival etap|rival e1/], ['ca-record', /record/], ['ca-chorus', /chorus/]];
   function parseInvoice(text){
@@ -102,17 +105,39 @@ const BIKE_CAT = (() => {
       const v = g.v.find(x => (x.shift === 'elec') === isE && x.brakes === (rim ? 'rim' : 'disc') && (!sr22 || x.l.toLowerCase().startsWith(sr22))) || g.v.find(x => (x.shift === 'elec') === isE) || g.v[0];
       out.group = vKey(g, v); }
     const d = t.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d\d)\b/); if (d) out.date = `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`;
-    else { const m = t.match(/\b(20\d\d)-(\d\d)-(\d\d)\b/); if (m) out.date = m[0]; }
-    // montant : « 4 999,00 », « 9.890,00 », « 8500 » ; la virgule est décimale, l'espace ou le point sépare les milliers
+    else { const m = t.match(/\b(20\d\d)-(\d\d)-(\d\d)\b/); if (m) out.date = m[0];
+      else { const MO = ['janv', 'fevr', 'mars', 'avr', 'mai', 'juin', 'juil', 'aout', 'sept', 'oct', 'nov', 'dec'], f = t.match(/\b(\d{1,2}) (janv|fevr|mars|avr|mai|juin|juil|aout|sept|oct|nov|dec)[a-z]*\.? (20\d\d)\b/);
+        if (f) out.date = `${f[3]}-${String(MO.indexOf(f[2]) + 1).padStart(2, '0')}-${f[1].padStart(2, '0')}`; } }
+    // montant : « 4 999,00 », « 9.890,00 », « 6000.00 » ; la virgule est décimale, l'espace ou le point sépare les milliers
     const amt = s => { s = s.replace(/[\s  ]/g, ''); s = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/\.(?=\d{3}$)/, ''); return +s || 0; };
-    const tot = [...t.matchAll(/total[^\d\n]{0,40}?(\d[\d\s  .,]*\d|\d)/g)].map(m => amt(m[1])).filter(v => v > 50 && v < 30000);
-    const any = [...t.matchAll(/(\d[\d\s  .,]*\d)\s*(?:€|eur)/g)].map(m => amt(m[1])).filter(v => v > 50 && v < 30000);
-    out.price = (tot.length ? Math.max(...tot) : any.length ? Math.max(...any) : null) || null;
+    const NUM = '(\\d{1,3}(?:[ .\\u202f\\u00a0]\\d{3})+(?:,\\d{2})?|\\d+(?:[.,]\\d{1,2})?)';
+    const money = s => [...s.matchAll(new RegExp(NUM + '\\s*(?:€|eur\\b)', 'g'))].map(m => amt(m[1])).filter(v => v > 50 && v < 30000);
+    const tot = [...t.matchAll(new RegExp('total[^\\d\\n]{0,40}?' + NUM, 'g'))].map(m => amt(m[1])).filter(v => v > 50 && v < 30000);
+    const ttc = [...t.matchAll(/total\s*\(?\s*ttc|net a payer|montant ttc/g)].pop(), after = ttc ? money(t.slice(ttc.index, ttc.index + 300)) : [];
+    const any = money(t);
+    out.price = (after.length ? after[0] : tot.length ? Math.max(...tot) : any.length ? Math.max(...any) : null) || null;
+    // cadre hors catalogue : marque connue + 2 mots du modèle (« kit cadre factor ostro 2.0 scarab 56 » → Factor Ostro 2.0)
+    if (!out.frame) { const lines = t.split('\n');
+      for (const [low, disp] of MARQUES) { const rx = new RegExp(`\\b${low.replace(/ /g, '\\s')}\\b\\s+([a-z0-9][\\w.+-]*)(?:\\s+([a-z0-9][\\w.+-]*))?`); const ln = lines.find(l => rx.test(l) && !/@|www\.|tel/.test(l)); if (!ln) continue;
+        const m = ln.match(rx), stop = w => !w || /^(kit|cadre|frame|velo|taille|size|disc|disque|\d{2})$/.test(w), toks = [m[1], m[2]].filter(w => !stop(w));
+        if (toks.length) { out.guess = { brand: disp, model: toks.map(w => /^[a-z]/.test(w) ? w[0].toUpperCase() + w.slice(1) : w.toUpperCase()).join(' ') }; break; } } }
+    const gl = t.split('\n').find(l => /groupe|groupset|di2|axs|etap|ultegra|dura.?ace|\b105\b|rival|force|chorus|record|grx/.test(l)); if (gl) out.groupLine = gl.trim().slice(0, 120);
     return out;
   }
+  // pdf.js découpe souvent le texte en fragments (« T r i a t hl on ») : on recolle par position (même ligne, petit écart → même mot)
   async function pdfText(file, loadPdf){
     const lib = await loadPdf(), doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise; let s = '';
-    for (let i = 1; i <= Math.min(doc.numPages, 4); i++) { const c = await (await doc.getPage(i)).getTextContent(); s += c.items.map(x => x.str + (x.hasEOL ? '\n' : ' ')).join('') + '\n'; }
+    for (let i = 1; i <= Math.min(doc.numPages, 4); i++) {
+      const it = (await (await doc.getPage(i)).getTextContent()).items.filter(x => x.str).map(x => ({ s: x.str, x: x.transform[4], y: x.transform[5], w: x.width || 0, h: Math.abs(x.transform[3]) || Math.abs(x.transform[0]) || 10 }));
+      it.sort((a, b) => Math.abs(b.y - a.y) > Math.min(a.h, b.h) * 0.5 ? b.y - a.y : a.x - b.x);
+      let ly = null, end = 0, line = '';
+      for (const x of it) {
+        if (ly === null || Math.abs(x.y - ly) > x.h * 0.5) { if (line) s += line + '\n'; line = x.s; ly = x.y; }
+        else line += (x.x - end > x.h * 0.22 && !/\s$/.test(line) && !/^\s/.test(x.s) ? ' ' : '') + x.s;
+        end = x.x + x.w;
+      }
+      s += line + '\n';
+    }
     return s;
   }
   return { FRAMES, GROUPS, ALL, BRANDS, groupOf, frameOf, options, parseInvoice, pdfText, vKey };

@@ -483,18 +483,28 @@ const Garage = (() => {
     let h = '';
     if (wz.step === 'frame') h = `<h3>${wz.mode === 'add' ? 'Ajouter un vélo' : 'Changer le cadre'}</h3><p class="small muted">Choisis ton cadre, puis la transmission. Tout reste modifiable pièce par pièce ensuite.</p>
       ${wz.mode === 'add' ? `<button class="btn" data-wz="inv" style="width:100%;margin-bottom:10px">📄 Lire une facture (PDF)</button>` : ''}
-      <div class="gr-wzg">${F.map(f => btn('frame', f.k, `${f.brand} ${f.model}`, f.gens.length > 1 ? `${f.gens.length} générations` : f.gens[0].l, f.k === wz.fk)).join('')}${btn('frame', '', 'Autre vélo de route', 'gabarit générique')}</div>`;
+      <div class="gr-wzg">${F.map(f => btn('frame', f.k, `${f.brand} ${f.model}`, f.gens.length > 1 ? `${f.gens.length} générations` : f.gens[0].l, f.k === wz.fk)).join('')}${btn('frame', '', 'Autre vélo de route', 'gabarit générique')}</div>
+      <button class="btn sm ghost" data-wz="req" style="width:100%">📮 Mon vélo n'est pas dans la liste</button>`;
     else if (wz.step === 'gen') h = `<h3>${esc(fr.f.brand)} ${esc(fr.f.model)} : quelle génération ?</h3><div class="gr-wzg">${fr.f.gens.map(g => btn('gen', g.k, g.l, `${g.brakes.map(x => BRAKE_L[x].replace(/ \(.*/, '').toLowerCase()).join(' ou ')} · pneus ≤ ${g.tire} mm`, g.k === wz.gk)).join('')}</div>`;
     else if (wz.step === 'brand') h = `<h3>Transmission : quelle marque ?</h3><div class="gr-wzg">${o.brands.map(b => btn('brand', b, b)).join('')}${btn('none', '', 'Je ne sais pas', 'réglage manuel plus tard')}</div>`;
     else if (wz.step === 'shift') { const s = BIKE_CAT.options({ brand: wz.q.brand }, genOf()).shifts; h = `<h3>Électronique ou mécanique ?</h3><div class="gr-wzg">${s.map(x => btn('shift', x, SHIFT_L[x], x === 'elec' ? (wz.q.brand === 'SRAM' ? 'eTap AXS' : 'Di2') : 'câbles')).join('')}</div>`; }
     else if (wz.step === 'brakes') { const s = BIKE_CAT.options({ brand: wz.q.brand, shift: wz.q.shift }, genOf()).brakes; h = `<h3>Freins ?</h3><div class="gr-wzg">${s.map(x => btn('brakes', x, BRAKE_L[x])).join('')}</div>`; }
     else if (wz.step === 'list') h = `<h3>Quelle déclinaison ?</h3><div class="gr-wzg">${o.list.map(x => btn('pick', x.key, `${x.g.brand} ${x.g.l}`, x.v.l)).join('')}</div>
       ${genOf()?.elecOnly ? '<p class="tiny muted">Ce cadre ne prévoit que les transmissions électroniques.</p>' : ''}`;
-    else if (wz.step === 'confirm') { const i = wz.inv, gx = i.group ? BIKE_CAT.groupOf(i.group) : null;
-      h = `<h3>Facture lue</h3><div class="gr-sec small">${[fr ? `🚲 <b>${esc(fr.f.brand)} ${esc(fr.f.model)}</b> · ${esc(fr.g.l)}` : '🚲 Cadre non reconnu', gx ? `⚙️ <b>${esc(gx.name)}</b> · ${esc(gx.v.l)}` : '⚙️ Transmission non reconnue', i.date ? `📅 Acheté le ${dfr(i.date)}` : '', i.price ? `💶 ${n0(i.price)} €` : ''].filter(Boolean).map(x => `<div style="margin:4px 0">${x}</div>`).join('')}</div>
+    else if (wz.step === 'req') { const i = wz.inv || {}, gl = (i.groupLine || '').replace(/^groupe\s+/, '').replace(/\s+\S*\d{4,}.*$/, '');
+      const inp = (id, l, v, ph = '') => `<div><label class="f" for="${id}">${l}</label><input type="text" id="${id}" value="${esc(v || '')}" placeholder="${esc(ph)}" maxlength="80"></div>`;
+      h = `<h3>Demander l'ajout au catalogue</h3><p class="small muted">L'admin ajoute le cadre ou le groupe au catalogue, avec ses références. En attendant, ton vélo peut être créé avec la maquette générique.</p>
+        <div class="gr-grid">${inp('grRqB', 'Marque', i.guess?.brand || (fr ? fr.f.brand : ''), 'Factor, Cervélo…')}${inp('grRqM', 'Modèle', i.guess?.model || (fr ? fr.f.model : ''), 'Ostro, S5…')}</div>
+        <div class="gr-grid">${inp('grRqY', 'Année ou génération', i.date ? i.date.slice(0, 4) : '', '2024, Gen 2…')}${inp('grRqG', 'Transmission', gl, 'SRAM Force AXS E1…')}</div>
+        <label class="f" for="grRqN">Précisions (facultatif)</label><input type="text" id="grRqN" maxlength="300" placeholder="Lien vers la fiche, freins, taille…">
+        <button class="btn primary" data-wz="send" style="width:100%;margin-top:10px">Envoyer la demande</button>
+        <button class="btn sm ghost" data-wz="unreq" style="width:100%;margin-top:6px">Retour</button>`; }
+    else if (wz.step === 'confirm') { const i = wz.inv, gx = i.group ? BIKE_CAT.groupOf(i.group) : null, gs = !fr && i.guess, can = !i.scan && (fr || gs);
+      h = `<h3>Facture lue</h3><div class="gr-sec small">${[fr ? `🚲 <b>${esc(fr.f.brand)} ${esc(fr.f.model)}</b> · ${esc(fr.g.l)}` : gs ? `🚲 <b>${esc(gs.brand)} ${esc(gs.model)}</b> · hors catalogue (maquette générique)` : '🚲 Cadre non reconnu', gx ? `⚙️ <b>${esc(gx.name)}</b> · ${esc(gx.v.l)}` : '⚙️ Transmission non reconnue', i.date ? `📅 Acheté le ${dfr(i.date)}` : '', i.price ? `💶 ${n0(i.price)} €` : ''].filter(Boolean).map(x => `<div style="margin:4px 0">${x}</div>`).join('')}</div>
         ${i.scan ? '<p class="note warn small">Ce PDF est une image (facture scannée ou photo) : il ne contient pas de texte à lire. Choisis ton vélo à la main.</p>' : `<p class="tiny muted">Vérifie : la lecture repère les noms de modèles et de groupes, elle peut se tromper.</p>
         <details><summary class="tiny" style="cursor:pointer;color:var(--accent)">Texte lu sur la facture</summary><pre class="tiny" style="white-space:pre-wrap;max-height:160px;overflow:auto;margin:6px 0">${esc((i.raw || '').slice(0, 600))}</pre></details>`}
-        <div class="row" style="gap:8px">${fr && gx ? `<button class="btn primary" data-wz="pick" data-v="${esc(i.group)}">${wz.mode === 'add' ? 'Créer ce vélo' : 'Appliquer'}</button>` : ''}<button class="btn" data-wz="fix">${fr && gx ? 'Corriger' : 'Choisir à la main'}</button></div>`; }
+        <div class="row" style="gap:8px;flex-wrap:wrap">${can ? `<button class="btn primary" data-wz="pick" data-v="${esc(i.group || '')}">${wz.mode === 'add' ? 'Créer ce vélo' : 'Appliquer'}</button>` : ''}<button class="btn" data-wz="fix">${can ? 'Corriger' : 'Choisir à la main'}</button></div>
+        ${!i.scan && (!fr || !gx) ? `<button class="btn sm ghost" data-wz="req" style="width:100%;margin-top:8px">${wz.sent ? '✓ Demande envoyée à l\'admin' : '📮 Demander l\'ajout au catalogue'}</button>` : ''}`; }
     el.innerHTML = `<div class="gr-sh gr-wz"><button class="x" data-grclose aria-label="Fermer">×</button>${crumbs.length && !['frame', 'confirm'].includes(wz.step) ? `<div class="row tiny" style="gap:6px;flex-wrap:wrap;margin:0 0 8px">${crumbs.map(([l, s]) => `<button class="gr-chip" data-wz="back" data-v="${s}">${esc(l)} ✎</button>`).join('')}</div>` : ''}${h}</div>`;
     el.onclick = wzClick; if (!el.open) el.showModal();
   }
@@ -510,6 +520,9 @@ const Garage = (() => {
     else if (a === 'none') return wzFinish(null);
     else if (a === 'pick') return wzFinish(v);
     else if (a === 'inv') return wzInvoice();
+    else if (a === 'req') { if (wz.sent) return toast('Demande déjà envoyée'); wz.back = wz.step; wz.step = 'req'; }
+    else if (a === 'unreq') wz.step = wz.back || 'frame';
+    else if (a === 'send') return wzSend();
     if (wz.step === 'brand' || wz.step === 'shift' || wz.step === 'brakes') wzSkip();
     wzRender();
   }
@@ -525,6 +538,15 @@ const Garage = (() => {
     r.scan = txt.replace(/\s+/g, '').length < 20; // PDF scanné : une image, aucun texte à lire
     wz.inv = r; wz.fk = r.frame; wz.gk = r.gen || (r.frame ? BIKE_CAT.frameOf(r.frame)?.g.k : null); wz.step = 'confirm'; wzRender();
   }
+  // demande d'ajout au catalogue : table bike_requests (l'admin la traite depuis Supabase)
+  async function wzSend(){
+    const v = id => ($('#' + id)?.value || '').trim(), row = { brand: v('grRqB'), model: v('grRqM'), year: v('grRqY') || null, groupset: v('grRqG') || null, note: v('grRqN') || null, app_version: APP_VERSION };
+    if (!row.brand || !row.model) return toast('Indique au moins la marque et le modèle');
+    if (!Cloud.sb || !Cloud.user) return toast('Connecte-toi à ton compte (Réglages) pour envoyer la demande');
+    const { error } = await Cloud.sb.from('bike_requests').insert(row);
+    if (error) { Errors.report(new Error(error.message), 'bike_requests'); return toast("Envoi impossible : " + error.message); }
+    wz.sent = true; wz.step = wz.back || 'frame'; wzRender(); toast("Demande envoyée à l'admin 📮");
+  }
   // applique le cadre et le groupe choisis (création ou modification)
   function applyFrame(b, fk, gk){
     const fr = fk ? BIKE_CAT.frameOf(fk, gk) : null;
@@ -539,7 +561,8 @@ const Garage = (() => {
     const g = G(), inv = wz.inv;
     if (wz.mode === 'add') {
       const fr = wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk) : null, nb = newBike(fr?.g.m3d || 'road'), others = g.bikes.some(x => !x.retired);
-      applyFrame(nb, wz.fk, wz.gk); nb.name = fr ? `${fr.f.brand} ${fr.f.model}` : 'Vélo de route';
+      applyFrame(nb, wz.fk, wz.gk); const gs = !fr && inv?.guess; nb.name = fr ? `${fr.f.brand} ${fr.f.model}` : gs ? `${gs.brand} ${gs.model}` : 'Vélo de route';
+      if (gs) { nb.brand = gs.brand; nb.modelName = gs.model; }
       if (others) nb.rule = { out: false, ht: false, taf: false };
       if (inv?.date) { nb.purchased = inv.date; if (others) nb.since = inv.date; }
       if (key) { nb.groupset = key; nb.variant = { pm: nb.variant?.pm }; }
