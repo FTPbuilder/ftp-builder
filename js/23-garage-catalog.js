@@ -57,14 +57,18 @@ const BIKE_CAT = (() => {
       v: [{ shift: 'elec', brakes: 'disc', l: 'AXS sans fil, disques hydrauliques' }] },
     { k: 'sr-red', brand: 'SRAM', l: 'Red eTap AXS', speeds: 12, base: { chain: 'SRAM Red Flattop · 12 v', cassette: 'SRAM XG-1290 · 10-28', rings: 'SRAM Red · 48/35', fd: 'SRAM Red eTap AXS', rd: 'SRAM Red eTap AXS', jockey: 'Galets du dérailleur Red', coin: 'Piles CR2032 des cocottes', ...pads('Plaquettes SRAM organiques') },
       v: [{ shift: 'elec', brakes: 'disc', l: 'AXS sans fil, disques hydrauliques' }] },
+    { k: 'sr-22', brand: 'SRAM', l: 'Rival / Force / Red 22 (11 v)', speeds: 11, base: { jockey: 'Galets du dérailleur SRAM' },
+      v: [['Rival', 'PC-1130', 'PG-1130 · 11-28', '50/34'], ['Force', 'PC-1170', 'PG-1170 · 11-28', '52/36'], ['Red', 'PC-Red 22', 'XG-1190 · 11-28', '53/39']].flatMap(([n, ch, cs, rg]) => ['rim', 'disc'].map(br => ({
+        shift: 'meca', brakes: br, l: `${n} 22, mécanique, ${br === 'rim' ? 'patins' : 'disques hydrauliques (HRD)'}`,
+        spec: { chain: `SRAM ${ch} · 11 v`, cassette: `SRAM ${cs}`, rings: `SRAM ${n} 22 · ${rg}`, fd: `SRAM ${n} 22 (Yaw)`, rd: `SRAM ${n} 22`, ...pads(br === 'rim' ? 'Patins SRAM' : 'Plaquettes SRAM organiques') } }))) },
     { k: 'ca-chorus', brand: 'Campagnolo', l: 'Chorus 12 v', speeds: 12, base: { chain: 'Campagnolo Chorus · 12 v', cassette: 'Campagnolo Chorus · 11-32', rings: 'Campagnolo Chorus · 48/32', fd: 'Campagnolo Chorus 12 v', rd: 'Campagnolo Chorus 12 v', jockey: 'Galets du dérailleur Chorus' },
       v: [{ shift: 'meca', brakes: 'rim', l: 'Mécanique, patins', spec: pads('Patins Campagnolo') }, { shift: 'meca', brakes: 'disc', l: 'Mécanique, disques hydrauliques', spec: pads('Plaquettes Campagnolo') }] },
     { k: 'ca-record', brand: 'Campagnolo', l: 'Record 12 v', speeds: 12, base: { chain: 'Campagnolo Record · 12 v', cassette: 'Campagnolo Record · 11-29', rings: 'Campagnolo Record · 50/34', fd: 'Campagnolo Record 12 v', rd: 'Campagnolo Record 12 v', jockey: 'Galets du dérailleur Record' },
       v: [{ shift: 'meca', brakes: 'rim', l: 'Mécanique, patins', spec: pads('Patins Campagnolo') }, { shift: 'meca', brakes: 'disc', l: 'Mécanique, disques hydrauliques', spec: pads('Plaquettes Campagnolo') }] },
   ];
-  const vKey = (g, v) => `${g.k}:${v.shift}:${v.brakes}`;
+  const vKey = (g, v) => `${g.k}:${v.shift}:${v.brakes}${g.k === 'sr-22' ? ':' + v.l.split(' ')[0].toLowerCase() : ''}`; // SRAM 22 : une déclinaison par gamme
   const ALL = GROUPS.flatMap(g => g.v.map(v => ({ key: vKey(g, v), g, v, spec: { ...g.base, ...(v.spec || {}) },
-    group: g.brand === 'SRAM' ? 'axs' : v.shift === 'elec' ? 'di2' : 'meca', name: `${g.brand} ${g.l}` })));
+    group: v.shift !== 'elec' ? 'meca' : g.brand === 'SRAM' ? 'axs' : 'di2', name: `${g.brand} ${g.l}` })));
   const groupOf = key => ALL.find(x => x.key === key) || null;
   const frameOf = (fk, gk) => { const f = FRAMES.find(x => x.k === fk); const g = f?.gens.find(x => x.k === gk) || f?.gens[0]; return f ? { f, g } : null; };
   // questionnaire descendant : ne propose que ce qui existe (et ce que le cadre accepte)
@@ -87,14 +91,15 @@ const BIKE_CAT = (() => {
     'trek-madone': [/madone/], 'canyon-ultimate': [/ultimate/], 'giant-tcr': [/\btcr\b/] };
   // références précises d'abord, puis noms de gamme (un « Ultegra Di2 » sans référence est supposé 12 v, le plus courant depuis 2021)
   const GROUP_RX = [['sh-da-12', /dura.?ace|r92[057]0/], ['sh-ult-11', /r80[0257]0|ultegra[^\n]{0,20}11 ?v/], ['sh-ult-12', /r81[057]0|ultegra[^\n]{0,20}(di2|12 ?v)/], ['sh-ult-11', /ultegra/],
-    ['sh-105-11', /r70[027]0|105[^\n]{0,20}11 ?v/], ['sh-105-12', /r71[0257]0|105 ?di2|105[^\n]{0,20}12 ?v/], ['sh-105-11', /shimano 105\b(?![,.]\d)/], ['sr-red', /\bred\b.*axs|red etap/], ['sr-force', /force.*axs|force etap/], ['sr-rival', /rival.*axs|rival etap|rival e1/], ['ca-record', /record/], ['ca-chorus', /chorus/]];
+    ['sh-105-11', /r70[027]0|105[^\n]{0,20}11 ?v/], ['sh-105-12', /r71[0257]0|105 ?di2|105[^\n]{0,20}12 ?v/], ['sh-105-11', /shimano 105\b(?![,.]\d)/], ['sr-22', /(rival|force|red) ?22\b/], ['sr-red', /\bred\b.*axs|red etap/], ['sr-force', /force.*axs|force etap/], ['sr-rival', /rival.*axs|rival etap|rival e1/], ['ca-record', /record/], ['ca-chorus', /chorus/]];
   function parseInvoice(text){
     const t = norm(text), out = { frame: null, gen: null, group: null, date: null, price: null, raw: t.slice(0, 2000) };
     for (const [k, [rx, gens]] of Object.entries(FRAME_RX)) if (rx.test(t)) { out.frame = k; if (gens) out.gen = Object.keys(gens).find(g => gens[g].test(t)) || null; break; }
     const gm = GROUP_RX.find(([, rx]) => rx.test(t)); if (gm) {
       const g = GROUPS.find(x => x.k === gm[0]), elec = /di2|etap|axs|eps|electron/.test(t), gen = out.frame && frameOf(out.frame, out.gen)?.g;
       const disc = /disc|disque|hydraul|r[0-9]{2}70|r[0-9]{2}20/.test(t), rim = !disc && (/patin|rim brake|caliper|sur jante|r[0-9]{2}50|st-r[78]000/.test(t) || (!!gen && gen.brakes.length === 1 && gen.brakes[0] === 'rim'));
-      const v = g.v.find(x => (x.shift === 'elec') === (elec || g.brand === 'SRAM') && x.brakes === (rim ? 'rim' : 'disc')) || g.v.find(x => (x.shift === 'elec') === elec) || g.v[0];
+      const sr22 = g.k === 'sr-22' ? (t.match(/(rival|force|red) ?22/) || [])[1] : null, isE = g.k !== 'sr-22' && (elec || g.brand === 'SRAM');
+      const v = g.v.find(x => (x.shift === 'elec') === isE && x.brakes === (rim ? 'rim' : 'disc') && (!sr22 || x.l.toLowerCase().startsWith(sr22))) || g.v.find(x => (x.shift === 'elec') === isE) || g.v[0];
       out.group = vKey(g, v); }
     const d = t.match(/\b(\d{1,2})[\/.-](\d{1,2})[\/.-](20\d\d)\b/); if (d) out.date = `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`;
     else { const m = t.match(/\b(20\d\d)-(\d\d)-(\d\d)\b/); if (m) out.date = m[0]; }
