@@ -6,18 +6,18 @@ const BLOCKS = [
   { name:'Base · Sweet spot', k:[['ss_3x10','ss_3x12','ss_4x10'],['force_5x5','tempo_2x20','ss_ou'],['tempo_end','force_5x5','tempo_2x20']] },
   { name:'Sweet spot → Seuil', k:[['ss_2x20','thr_5x6','thr_4x8'],['force_4x8','ss_3x15','vo2_4x5'],['tempo_2x20','ss_ou','tempo_end']] },
   { name:'Seuil + VO2max', k:[['thr_3x12','thr_prog','thr_2x15'],['vo2_5x4','vo2_8x2','vo2_pyr'],['force_4x8','ss_2x20','ou_3x9']] },
-  { name:'VO2max · Spécifique', k:[['vo2_6x3','vo2_4020','vo2_3030'],['thr_2x15','ou_3x9','thr_2x20'],['ss_ou','force_4x8','tempo_end']] },
+  { name:'VO2max · Spécifique', k:[['vo2_6x3','vo2_4020','vo2_3030'],['thr_2x15','ou_3x12','thr_2x20'],['ss_ou','force_4x8','tempo_end']] },
 ];
 // bloc spécifique triathlon montagne : force en cadence basse, seuil long, tempo (cols)
 const TRI_SPEC = { name:'Spécifique montagne', k:[['force_4x8','thr_2x15','force_5x5'],['ss_2x20','tempo_2x20','thr_prog'],['tempo_end','ss_ou','ss_3x15']] };
 const ALT = { // repli si la séance dépasse la durée dispo du jour
-  ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'], thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','thr_2x15','thr_2x20'], vo2:['vo2_8x2','vo2_6x3','vo2_4x5','vo2_5x4','vo2_pyr','vo2_4020','vo2_3030'],
+  ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'], thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','ou_3x12','thr_rel_3x12','thr_2x15','ou_3x12b','thr_2x20','ou_2x18','thr_rel_2x20'], vo2:['vo2_8x2','vo2_6x3','vo2_4x5','vo2_5x4','vo2_pyr','vo2_4020','vo2_3030'],
   force:['force_5x5','force_4x8'], tempo:['tempo_2x20','tempo_end'], end:['end_60','end_neuro','end_90','end_120','end_150','end_180'], rec:['openers','rec_45'], test:['ramp','test20'] };
 // échelles de difficulté (de la plus facile à la plus dure) pour « plus facile / plus dur »
 const LADDER = {
   rec:['rec_45','openers'], end:['rec_45','end_60','end_neuro','end_90','end_120','end_150','end_180'], tempo:['tempo_end','tempo_2x20'],
   force:['force_5x5','force_4x8'], ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'],
-  thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','thr_2x15','thr_2x20'], vo2:['vo2_4x5','vo2_8x2','vo2_5x4','vo2_pyr','vo2_6x3','vo2_4020','vo2_3030'] };
+  thr:['thr_5x6','thr_4x8','ou_3x9','thr_prog','thr_3x12','ou_3x12','thr_rel_3x12','thr_2x15','ou_3x12b','thr_2x20','ou_2x18','thr_rel_2x20'], vo2:['vo2_4x5','vo2_8x2','vo2_5x4','vo2_pyr','vo2_6x3','vo2_4020','vo2_3030'] };
 const DOWN = { vo2:'thr', thr:'ss', ss:'tempo', force:'tempo', tempo:'end', end:'rec', rec:null };
 const UP = { rec:'end', end:'tempo', tempo:'ss', ss:'thr', force:'thr', thr:'vo2', vo2:null };
 function neighbor(wid, dir){
@@ -97,7 +97,7 @@ function generatePlan(p, keepFrom){
     if ((p.absences||[]).some(a => date >= a.from && date <= a.to)) return;
     if (keepFrom && date < keepFrom) return;
     const max = p.days[dow]?.max || 60;
-    plan.push({ id: uid(), date, week: k.i, block: k.block, kind, workoutId: kind==='test' ? wid : fitTo(wid, max), status:'planned' });
+    plan.push({ id: uid(), date, week: k.i, block: k.block, kind, workoutId: kind==='test' ? wid : fitTo(wid, max), status:'planned', ...(k.pos != null ? { pos: k.pos } : {}) });
   };
   for (const k of kinds){
     const K = days.key, O = days.opt;
@@ -138,13 +138,15 @@ function generatePlan(p, keepFrom){
         const j = k.bj || 0;
         if (j % 4 === 3) { add(k.ws, kd(0), 'rec_45', 'recovery', k); if (K.length >= 2) add(k.ws, kd(1), 'end_60', 'recovery', k); break; }
         const x = Math.floor(j / 4) * 3 + j % 4;
-        const T1 = ['thr_2x20','ou_3x9','thr_3x12','thr_2x15','thr_prog','thr_5x6'], T2 = ['vo2_5x4','vo2_4020','vo2_6x3','vo2_8x2','vo2_pyr','vo2_3030'], T3 = ['ss_2x20','force_4x8','tempo_2x20','ss_ou'];
+        const T1 = ['thr_2x20','ou_3x12','thr_3x12','thr_rel_3x12','thr_2x15','ou_3x12b','thr_prog','ou_2x18'], T2 = ['vo2_5x4','vo2_4020','vo2_6x3','vo2_8x2','vo2_pyr','vo2_3030'], T3 = ['ss_2x20','force_4x8','tempo_2x20','ss_ou'];
         const kw = [T1[x % T1.length], T2[x % T2.length], T3[x % T3.length]];
         K.forEach((d, n) => add(k.ws, d, kw[n % 3], 'key', k));
         O.forEach((d, n) => add(k.ws, d, (p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','tempo_end'])[(x + n) % 3], 'optional', k)); break; }
     }
   }
-  return plan.sort((a,b)=>a.date.localeCompare(b.date));
+  plan.sort((a,b)=>a.date.localeCompare(b.date));
+  if (S.levelCal?.length) Levels.apply(plan, p, Levels.compute(), keepFrom || todayISO()); // plan régénéré : on garde le calage sur les niveaux
+  return plan;
 }
 const mandatory = s => s.kind !== 'optional';
 
@@ -295,3 +297,105 @@ function triDone(x){
 function triStatus(x){ if (x.swap) return 'swapped'; if (x.status === 'skipped') return 'skipped'; if (triDone(x)) return 'done'; return x.date < todayISO() && x.sport !== 'race' ? 'missed' : 'planned'; }
 const TRI_IC = { swim:'🏊', run:'🏃', race:'🏁' };
 /* ===== /TRIATHLON ===== */
+
+/* ============ NIVEAUX DE PROGRESSION ET CALIBRAGE ============ */
+// Niveau de difficulté de chaque séance (1-10) dans sa zone, façon « Progression Levels » de TrainerRoad.
+const WLVL = { ss_3x10:2.5, ss_3x12:3.2, ss_ou:3.6, ss_4x10:4.0, ss_2x20:4.8, ss_3x15:5.6,
+  thr_5x6:3.0, thr_4x8:3.6, ou_3x9:4.2, thr_prog:4.6, thr_3x12:4.8, ou_3x12:5.0, thr_rel_3x12:5.3, thr_2x15:5.4, ou_3x12b:5.8, thr_2x20:6.2, ou_2x18:6.6, thr_rel_2x20:7.2,
+  vo2_4x5:3.0, vo2_8x2:3.6, vo2_5x4:4.2, vo2_pyr:4.8, vo2_6x3:5.4, vo2_4020:6.0, vo2_3030:6.6 };
+// familles interchangeables : le calibrage ne remplace une séance que par une autre du même genre (seuil continu ↔ seuil continu, over-under ↔ over-under…)
+const WFAM = { ss:['ss_3x10','ss_3x12','ss_ou','ss_4x10','ss_2x20','ss_3x15'], thr:['thr_5x6','thr_4x8','thr_prog','thr_3x12','thr_2x15','thr_2x20'],
+  ou:['ou_3x9','ou_3x12','thr_rel_3x12','ou_3x12b','ou_2x18','thr_rel_2x20'], vo2:['vo2_4x5','vo2_8x2','vo2_5x4','vo2_pyr','vo2_6x3','vo2_4020','vo2_3030'] };
+const LZONES = [['ss','Sweet spot'],['thr','Seuil'],['vo2','VO2max']];
+const LV0 = { ss:3, thr:3, vo2:3 };
+const LV_AIM = [0.3, 0.7, 1.0]; // au-dessus du niveau selon la semaine du bloc : productive → plus dure → « stretch »
+const LV_EVERY = 28; // calibrage mensuel (en jours), en plus de celui qui suit chaque test FTP
+const famOf = wid => Object.keys(WFAM).find(f => WFAM[f].includes(wid)) || null;
+const lvRound = v => Math.round(clamp(v, 1, 10)*10)/10;
+const Levels = {
+  // rejoue l'historique : séances du programme évaluées (réussie / trop dure / manquée) et tests FTP, dans l'ordre
+  compute(upTo = todayISO()){
+    const key = `${S.updatedAt}|${S.plan.length}|${S.activities.length}|${S.ftpHistory.length}|${upTo}`;
+    if (this._c?.key === key) return this._c.v;
+    const cur = { ...LV0 }, seen = {}, hist = [], byAct = {}, ev = [];
+    for (const s of S.plan) {
+      if (s.status !== 'done' || !s.activityId || WLVL[s.workoutId] == null || s.date > upTo) continue;
+      const a = S.activities.find(x => x.id === s.activityId); if (a) ev.push({ date: s.date, o: 0, a, s });
+    }
+    const H = S.ftpHistory || [];
+    H.forEach((h, i) => { if (h.source === 'test' && i > 0 && h.date <= upTo) ev.push({ date: h.date, o: 1, h, prev: H[i-1].ftp }); });
+    ev.sort((x, y) => x.date.localeCompare(y.date) || x.o - y.o);
+    for (const x of ev) {
+      if (x.h) { // FTP en hausse : chaque séance devient plus dure en watts, les niveaux redescendent un peu
+        const d = (x.h.ftp / x.prev - 1) * 100; if (!isFinite(d) || !d) continue;
+        const from = { ...cur }; for (const z in cur) cur[z] = lvRound(cur[z] - clamp(0.25*d, -1, 2));
+        hist.push({ date: x.date, test: true, ftp: x.h.ftp, prev: x.prev, from, to: { ...cur } }); continue;
+      }
+      const { a, s } = x, z = WORKOUTS[s.workoutId].type, Lw = WLVL[s.workoutId], L = cur[z];
+      let e = null; try { e = sessionEval(a, s); } catch(err) {}
+      if (!e || (!e.units.length && e.pending)) continue; // ni puissance ni ressenti : rien à conclure
+      let n = L;
+      if (e.cause === 'missed' || e.cause === 'hard' || (e.lvl === 2 && e.cause === 'under')) { if (Lw <= L + 0.5) n = L - 0.3; }
+      else if (e.lvl === 0) { if (Lw >= L - 0.5) n = Math.min(L + 1.5, Math.max(L + 0.1, Lw + (e.cause === 'easy' ? 0.3 : 0))); }
+      else if (e.lvl === 1 && Lw > L) n = L + Math.min(0.6, (Lw - L)/2);
+      n = lvRound(n); seen[z] = true;
+      byAct[a.id] = { z, from: L, to: n, wl: Lw };
+      if (n !== L) { cur[z] = n; hist.push({ date: x.date, z, from: L, to: n, wid: s.workoutId, act: a.id }); }
+    }
+    const v = { cur, seen, hist, byAct }; this._c = { key, v }; return v;
+  },
+  // choisit, pour chaque séance clé à venir, la séance de la même famille au bon niveau (durée du jour respectée, pas deux fois la même en 2 semaines)
+  apply(plan, p, L, from = todayISO()){
+    const kinds = weekKinds(p), out = [];
+    const pool = [...S.plan.filter(x => x.date < from), ...plan];
+    const recent = (wid, date, id) => pool.some(x => x.id !== id && x.workoutId === wid && x.status !== 'skipped' && x.date < date && diffDays(x.date, date) <= 13);
+    for (const s of plan.slice().sort((a, b) => a.date.localeCompare(b.date))) {
+      if (s.status !== 'planned' || s.kind !== 'key' || s.date < from || s.origWorkoutId) continue;
+      const fam = famOf(s.workoutId), z = WORKOUTS[s.workoutId]?.type; if (!fam || !L.seen[z]) continue;
+      const pos = s.pos ?? kinds[s.week]?.pos, aim = L.cur[z] + (LV_AIM[pos] ?? LV_AIM[1]);
+      const max = (p.days[dowMon(s.date)]?.max || 60) * 60;
+      const c = WFAM[fam].filter(w => wDur(w) <= max); if (!c.length) continue;
+      const sc = w => Math.abs(WLVL[w] - aim) + (w === s.workoutId ? -0.05 : recent(w, s.date, s.id) ? 0.6 : 0);
+      const best = c.reduce((b, w) => sc(w) < sc(b) ? w : b);
+      if (best !== s.workoutId) { out.push({ s, from: s.workoutId, to: best }); s.workoutId = best; delete s.adj; }
+    }
+    return out;
+  },
+  // calibrage : après un test FTP, chaque mois, ou à la demande ; ne touche jamais la séance du jour
+  calibrate(reason){
+    if (!S.profile || !S.plan.length) return null;
+    const t = todayISO(), L = this.compute(t);
+    const ch = this.apply(S.plan, S.profile, L, addDays(t, 1));
+    S.levelCal = [...(S.levelCal || []), { date: t, reason, levels: { ...L.cur }, seen: Object.keys(L.seen),
+      changes: ch.map(c => ({ id: c.s.id, date: c.s.date, from: c.from, to: c.to })) }].slice(-24);
+    save(); return S.levelCal[S.levelCal.length - 1];
+  },
+  last: () => (S.levelCal || [])[(S.levelCal || []).length - 1] || null,
+  nextDate(){ const l = this.last(); return addDays(l ? l.date : (S.profile?.startDate || todayISO()), LV_EVERY); },
+  // au démarrage : calibrage mensuel s'il est dû et que de nouvelles séances l'alimentent
+  monthly(){
+    if (!S.profile || !S.plan.length || todayISO() < this.nextDate()) return null;
+    const l = this.last(), L = this.compute();
+    if (!L.hist.some(h => !l || h.date > l.date)) return null; // rien de neuf depuis le dernier calibrage
+    return this.calibrate('mois');
+  },
+  reasonTxt: r => ({ test:'après le test FTP', mois:'calibrage mensuel', manuel:'à ta demande' })[r] || r,
+  fmt: v => String(v.toFixed(1)).replace('.', ','),
+  html(){
+    if (!S.profile) return '';
+    const L = this.compute(), l = this.last(), base = l?.levels || LV0;
+    const bar = (z, label) => {
+      const v = L.cur[z], d = Math.round((v - base[z])*10)/10, on = !!L.seen[z];
+      const lo = Math.min(v, base[z]), w = x => `${(x/10*100).toFixed(1)}%`;
+      return `<div class="row" style="gap:8px;align-items:center;margin:6px 0"><span class="small" style="width:76px">${label}</span><b class="num small" style="width:28px">${on ? this.fmt(v) : '—'}</b>
+        <div style="flex:1;height:12px;background:var(--line);border-radius:3px;position:relative;overflow:hidden">${on ? `<div style="position:absolute;left:0;top:0;bottom:0;width:${w(lo)};background:var(--accent)"></div>${d ? `<div style="position:absolute;left:${w(lo)};top:0;bottom:0;width:${w(Math.abs(d))};background:repeating-linear-gradient(135deg,var(--accent) 0 3px,transparent 3px 6px);opacity:${d > 0 ? 1 : 0.45}"></div>` : ''}` : ''}</div>
+        <span class="tiny num" style="width:34px;text-align:right;color:${d > 0 ? 'var(--ok)' : d < 0 ? 'var(--bad)' : 'var(--muted)'}">${on && d ? (d > 0 ? '+' : '−') + this.fmt(Math.abs(d)) : ''}</span></div>`;
+    };
+    const chg = l?.changes || [];
+    return `<div class="card"><div class="row between"><h2>Niveaux de progression</h2><button class="btn sm" data-calib>Recalibrer</button></div>
+      ${LZONES.map(([z, lab]) => bar(z, lab)).join('')}
+      <p class="tiny muted" style="margin:8px 0 0">${l ? `Dernier calibrage le ${fmtShort(l.date)} (${this.reasonTxt(l.reason)})${chg.length ? ` : ${chg.length} séance${chg.length > 1 ? 's' : ''} recalée${chg.length > 1 ? 's' : ''}` : ' : programme déjà au bon niveau'}. ` : 'Pas encore de calibrage. '}Prochain : vers le ${fmtShort(this.nextDate())}, ou plus tôt après ton prochain test FTP. Les hachures montrent l'évolution depuis le dernier calibrage.</p>
+      ${chg.length ? `<details style="margin-top:8px"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">Séances recalées</summary>${chg.map(c => `<div class="small" style="margin:4px 0">${fmtShort(c.date)} · ${esc(WORKOUTS[c.from]?.name || c.from)} → <b>${esc(WORKOUTS[c.to]?.name || c.to)}</b></div>`).join('')}</details>` : ''}
+      <details style="margin-top:8px"><summary class="small" style="cursor:pointer;color:var(--accent);font-weight:600">Comment ça marche ?</summary><p class="small muted" style="margin:6px 0 0">Chaque séance a un niveau de 1 à 10 dans sa zone. Une séance réussie près ou au-dessus de ton niveau le fait monter, une séance manquée ou trop dure à ton niveau le fait baisser, et une hausse de FTP le fait redescendre un peu (les mêmes pourcentages valent plus de watts). Au calibrage, chaque séance clé à venir est remplacée par une séance du même genre, un peu au-dessus de ton niveau : +0,3 la 1re semaine du bloc, +0,7 la 2e, +1 la 3e. Les séances que tu as modifiées à la main ne bougent pas.</p></details></div>`;
+  },
+};

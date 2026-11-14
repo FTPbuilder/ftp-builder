@@ -1,7 +1,9 @@
 "use strict";
 // FTP Builder · démarrage, mise à jour, accès pour les tests
 if (S.profile && repairAutoLinks()) save();
+const _cal = (() => { try { return Levels.monthly(); } catch(e) { Errors.report(e, 'calibrage'); return null; } })(); // calibrage mensuel des niveaux
 render();
+if (_cal) setTimeout(() => toast(`Calibrage du mois : ${_cal.changes.length ? `${_cal.changes.length} séance${_cal.changes.length > 1 ? 's' : ''} recalée${_cal.changes.length > 1 ? 's' : ''} sur tes niveaux` : 'programme déjà au bon niveau'}`), 600);
 Cloud.init().catch(e => console.warn('cloud', e));
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
 // mise à jour : iOS garde parfois l'ancienne page en cache ; on vérifie la version en ligne et on recharge une fois si elle a changé
@@ -16,4 +18,4 @@ async function checkUpdate(){
 checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 setTimeout(() => { const ts = $('#themeSel'); if (ts) ts.value = S.settings.theme; }, 0);
 // accès pour les tests
-window.FTPB = { FIT, WORKOUTS, applyWarmupPref, wuSec, generatePlan, encodeWorkout, activityFromFit, powerSeries, defaultProfile, compliance, sessionEval, render, save, get S(){ return S; } };
+window.FTPB = { FIT, WORKOUTS, Levels, WLVL, WFAM, applyWarmupPref, wuSec, generatePlan, encodeWorkout, activityFromFit, powerSeries, defaultProfile, compliance, sessionEval, render, save, get S(){ return S; } };
