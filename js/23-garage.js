@@ -58,11 +58,15 @@ const Garage = (() => {
     { k: 'pm', l: 'Capteur de puissance', cat: 'elec', g: 'crank', basis: 'charge', life: 300, unit: 'h', only: b => variant(b).pm, tip: 'Environ 300 h par charge.' },
   ];
   const model = b => MODELS[b.model] || MODELS.road;
-  const variant = b => ({ brakes: model(b).brakes, speeds: model(b).speeds, pm: model(b).pm, group: model(b).di2 ? 'di2' : 'meca', ...(b.variant || {}) });
+  // catalogue : cadre (b.frame = { k, gen }) et groupe (b.groupset = clé de déclinaison) ; le groupe décide freins, vitesses et électronique
+  const grp = b => b.groupset ? BIKE_CAT.groupOf(b.groupset) : null;
+  const frm = b => b.frame ? BIKE_CAT.frameOf(b.frame.k, b.frame.gen) : null;
+  const variant = b => { const x = grp(b), v = { brakes: model(b).brakes, speeds: model(b).speeds, pm: model(b).pm, group: model(b).di2 ? 'di2' : 'meca', ...(b.variant || {}) };
+    return x ? { ...v, brakes: x.v.brakes, speeds: x.g.speeds, group: x.group } : v; };
   const P = k => PARTS.find(p => p.k === k);
   const partsOf = b => PARTS.filter(p => !p.only || p.only(b));
   const lifeOf = (b, p) => +b.parts?.[p.k]?.life || model(b).life?.[p.k] || (variant(b).brakes === 'rim' && p.rimLife) || p.life;
-  const specOf = (b, k) => b.parts?.[k]?.spec || (k.startsWith('pads') && variant(b).brakes !== model(b).brakes ? (variant(b).brakes === 'rim' ? 'Patins de frein' : 'Plaquettes de frein') : model(b).spec[k]) || '';
+  const specOf = (b, k) => b.parts?.[k]?.spec || grp(b)?.spec[k] || frm(b)?.g.spec?.[k] || (k.startsWith('pads') && variant(b).brakes !== model(b).brakes ? (variant(b).brakes === 'rim' ? 'Patins de frein' : 'Plaquettes de frein') : model(b).spec[k]) || '';
 
   /* ---------- état et migration douce (v0.37 → v0.38) ---------- */
   function G(){
@@ -239,7 +243,7 @@ const Garage = (() => {
   function pane(){
     const g = G(), b = cur();
     if (!b) return `<div class="pane-in gr">${head('Garage')}<div class="gr-empty"><div class="gr-tl" style="font-size:44px">Garage</div><p class="small muted">Le carnet de vie de ton vélo. Le kilométrage se calcule tout seul à partir de tes sorties (dehors et home trainer, le vélotaf à part) et chaque composant affiche son état estimé.</p>
-      <div class="gr-pick">${['aeroad-cfsl', 'aeroad-cfr', 'road'].map(m => `<button class="btn${m === 'aeroad-cfsl' ? ' primary' : ''}" data-gr="add" data-m="${m}">+ ${esc([MODELS[m].brand, MODELS[m].name].filter(Boolean).join(' '))}</button>`).join('')}</div></div></div>`;
+      <div class="gr-pick"><button class="btn primary" data-gr="addask">+ Ajouter mon vélo</button></div><p class="tiny muted">${BIKE_CAT.FRAMES.length} cadres et ${BIKE_CAT.GROUPS.length} groupes au catalogue, ou lecture de ta facture PDF.</p></div></div>`;
     const rs = ridesOf(b), s = stats(b, rs), sm = summary(b, rs), M = model(b), glb = !!b.glb;
     const split = s.total ? s.road/s.total : 1;
     let h = `<div class="pane-in gr">${head('Garage')}<div class="seg gr-bikes">${[...g.bikes.filter(x => !x.retired), ...g.bikes.filter(x => x.retired)].map(x => `<button type="button" class="${x.id === b.id ? 'on' : ''}${x.retired ? ' gr-old' : ''}" data-gr="sel" data-id="${x.id}"${x.retired ? ` title="${esc(RETIRE[x.retired.reason]?.[1] || 'Ancien vélo')}"` : ''}>${x.retired ? RETIRE[x.retired.reason]?.[0] + ' ' : ''}${esc(x.name)}</button>`).join('')}<button type="button" data-gr="addask" aria-label="Ajouter un vélo">+</button></div>
@@ -322,13 +326,15 @@ const Garage = (() => {
   }
   /* --- onglet Vélo --- */
   function bikeTab(b){
-    const g = G(), M = model(b), V = variant(b), gears = [...new Map(rides().filter(r => r.gear).map(r => [r.gear, r.gearName || r.gear])).entries()];
+    const g = G(), M = model(b), V = variant(b), FR = frm(b), GX = grp(b), gears = [...new Map(rides().filter(r => r.gear).map(r => [r.gear, r.gearName || r.gear])).entries()];
     const field = (k, l, v, type = 'text', attrs = '') => `<div><label class="f">${l}</label><input type="${type}" data-grb="${k}" value="${esc(v ?? '')}" ${attrs}></div>`;
     return `<div class="gr-sec"><h3>Identité</h3><div class="gr-grid">${field('name', 'Nom', b.name, 'text', 'maxlength="40"')}${field('brand', 'Marque', b.brand, 'text', 'maxlength="30"')}${field('modelName', 'Modèle', b.modelName, 'text', 'maxlength="50"')}${field('year', 'Année', b.year, 'number', 'min="1990" max="2035" inputmode="numeric"')}${field('purchased', 'Date d\'achat', b.purchased, 'date')}${field('since', 'Sorties comptées depuis le', b.since, 'date')}</div>
-      <label class="f">Gabarit (composants d'origine, maquette)</label><select data-grb="model">${Object.entries(MODELS).map(([k, m]) => `<option value="${k}"${k === b.model ? ' selected' : ''}>${esc([m.brand, m.name].filter(Boolean).join(' '))}</option>`).join('')}</select>
-      <div class="gr-grid"><div><label class="f">Freins</label><select data-grv="brakes"><option value="rim"${V.brakes === 'rim' ? ' selected' : ''}>Patins (sur jante)</option><option value="disc"${V.brakes === 'disc' ? ' selected' : ''}>Disques</option></select></div>
+      <div class="gr-catl"><div><span class="tiny muted">Cadre</span><b>${FR ? `${esc(FR.f.brand)} ${esc(FR.f.model)}` : esc([M.brand, M.name].filter(Boolean).join(' '))}</b><span class="tiny muted">${FR ? `${esc(FR.g.l)} · pneus ≤ ${FR.g.tire} mm${FR.g.spec.bb ? ' · ' + esc(FR.g.spec.bb.replace(/^Boîtier /, '')) : ''}` : 'gabarit générique'}</span></div><button class="btn sm" data-gr="wzframe">Changer</button></div>
+      <div class="gr-catl"><div><span class="tiny muted">Transmission et freinage</span><b>${GX ? esc(GX.name) : 'Non renseignée'}</b><span class="tiny muted">${GX ? esc(GX.v.l) : 'choisis-la pour les références et les seuils d\'usure'}</span></div><button class="btn sm${GX ? '' : ' primary'}" data-gr="wzgroup">${GX ? 'Changer' : 'Choisir'}</button></div>
+      <button class="btn sm ghost" data-gr="wzinv" style="margin-top:6px">📄 Compléter avec la facture (PDF)</button>
+      ${GX ? '' : `<details style="margin-top:8px"><summary class="tiny" style="cursor:pointer;color:var(--accent)">Réglage manuel</summary><div class="gr-grid"><div><label class="f">Freins</label><select data-grv="brakes"><option value="rim"${V.brakes === 'rim' ? ' selected' : ''}>Patins (sur jante)</option><option value="disc"${V.brakes === 'disc' ? ' selected' : ''}>Disques</option></select></div>
         <div><label class="f">Vitesses</label><select data-grv="speeds"><option value="11"${V.speeds === 11 ? ' selected' : ''}>11</option><option value="12"${V.speeds === 12 ? ' selected' : ''}>12</option></select></div>
-        <div><label class="f">Transmission</label><select data-grv="group"><option value="di2"${V.group === 'di2' ? ' selected' : ''}>Shimano Di2</option><option value="axs"${V.group === 'axs' ? ' selected' : ''}>SRAM AXS</option><option value="meca"${V.group === 'meca' ? ' selected' : ''}>Mécanique</option></select></div></div>
+        <div><label class="f">Transmission</label><select data-grv="group"><option value="di2"${V.group === 'di2' ? ' selected' : ''}>Shimano Di2</option><option value="axs"${V.group === 'axs' ? ' selected' : ''}>SRAM AXS</option><option value="meca"${V.group === 'meca' ? ' selected' : ''}>Mécanique</option></select></div></div></details>`}
       <label class="row tiny" style="margin-top:8px;gap:8px"><input type="checkbox" data-grv="pm" ${V.pm ? 'checked' : ''}> Capteur de puissance sur le vélo</label></div>
       <div class="gr-sec"><h3>Kilométrage</h3><div class="gr-grid">${field('km0.road', 'Km route avant le suivi', +b.km0?.road || 0, 'number', 'min="0" inputmode="numeric"')}${field('km0.ht', 'Km home trainer avant', +b.km0?.ht || 0, 'number', 'min="0" inputmode="numeric"')}</div>
       <label class="f">Ce vélo reçoit</label><div class="row tiny" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-grb="rule.out" ${b.rule?.out ? 'checked' : ''}> Sorties dehors</label><label class="row" style="gap:6px"><input type="checkbox" data-grb="rule.ht" ${b.rule?.ht ? 'checked' : ''}> Home trainer</label><label class="row" style="gap:6px"><input type="checkbox" data-grb="rule.taf" ${b.rule?.taf ? 'checked' : ''}> Vélotaf</label></div>
@@ -456,11 +462,89 @@ const Garage = (() => {
       <div class="row between" style="margin-top:10px">${e ? `<button class="btn danger sm" data-gr="logdel" data-id="${e.id}">Supprimer</button>` : '<span></span>'}<button class="btn primary" data-gr="logsave" data-id="${e?.id || ''}">Enregistrer</button></div></div>`;
     if (!el.open) el.showModal();
   }
-  function addAskDlg(){
-    const el = sheetEl(); el.innerHTML = `<div class="gr-sh"><button class="x" data-grclose aria-label="Fermer">×</button><h3>Ajouter un vélo</h3><p class="small muted">Gabarits avec maquette et composants d'origine ; les autres marques arriveront ensuite (gabarit générique en attendant, ou ton propre modèle 3D).</p>
-      <div class="gr-pick">${Object.entries(MODELS).map(([k, m]) => `<button class="btn" data-gr="add" data-m="${k}">${esc([m.brand, m.name].filter(Boolean).join(' '))}</button>`).join('')}</div>
-      <p class="tiny muted" style="margin-top:10px">Un 2e vélo (vélotaf…) ne reçoit que les sorties que tu lui attribues : ses km ne se mélangent jamais à ceux du vélo de tri.</p></div>`;
-    if (!el.open) el.showModal();
+  /* ---------- catalogue : questionnaire cadre → transmission (et lecture de facture) ---------- */
+  let wz = null; // { mode: 'add' | 'frame' | 'group', step, fk, gk, q, inv }
+  const SHIFT_L = { elec: 'Électronique', meca: 'Mécanique' }, BRAKE_L = { disc: 'Disques', rim: 'Patins (sur jante)' };
+  const genOf = () => wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk)?.g : null;
+  function addAskDlg(){ wz = { mode: 'add', step: 'frame', q: {} }; wzRender(); }
+  function wzOpen(mode){ const b = cur(); wz = { mode, step: mode === 'group' ? 'brand' : 'frame', fk: b?.frame?.k, gk: b?.frame?.gen, q: {} }; if (mode === 'group') wzSkip(); wzRender(); }
+  // passe les questions qui n'ont qu'une réponse possible
+  function wzSkip(){
+    for (let i = 0; i < 4; i++) { const o = BIKE_CAT.options(wz.q, genOf());
+      if (wz.step === 'brand' && o.brands.length === 1) { wz.q.brand = o.brands[0]; wz.step = 'shift'; continue; }
+      if (wz.step === 'shift') { const s = BIKE_CAT.options({ brand: wz.q.brand }, genOf()).shifts; if (s.length === 1) { wz.q.shift = s[0]; wz.step = 'brakes'; continue; } }
+      if (wz.step === 'brakes') { const s = BIKE_CAT.options({ brand: wz.q.brand, shift: wz.q.shift }, genOf()).brakes; if (s.length === 1) { wz.q.brakes = s[0]; wz.step = 'list'; continue; } }
+      break; }
+  }
+  function wzRender(){
+    const el = sheetEl(), F = BIKE_CAT.FRAMES, o = BIKE_CAT.options(wz.q, genOf()), fr = wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk) : null;
+    const btn = (act, v, l, sub = '', on = false) => `<button class="btn gr-wzb${on ? ' primary' : ''}" data-wz="${act}" data-v="${esc(v)}"><b>${esc(l)}</b>${sub ? `<span class="tiny muted">${esc(sub)}</span>` : ''}</button>`;
+    const crumbs = [fr && wz.mode !== 'group' ? [`${fr.f.brand} ${fr.f.model}`, 'frame'] : null, wz.q.brand ? [wz.q.brand, 'brand'] : null, wz.q.shift ? [SHIFT_L[wz.q.shift], 'shift'] : null, wz.q.brakes ? [BRAKE_L[wz.q.brakes].replace(/ \(.*/, ''), 'brakes'] : null].filter(Boolean);
+    let h = '';
+    if (wz.step === 'frame') h = `<h3>${wz.mode === 'add' ? 'Ajouter un vélo' : 'Changer le cadre'}</h3><p class="small muted">Choisis ton cadre, puis la transmission. Tout reste modifiable pièce par pièce ensuite.</p>
+      ${wz.mode === 'add' ? `<button class="btn" data-wz="inv" style="width:100%;margin-bottom:10px">📄 Lire une facture (PDF)</button>` : ''}
+      <div class="gr-wzg">${F.map(f => btn('frame', f.k, `${f.brand} ${f.model}`, f.gens.length > 1 ? `${f.gens.length} générations` : f.gens[0].l, f.k === wz.fk)).join('')}${btn('frame', '', 'Autre vélo de route', 'gabarit générique')}</div>`;
+    else if (wz.step === 'gen') h = `<h3>${esc(fr.f.brand)} ${esc(fr.f.model)} : quelle génération ?</h3><div class="gr-wzg">${fr.f.gens.map(g => btn('gen', g.k, g.l, `${g.brakes.map(x => BRAKE_L[x].replace(/ \(.*/, '').toLowerCase()).join(' ou ')} · pneus ≤ ${g.tire} mm`, g.k === wz.gk)).join('')}</div>`;
+    else if (wz.step === 'brand') h = `<h3>Transmission : quelle marque ?</h3><div class="gr-wzg">${o.brands.map(b => btn('brand', b, b)).join('')}${btn('none', '', 'Je ne sais pas', 'réglage manuel plus tard')}</div>`;
+    else if (wz.step === 'shift') { const s = BIKE_CAT.options({ brand: wz.q.brand }, genOf()).shifts; h = `<h3>Électronique ou mécanique ?</h3><div class="gr-wzg">${s.map(x => btn('shift', x, SHIFT_L[x], x === 'elec' ? (wz.q.brand === 'SRAM' ? 'eTap AXS' : 'Di2') : 'câbles')).join('')}</div>`; }
+    else if (wz.step === 'brakes') { const s = BIKE_CAT.options({ brand: wz.q.brand, shift: wz.q.shift }, genOf()).brakes; h = `<h3>Freins ?</h3><div class="gr-wzg">${s.map(x => btn('brakes', x, BRAKE_L[x])).join('')}</div>`; }
+    else if (wz.step === 'list') h = `<h3>Quelle déclinaison ?</h3><div class="gr-wzg">${o.list.map(x => btn('pick', x.key, `${x.g.brand} ${x.g.l}`, x.v.l)).join('')}</div>
+      ${genOf()?.elecOnly ? '<p class="tiny muted">Ce cadre ne prévoit que les transmissions électroniques.</p>' : ''}`;
+    else if (wz.step === 'confirm') { const i = wz.inv, gx = i.group ? BIKE_CAT.groupOf(i.group) : null;
+      h = `<h3>Facture lue</h3><div class="gr-sec small">${[fr ? `🚲 <b>${esc(fr.f.brand)} ${esc(fr.f.model)}</b> · ${esc(fr.g.l)}` : '🚲 Cadre non reconnu', gx ? `⚙️ <b>${esc(gx.name)}</b> · ${esc(gx.v.l)}` : '⚙️ Transmission non reconnue', i.date ? `📅 Acheté le ${dfr(i.date)}` : '', i.price ? `💶 ${n0(i.price)} €` : ''].filter(Boolean).map(x => `<div style="margin:4px 0">${x}</div>`).join('')}</div>
+        <p class="tiny muted">Vérifie : la lecture repère les noms de modèles et de groupes, elle peut se tromper.</p>
+        <div class="row" style="gap:8px">${fr && gx ? `<button class="btn primary" data-wz="pick" data-v="${esc(i.group)}">${wz.mode === 'add' ? 'Créer ce vélo' : 'Appliquer'}</button>` : ''}<button class="btn" data-wz="fix">${fr && gx ? 'Corriger' : 'Choisir à la main'}</button></div>`; }
+    el.innerHTML = `<div class="gr-sh gr-wz"><button class="x" data-grclose aria-label="Fermer">×</button>${crumbs.length && !['frame', 'confirm'].includes(wz.step) ? `<div class="row tiny" style="gap:6px;flex-wrap:wrap;margin:0 0 8px">${crumbs.map(([l, s]) => `<button class="gr-chip" data-wz="back" data-v="${s}">${esc(l)} ✎</button>`).join('')}</div>` : ''}${h}</div>`;
+    el.onclick = wzClick; if (!el.open) el.showModal();
+  }
+  async function wzClick(e){
+    const x = e.target.closest('[data-wz]'); if (!x) return; const a = x.dataset.wz, v = x.dataset.v;
+    if (a === 'frame') { wz.fk = v || null; wz.gk = null; const f = v && BIKE_CAT.FRAMES.find(y => y.k === v); if (f && f.gens.length > 1) wz.step = 'gen'; else { wz.gk = f?.gens[0].k || null; wz.step = 'brand'; } }
+    else if (a === 'gen') { wz.gk = v; wz.step = 'brand'; }
+    else if (a === 'brand') { wz.q = { brand: v }; wz.step = 'shift'; }
+    else if (a === 'shift') { wz.q = { brand: wz.q.brand, shift: v }; wz.step = 'brakes'; }
+    else if (a === 'brakes') { wz.q.brakes = v; wz.step = 'list'; }
+    else if (a === 'back') { if (v === 'frame') { wz.step = 'frame'; wz.q = {}; } else { const order = ['brand', 'shift', 'brakes']; const i = order.indexOf(v); for (const k of order.slice(i)) delete wz.q[k]; wz.step = v; } wzRender(); return; }
+    else if (a === 'fix') { wz.step = wz.mode === 'group' ? 'brand' : 'frame'; wz.q = {}; }
+    else if (a === 'none') return wzFinish(null);
+    else if (a === 'pick') return wzFinish(v);
+    else if (a === 'inv') return wzInvoice();
+    if (wz.step === 'brand' || wz.step === 'shift' || wz.step === 'brakes') wzSkip();
+    wzRender();
+  }
+  async function wzInvoice(){
+    const f = await pickFile('.pdf,application/pdf', 20*1048576); if (!f) return; toast('Lecture de la facture…');
+    let r; try { r = BIKE_CAT.parseInvoice(await BIKE_CAT.pdfText(f, loadPdf)); } catch (e) { return toast('Facture illisible : ' + (e.message || e)); }
+    wz.inv = r; wz.fk = r.frame; wz.gk = r.gen || (r.frame ? BIKE_CAT.frameOf(r.frame)?.g.k : null); wz.step = 'confirm'; wzRender();
+  }
+  // applique le cadre et le groupe choisis (création ou modification)
+  function applyFrame(b, fk, gk){
+    const fr = fk ? BIKE_CAT.frameOf(fk, gk) : null;
+    if (!fr) { delete b.frame; b.model = 'road'; return; }
+    const old = model(b); b.frame = { k: fr.f.k, gen: fr.g.k }; b.model = fr.g.m3d || 'road';
+    if (!b.brand || b.brand === old.brand || BIKE_CAT.FRAMES.some(f => f.brand === b.brand)) b.brand = fr.f.brand;
+    b.modelName = fr.f.model; b.variant = { ...(b.variant || {}), brakes: fr.g.brakes.includes(variant(b).brakes) ? variant(b).brakes : fr.g.brakes[0] };
+    b.tires = { ...(b.tires || {}), f: Math.min(+b.tires?.f || 28, fr.g.tire), r: Math.min(+b.tires?.r || 28, fr.g.tire) };
+    const gx = grp(b); if (gx && (!fr.g.brakes.includes(gx.v.brakes) || (fr.g.elecOnly && gx.v.shift !== 'elec'))) { delete b.groupset; toast('Transmission incompatible avec ce cadre : choisis-la à nouveau'); }
+  }
+  function wzFinish(key){
+    const g = G(), inv = wz.inv;
+    if (wz.mode === 'add') {
+      const fr = wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk) : null, nb = newBike(fr?.g.m3d || 'road'), others = g.bikes.some(x => !x.retired);
+      applyFrame(nb, wz.fk, wz.gk); nb.name = fr ? `${fr.f.brand} ${fr.f.model}` : 'Vélo de route';
+      if (others) nb.rule = { out: false, ht: false, taf: false };
+      if (inv?.date) { nb.purchased = inv.date; if (others) nb.since = inv.date; }
+      if (key) { nb.groupset = key; nb.variant = { pm: nb.variant?.pm }; }
+      g.bikes.push(nb); g.sel = nb.id;
+      if (inv?.price) g.log.push({ id: rid(), ts: Date.now(), bikeId: nb.id, date: inv.date || todayISO(), part: '', kind: 'buy', label: `Achat du vélo ${nb.name}`, cat: 'autre', price: inv.price, supplier: '', ref: '', note: 'lu sur la facture' });
+      PROFILE_PANE = 'garage'; TAB = 'profile'; mode = 'view'; tab = 'parts'; wz = null;
+      return done(`${nb.name} ajouté au garage${others ? ' · coche « Ce vélo reçoit » dans l\'onglet Vélo' : ''}`);
+    }
+    const b = cur(); if (!b) return;
+    if (wz.mode === 'frame' || wz.step === 'confirm') applyFrame(b, wz.fk, wz.gk);
+    if (key) { b.groupset = key; b.variant = { pm: b.variant?.pm }; } else if (wz.mode === 'group') delete b.groupset;
+    if (inv?.date && !b.purchased) b.purchased = inv.date;
+    mode = 'view'; wz = null; done(key ? `Transmission : ${BIKE_CAT.groupOf(key).name}` : 'Cadre mis à jour');
   }
   function retireDlg(b){
     const el = sheetEl(); el.innerHTML = `<div class="gr-sh"><button class="x" data-grclose aria-label="Fermer">×</button><h3>Je n'ai plus « ${esc(b.name)} »</h3>
@@ -545,6 +629,9 @@ const Garage = (() => {
     else if (a === 'logdel') { g.log = g.log.filter(y => y.id !== x.dataset.id); done('Supprimé'); }
     else if (a === 'main') { g.bikes = [b, ...g.bikes.filter(y => y !== b)]; done('Vélo principal'); }
     else if (a === 'retire') retireDlg(b);
+    else if (a === 'wzframe') wzOpen('frame');
+    else if (a === 'wzgroup') wzOpen('group');
+    else if (a === 'wzinv') { wzOpen('frame'); wzInvoice(); }
     else if (a === 'retireok') { const d = $('#grRtD').value || todayISO(); if (d > todayISO()) return toast('Date dans le futur');
       const reason = document.querySelector('#grRtR button.on')?.dataset.v || 'other', price = +String($('#grRtP').value || '').replace(',', '.') || 0, note = $('#grRtN').value.trim();
       b.retired = { date: d, reason, ...(price ? { price } : {}), ...(note ? { note } : {}) };

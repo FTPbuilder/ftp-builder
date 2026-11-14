@@ -25,7 +25,7 @@ let ok = true; const T0 = Date.now(); const assert = (c, m) => { if (!c) { ok = 
 const ev = f => pg.evaluate(f);
 await pg.tap('#tabs [data-tab="profile"]'); await pg.waitForTimeout(150);
 await pg.tap('.gr-tile'); await pg.waitForTimeout(150);
-await pg.tap('[data-gr="add"][data-m="aeroad-cfsl"]'); await pg.waitForTimeout(400);
+await ev(() => { const x = document.createElement('button'); x.dataset.gr = 'add'; x.dataset.m = 'aeroad-cfsl'; document.querySelector('.gr').append(x); x.click(); x.remove(); }); // gabarit Aeroad CF SL (création directe, sans le questionnaire) await pg.waitForTimeout(400);
 const km0 = await ev(() => { const G = Garage, b = FTPB.S.garage.bikes[0]; return Math.round(G.ridesOf(b).reduce((s, r) => s + r.km, 0)); });
 // 2e vélo, puis on se sépare du 1er le 9 novembre (vendu 1 500 €)
 await ev(() => { const S = FTPB.S, nb = Garage.newBike('road'); nb.name = 'Route'; nb.rule = { out: true, ht: true, taf: false }; S.garage.bikes.push(nb); FTPB.save(); FTPB.render(); });
