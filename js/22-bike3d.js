@@ -266,7 +266,7 @@ const Bike3D = (() => {
     const cam = new T.PerspectiveCamera(30, 1.3, .05, 40);
     const ctl = new T.OrbitControls(cam, r.domElement); Object.assign(ctl, { enableDamping: true, dampingFactor: .085, enablePan: true, screenSpacePanning: true, panSpeed: .6, minDistance: .6, maxDistance: 9,
       minPolarAngle: .02, maxPolarAngle: Math.PI - .02, rotateSpeed: .75, zoomSpeed: .8, autoRotateSpeed: .55 });
-    ctl.addEventListener('start', () => { idleNow(); ctl.autoRotate = false; st.intro = null; wake(); });
+    ctl.addEventListener('start', () => { idleNow(); ctl.autoRotate = false; st.intro = null; st.focus = null; wake(); }); // le doigt reprend la main sur un recadrage en cours
     ctl.addEventListener('end', () => { idleNow(); wake(1200); });
     scene.add(b.root);
     for (const [k, g] of Object.entries(b.groups)) { const o = OFF[k] || [0, 0, 0]; g.userData.off = new T.Vector3(...o); g.userData.center = new T.Box3().setFromObject(g).getCenter(new T.Vector3()).sub(b.root.position);
@@ -317,7 +317,8 @@ const Bike3D = (() => {
   function placeOverlay(w, h){
     const el = st.el; if (!el) return; const box = el.querySelector('.gr-tags'), svg = el.querySelector('.gr-lines'), dots = el.querySelector('.gr-dots'); if (!box) return;
     const k = ease(st.t), zk = st.zone ? ease(st.zt) : 0, show = k > .55 || zk > .5, op = show ? Math.min(1, Math.max((k - .55)/.35, (zk - .5)/.35)) : 0;
-    box.style.opacity = svg.style.opacity = String(op); box.style.pointerEvents = show && (st.target || st.zone) ? 'auto' : 'none';
+    box.style.opacity = svg.style.opacity = String(op); box.style.pointerEvents = 'none'; const tagsOn = show && (st.target || st.zone); // le calque couvre toute la scène : seules les étiquettes captent le toucher, le reste va aux gestes (tourner, pincer, déplacer)
+    for (const e2 of box.children) e2.style.pointerEvents = tagsOn ? 'auto' : 'none';
     const v = new THREE.Vector3(), A = {};
     for (const [key, g] of Object.entries(R.groups)) { v.copy(g.userData.center).add(g.position).add(R.root.position).project(R.cam); A[key] = [(v.x*.5 + .5)*w, (-v.y*.5 + .5)*h]; }
     // témoins : vélo monté → seulement ce qui demande de l'attention ; éclaté → un point par composant (touchable)

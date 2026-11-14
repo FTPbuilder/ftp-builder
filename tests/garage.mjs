@@ -110,6 +110,10 @@ console.log('après toucher', await ev(() => [Garage.mode, Bike3D.t]));
 const tags = await pg.$$eval('.gr-dots [data-gd]', t => t.map(x => x.dataset.gd)); console.log('étiquettes', tags.join());
 assert(await ev(() => Garage.mode === 'explode' && Bike3D.t > .95), 'toucher le vélo → vue éclatée');
 assert(['tireF', 'tireR', 'chain', 'cassette', 'battery', 'headset', 'calipers', 'fd'].every(k => tags.includes(k)), 'témoins sur les composants (dont dérailleur AV)');
+// vue éclatée : les gestes restent libres (tourner au doigt), malgré le calque des étiquettes
+const az0 = await ev(() => Bike3D.R.ctl.getAzimuthalAngle());
+await pg.locator('#gr3d').scrollIntoViewIfNeeded(); await pg.waitForTimeout(300); const vb = await pg.locator('#gr3d').boundingBox(); await pg.mouse.move(vb.x + vb.width*.15, vb.y + vb.height*.5); await pg.mouse.down(); for (let i = 1; i <= 8; i++) await pg.mouse.move(vb.x + vb.width*(.15 + i*.08), vb.y + vb.height*.5); await pg.mouse.up(); await pg.waitForTimeout(500);
+assert(await pg.evaluate(az0 => Math.abs(Bike3D.R.ctl.getAzimuthalAngle() - az0) > .3, az0) && await pg.evaluate(() => getComputedStyle(document.querySelector('.gr-tags')).pointerEvents) === 'none', 'éclaté : le vélo tourne au doigt comme en vue montée');
 console.log('arêtes', await ev(() => [Bike3D.R.edges?.length, Bike3D.R.groups.frame.userData.lineMat?.opacity]));
 await pg.tap('[data-gr="labels"]'); await pg.waitForTimeout(500);
 assert(await ev(() => Bike3D.R.edges?.length > 50 && document.querySelectorAll('.gr-lines line').length > 8), 'mode ingénieur : arêtes, étiquettes et lignes de rappel');
