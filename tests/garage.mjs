@@ -4,6 +4,7 @@ const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/op
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('console', m => { if (/warn|error/.test(m.type())) console.log('[console]', m.type(), m.text().slice(0, 300)); }); pg.on('requestfailed', r => console.log('[échec requête]', r.url().slice(0, 120))); pg.on('pageerror', e => errs.push(e.message));
+await pg.route('**/pdfjs-dist@3.11.174/build/*', r => r.fulfill({ path: out + '/node_modules/pdfjs-dist/build/' + r.request().url().split('/').pop(), contentType: 'application/javascript' }));
 for (const f of ['build/three.min.js', 'examples/js/controls/OrbitControls.js', 'examples/js/environments/RoomEnvironment.js', 'examples/js/loaders/GLTFLoader.js', 'examples/js/loaders/DRACOLoader.js', 'examples/js/exporters/GLTFExporter.js'])
   await pg.route('**/three@0.147.0/' + f, r => r.fulfill({ path: out + '/node_modules/three/' + f, contentType: 'application/javascript' }));
 await pg.clock.setFixedTime(new Date('2026-11-13T20:00:00+01:00'));
@@ -38,10 +39,14 @@ g = await ev(() => { const s = Garage.stats(S.garage.bikes[0]); return { road: s
 assert(Math.round(g.road) === 182 && g.n === 4, 'vélo Strava « Aeroad » coché : la sortie du vélo taf (autre vélo Strava) ne compte plus');
 assert(await ev(() => !!document.querySelector('[data-grv="brakes"] option[value="rim"][selected]')), 'CF SL : freins à patins par défaut');
 // usure estimée
+assert(await ev(() => { const ks = Garage.allParts(S.garage.bikes[0]).map(i => i.k); return !['seatpost', 'cockpit', 'spokes'].some(k => ks.includes(k)); }), 'composants : plus de tige de selle, cockpit ni rayons');
 const w = await ev(() => { const b = S.garage.bikes[0], P = k => Garage.partInfo(b, k); return { chain: P('chain').used, tire: P('tireR').used, head: P('headset').used, cas: P('cassette').used, hubR: P('hubR').used, pads: P('padsF').life, src: P('chain').src, coin: Garage.allParts(b).some(i => i.k === 'coin') }; });
 console.log('usure', w);
 assert(Math.round(w.chain) === 248 && Math.round(w.tire) === 182 && Math.round(w.head) === 281 && Math.round(w.cas) === 182 && Math.round(w.hubR) === 182, 'usure : chaîne route+HT, pneu / cassette / moyeu AR route seule (Flux 2 direct), direction ×1,5 HT');
 assert(w.pads === 2500 && w.src === 'estimation' && !w.coin, 'patins sur jante (2 500 km), état « estimé », pas de piles de leviers en 11 v filaire');
+// SRAM AXS : batteries des dérailleurs + piles des cocottes, plus de batterie Di2
+const ax = await ev(() => { const b = S.garage.bikes[0]; b.variant.group = 'axs'; const ps = Garage.allParts(b); const r = { axs: ps.some(i => i.k === 'axs'), di2: ps.some(i => i.k === 'di2'), coin: ps.find(i => i.k === 'coin')?.l }; b.variant.group = 'di2'; save(); render(); return r; });
+assert(ax.axs && !ax.di2 && ax.coin === 'Piles des cocottes', 'SRAM AXS : batteries AXS et piles des cocottes');
 // résumé du configurateur
 const hud = (await pg.locator('.gr-stage').innerText()).replace(/\s+/g, ' '); console.log('scène', hud.slice(0, 260));
 assert(/248\s*km/.test(hud) && /182 route · 66 HT/.test(hud) && /Prochaine/.test(hud), 'scène : km total, répartition route / HT, prochaine opération');
@@ -59,8 +64,9 @@ pi = await ev(() => Garage.partInfo(S.garage.bikes[0], 'chain')); assert(pi.tota
 assert(/pose à 248 km/.test(await pg.locator('#grSheet').textContent()), 'historique : kilométrage à la pose');
 await pg.tap('#grSheet [data-grclose]');
 // batterie : niveau lu
-await pg.tap('[data-gr="part"][data-k="di2"]'); await pg.waitForTimeout(200); await pg.fill('#grLvl', '70'); await pg.tap('#grSheet [data-gr="level"]'); await pg.waitForTimeout(200);
-pi = await ev(() => Garage.partInfo(S.garage.bikes[0], 'di2')); assert(pi.src === 'lecture' && Math.abs(pi.rem - .7) < .01, 'batterie Di2 : niveau lu 70 %');
+await pg.tap('[data-gr="part"][data-k="di2"]'); await pg.waitForTimeout(200); await pg.fill('#grChD', '2026-11-10'); await pg.fill('#grLvl', '70'); await pg.tap('#grSheet [data-gr="charge"]'); await pg.waitForTimeout(200);
+pi = await ev(() => Garage.partInfo(S.garage.bikes[0], 'di2')); console.log('di2', pi.src, pi.from, pi.rem);
+assert(pi.src === 'lecture' && pi.from === '2026-11-10' && Math.abs(pi.rem - (.7 - 36/1500)) < .005, 'batterie Di2 : recharge datée du 10 nov. (niveau lu 70 %), puis 36 km depuis');
 await pg.tap('#grSheet [data-grclose]');
 // entretien : la pluie rend la lubrification nécessaire
 await pg.tap('.gr-tabs [data-v="care"]'); await pg.tap('[data-gr="care"][data-k="lube"]'); await pg.waitForTimeout(150);
@@ -85,7 +91,20 @@ assert(await ev(() => S.garage.bikes[0].tires.silca.f === 5.6) && /Valeurs SILCA
 await pg.waitForSelector('#gr3d canvas', { timeout: 20000 }); await pg.waitForTimeout(800);
 await ev(() => window.scrollTo(0, 0)); await pg.waitForTimeout(200);
 await pg.locator('.gr-stage').screenshot({ path: out + '/garage-3d.png' });
-const box = await pg.locator('#gr3d').boundingBox(); await pg.mouse.click(box.x + box.width*.5, box.y + box.height*.55);
+const box = await pg.locator('#gr3d').boundingBox();
+// toucher la roue arrière : zoom sur la zone et ses pièces, navigation libre
+const tp = await ev(() => { const R = Bike3D.R, v = new THREE.Box3().setFromObject(R.groups.tireR).getCenter(new THREE.Vector3()); v.project(R.cam); return [(v.x*.5 + .5), (-v.y*.5 + .5)]; });
+await pg.mouse.click(box.x + box.width*tp[0], box.y + box.height*tp[1]); await pg.waitForTimeout(400); const zoneHit = await ev(() => Bike3D.zoneKeys);
+await pg.waitForTimeout(1500); console.log('zone', zoneHit);
+const zt = (await pg.locator('#grZone').innerText()).replace(/\s+/g, ' '); console.log('zone panneau', zt.slice(0, 140));
+assert(zoneHit && zoneHit.length >= 2 && /Tout le vélo/.test(zt) && await pg.locator('#grZone [data-gr="part"]').count() >= 1, 'toucher une zone → pièces de la zone, liste et témoins');
+await pg.locator('.gr-stage').screenshot({ path: out + '/garage-zone.png' });
+await pg.waitForTimeout(1500); const d0 = await ev(() => Bike3D.R.cam.position.distanceTo(Bike3D.R.ctl.target)); await pg.tap('[data-gr="zoom"][data-v="in"]'); await pg.waitForTimeout(300); console.log('zoom', d0, await ev(() => Bike3D.R.cam.position.distanceTo(Bike3D.R.ctl.target)));
+assert(await pg.evaluate(d0 => Bike3D.R.cam.position.distanceTo(Bike3D.R.ctl.target) < d0*.9, d0), 'zoom avant');
+await pg.locator('#grZone [data-gr="part"]').first().click(); await pg.waitForTimeout(400);
+assert(await pg.locator('#grSheet[open]').count() === 1, 'zone : toucher une pièce → sa fiche'); await pg.tap('#grSheet [data-grclose]'); await pg.waitForTimeout(200);
+await pg.tap('[data-gr="zoneoff"]'); await pg.waitForTimeout(300); assert(await ev(() => !Bike3D.zoneKeys), 'retour au vélo entier');
+await pg.tap('[data-gr="mode"][data-v="explode"]');
 await pg.waitForFunction(() => Bike3D.t > .99, null, { timeout: 40000 }).catch(() => {}); await pg.waitForTimeout(600);
 console.log('après toucher', await ev(() => [Garage.mode, Bike3D.t]));
 const tags = await pg.$$eval('.gr-dots [data-gd]', t => t.map(x => x.dataset.gd)); console.log('étiquettes', tags.join());
@@ -114,16 +133,18 @@ const gk = await ev(() => Object.keys(Bike3D.R?.groups || {}).sort().join());
 console.log('glb', glbOk, gk);
 assert(glbOk === true && gk === 'cassette,chain,frame,saddle,tireF,tireR', 'GLB : objets reconnus par leur nom, le reste rangé dans le cadre');
 assert(/Ton modèle 3D/.test(await pg.locator('.gr-fid').innerText()), 'scène : indique que c\'est le modèle de l\'utilisateur');
+// étude posturale : fiche PDF (formulaire Paris Bike Co) → cotes lues, conseils
+const fitB64 = (await import('fs')).readFileSync(new URL('./fixtures/bikefit-test.pdf', import.meta.url)).toString('base64');
+const fit = await pg.evaluate(async b64 => { const r = Uint8Array.from(atob(b64), c => c.charCodeAt(0)); const f = new File([r], 'Test_06022026.pdf', { type: 'application/pdf' }); const out = await Garage.readFit(f);
+  const b = S.garage.bikes[0]; b.fit = { date: out.date, src: out.src, v: out.v }; save(); return { v: out.v, src: out.src, date: out.date, thumb: !!out.thumb, adv: Garage.fitAdvice(b.fit).map(a => a[0]) }; }, fitB64).catch(e => String(e));
+console.log('étude', JSON.stringify(fit).slice(0, 300));
+assert(fit.v?.saddleH === '74.3' && fit.v?.crank === '172.5' && fit.v?.crankNeed === '165' && fit.src === 'Paris Bike Co' && fit.thumb && !('Text1' in fit.v) && !Object.values(fit.v).includes('Test Cycliste'), 'étude posturale : cotes lues dans le PDF (sans les coordonnées)');
+assert(fit.adv?.join() === 'Potence,Manivelles', 'étude : conseils potence et manivelles');
+await ev(() => { window.scrollTo(0, 0); }); await pg.tap('.gr-tabs [data-v="fit"]'); await pg.waitForTimeout(200);
+assert(/À changer/.test(await pg.locator('.gr-panel').innerText()) && await pg.locator('[data-grfit="saddleH"]').inputValue() === '74.3', 'onglet Position : cotes et conseils');
+await pg.locator('.gr-panel').screenshot({ path: out + '/garage-fit.png' });
 await pg.screenshot({ path: out + '/garage-full.png', fullPage: true });
-// film : vidéo (ici enregistrée à la volée) décodée image par image, pilotable au doigt
-const filmOk = await ev(async () => {
-  const c = document.createElement('canvas'); c.width = 320; c.height = 180; const x = c.getContext('2d'), rec = new MediaRecorder(c.captureStream(30), { mimeType: 'video/webm' }), parts = [];
-  rec.ondataavailable = e => parts.push(e.data); rec.start(); for (let i = 0; i < 40; i++) { x.fillStyle = `hsl(${i*9},70%,50%)`; x.fillRect(0, 0, 320, 180); await new Promise(r => setTimeout(r, 33)); }
-  await new Promise(r => { rec.onstop = r; rec.stop(); }); const blob = new Blob(parts, { type: 'video/webm' });
-  const b = S.garage.bikes[0]; await Garage.Media.put('film-test', blob); b.film = { id: 'film-test', name: 'test.webm', size: blob.size }; save(); Garage.setMode('film'); return blob.size > 0; }).catch(e => String(e));
-await pg.waitForSelector('canvas.gr-film', { timeout: 30000 }).catch(() => {});
-assert(filmOk === true && await pg.locator('canvas.gr-film').count() === 1 && await ev(() => BikeFilm.cur?.frames.length >= 24), 'film : décodé en images et affiché');
-await ev(() => Garage.setMode('view'));
+// (le mode film a été retiré)
 await pg.tap('.pane-head [data-pp="back"]'); await pg.waitForTimeout(150);
 console.log('tuile', (await pg.locator('.gr-tile').innerText()).replace(/\s+/g, ' '));
 assert(/Vélo de tri/.test(await pg.locator('.gr-tile').innerText()) && /à surveiller|Bon état|prévoir/.test(await pg.locator('.gr-tile').innerText()), 'tuile : vélo et état général');

@@ -57,5 +57,7 @@
 - [x] T046 [US6] Configurateur (v0.38) : scène studio (environnement, ombres douces, travelling d'entrée, présentoir tournant), maquette détaillée (jantes profilées, dentures, maillons de chaîne, freins à patins ou à disque, 11 / 12 v), éclaté échelonné « mode ingénieur », focus et fiche latérale avec rendu du composant, témoins discrets ; onglets Composants · Entretien · Achats · Pression · Sorties · Vélo
 - [x] T047 [US6] Import GLB (reconnaissance des composants par nom, réglage manuel, rotation), film .mp4 image par image, stockage `garage-media` (migration 20261114)
 - [x] T048 [US6] Gabarit Aeroad CF SL Di2 (Ultegra Di2 11 v, patins), composants complets (dérailleurs, moyeux, rayons, tige, cockpit, freins AV/AR), inspections, niveau de batterie lu, conditions de sortie, valeurs SILCA officielles saisies, plafonds pneu / jante
-- [ ] T049 [US6] Déployer `intervals` et `strava-webhook` avec `gear_id` ; maquettes d'autres marques
+- [x] T049 [US6] Déployer `intervals` et `strava-webhook` avec `gear_id`
+- [x] T050 [US6] v0.39 : film retiré ; composants sans tige de selle, cockpit ni rayons ; transmission Di2 / AXS / mécanique (piles des cocottes SRAM) ; recharge datée ; zones touchables (zoom, pièces de la zone, boutons − / +) ; onglet Position (étude posturale PDF / photo, lecture des cotes Paris Bike Co) ; import GLB robuste
+- [ ] T051 [US6] Maquettes d'autres marques
 

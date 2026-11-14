@@ -4,13 +4,13 @@
    S.garage = { bikes:[Bike], log:[Entrée], assign:{ ref → bikeId | 'none' }, cond:{ ref → 'dry'|'wet'|'rain' }, sel }
    - Bike = { id, name, brand, modelName, year, purchased, model (gabarit : 'aeroad-cfsl' | 'aeroad-cfr' | 'road'), variant:{ brakes, speeds, pm },
               since, km0:{ road, ht }, rule:{ out, ht, taf }, gearIds:[], trainer, tires:{…, maxF, maxR, rimMax, silca:{ f, r, date } }, parts:{ clé → { at, spec, life } },
-              glb:{ id, name, size, rotY, map }, film:{ id, name, size } }
+              glb:{ id, name, size, rotY, map }, fit:{ date, src, title, v:{ clé → valeur }, file:{ id, name, type }, thumb } }
    - Entrée = { id, bikeId, date, part, kind, label, brand, ref, supplier, buyDate, price, value, cat, note }
        kind : replace (pose → compteur à zéro) · buy · charge (value = % lu) · inspect (value = état constaté %) · check (allongement chaîne %)
               lube · degrease · clean · jockey · wipe · service
    - aucune distance stockée : kilométrage et usure se recalculent à partir des sorties (S.activities + séances vélo Santé / Intervals).
      Une sortie va : 1) au vélo choisi à la main, 2) au vélo qui porte son vélo Strava / Intervals (gearId), 3) au premier vélo qui reçoit son type.
-   - modèle 3D (.glb) et film (.mp4) : IndexedDB sur l'appareil + espace privé Supabase « garage-media » (dossier = id du compte). */
+   - modèle 3D (.glb) et étude posturale (PDF / photo) : IndexedDB sur l'appareil + espace privé Supabase « garage-media » (dossier = id du compte). */
 const Garage = (() => {
   const rid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   const n0 = v => Math.round(v).toLocaleString('fr-FR');
@@ -46,21 +46,19 @@ const Garage = (() => {
     { k: 'tireR', l: 'Pneu arrière', cat: 'roues', g: 'tireR', basis: 'road', life: 3500, tip: 'L\'arrière s\'use ~1,5× plus vite ; méplat central = à changer.' },
     { k: 'hubF', l: 'Roulements de moyeu AV', cat: 'roues', g: 'wheelF', basis: 'road', life: 15000, tip: 'Roue en l\'air : elle doit tourner sans point dur ni jeu latéral.' },
     { k: 'hubR', l: 'Roulements de moyeu AR', cat: 'roues', g: 'wheelR', basis: 'road', life: 12000, tip: 'Corps de roue libre : nettoyage et graisse au remplacement de cassette.' },
-    { k: 'spokes', l: 'Rayons', cat: 'roues', g: 'wheelF', basis: 'inspect', life: 365, tip: 'Contrôle de tension et de voile chez le vélociste une fois par an.' },
     { k: 'sealant', l: 'Liquide préventif', cat: 'roues', g: 'tireR', basis: 'time', life: 120, only: b => b.tires?.setup === 'tubeless' },
     { k: 'headset', l: 'Roulements de direction', cat: 'cadre', g: 'headset', basis: 'all', ht: 1.5, life: 12000, tip: 'La sueur du home trainer coule sur la direction : elle compte 1,5× les km d\'intérieur.' },
     { k: 'bb', l: 'Boîtier de pédalier', cat: 'cadre', g: 'bb', basis: 'all', ht: 1, life: 15000, tip: 'Craquement ou point dur en tournant le pédalier à la main : à contrôler.' },
-    { k: 'seatpost', l: 'Tige de selle', cat: 'cadre', g: 'seatpost', basis: 'inspect', life: 365, tip: 'Démonter, nettoyer, pâte de montage carbone, serrage au couple.' },
-    { k: 'cockpit', l: 'Cockpit', cat: 'cadre', g: 'cockpit', basis: 'inspect', life: 365, tip: 'Couples de serrage, fissures, sueur sous la guidoline.' },
     { k: 'tape', l: 'Guidoline', cat: 'cadre', g: 'cockpit', basis: 'time', life: 365 },
     { k: 'padsF', l: 'Freins avant', cat: 'frein', g: 'calipers', basis: 'road', life: 3000, rimLife: 2500, tip: 'Rainures disparues ou < 0,5 mm (plaquettes) : à remplacer. Patins sur jante carbone : uniquement des patins carbone.' },
     { k: 'padsR', l: 'Freins arrière', cat: 'frein', g: 'calipers', basis: 'road', life: 2500, rimLife: 2000 },
-    { k: 'di2', l: 'Batterie Di2', cat: 'elec', g: 'battery', basis: 'charge', life: 1500, unit: 'km', only: b => model(b).di2, tip: 'Shimano annonce 1 000 à 2 000 km par charge. Le niveau réel se lit dans E-Tube ou sur l\'Edge : saisis-le, il remplace l\'estimation.' },
-    { k: 'coin', l: 'Piles des leviers', cat: 'elec', g: 'levers', basis: 'time', life: 540, only: b => model(b).di2 && variant(b).speeds === 12, tip: 'Leviers Di2 sans fil : piles CR1632, autour de 1,5 à 2 ans.' },
+    { k: 'di2', l: 'Batterie Di2', cat: 'elec', g: 'battery', basis: 'charge', life: 1500, unit: 'km', only: b => variant(b).group === 'di2', tip: 'Shimano annonce 1 000 à 2 000 km par charge. Le niveau réel se lit dans E-Tube ou sur l\'Edge : saisis-le avec sa date, il remplace l\'estimation.' },
+    { k: 'axs', l: 'Batteries AXS (dérailleurs)', cat: 'elec', g: 'rd', basis: 'charge', life: 60, unit: 'h', only: b => variant(b).group === 'axs', tip: 'SRAM annonce une soixantaine d\'heures par charge ; garde la batterie de rechange chargée.' },
+    { k: 'coin', l: 'Piles des leviers', lab: b => variant(b).group === 'axs' ? 'Piles des cocottes' : 'Piles des leviers', cat: 'elec', g: 'levers', basis: 'time', life: 540, only: b => variant(b).group === 'axs' || (variant(b).group === 'di2' && variant(b).speeds === 12), tip: 'Shimano sans fil : CR1632 (~1,5 à 2 ans). SRAM AXS : CR2032 dans chaque cocotte (~2 ans).' },
     { k: 'pm', l: 'Capteur de puissance', cat: 'elec', g: 'crank', basis: 'charge', life: 300, unit: 'h', only: b => variant(b).pm, tip: 'Environ 300 h par charge.' },
   ];
   const model = b => MODELS[b.model] || MODELS.road;
-  const variant = b => ({ brakes: model(b).brakes, speeds: model(b).speeds, pm: model(b).pm, ...(b.variant || {}) });
+  const variant = b => ({ brakes: model(b).brakes, speeds: model(b).speeds, pm: model(b).pm, group: model(b).di2 ? 'di2' : 'meca', ...(b.variant || {}) });
   const P = k => PARTS.find(p => p.k === k);
   const partsOf = b => PARTS.filter(p => !p.only || p.only(b));
   const lifeOf = (b, p) => +b.parts?.[p.k]?.life || model(b).life?.[p.k] || (variant(b).brakes === 'rim' && p.rimLife) || p.life;
@@ -129,7 +127,7 @@ const Garage = (() => {
     const left = rem*life, rate = dailyRate(b, p, rs), inDays = rate > 0 ? Math.round(left/rate) : null;
     const nextDate = unit === 'j' ? addDays(todayISO(), Math.round(left)) : inDays != null && inDays < 3650 ? addDays(todayISO(), inDays) : null;
     const last = logOf(b, e => e.part === k)[0] || null;
-    return { k, l: p.l, cat: p.cat, g: p.g, spec: specOf(b, k), at, orig, life, unit, used: u, total, rem, wear: 1 - rem, src, from, left, nextDate, last, charge: p.basis === 'charge', inspect: p.basis === 'inspect', basis: p.basis };
+    return { k, l: p.lab ? p.lab(b) : p.l, cat: p.cat, g: p.g, spec: specOf(b, k), at, orig, life, unit, used: u, total, rem, wear: 1 - rem, src, from, left, nextDate, last, charge: p.basis === 'charge', inspect: p.basis === 'inspect', basis: p.basis };
   }
   const allParts = (b, rs = ridesOf(b)) => partsOf(b).map(p => partInfo(b, p.k, rs));
   const col = rem => rem >= .6 ? 'var(--ok)' : rem >= .35 ? 'var(--warn)' : 'var(--bad)';
@@ -184,7 +182,7 @@ const Garage = (() => {
   function avgSpeed(b){ const out = ridesOf(b).filter(r => !r.ht && !r.taf && r.km > 20 && r.min > 30).slice(0, 10); if (!out.length) return null;
     return Math.round(out.reduce((s, r) => s + r.km, 0)/out.reduce((s, r) => s + r.min/60, 0)); }
 
-  /* ---------- médias : modèle 3D (.glb) et film (.mp4), appareil + espace privé ---------- */
+  /* ---------- médias : modèle 3D (.glb), étude posturale, appareil + espace privé ---------- */
   const Media = (() => {
     const BUCKET = 'garage-media'; let dbp = null;
     const db = () => dbp ||= new Promise((res, rej) => { const r = indexedDB.open('ftpb-garage', 1); r.onupgradeneeded = () => r.result.createObjectStore('m'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
@@ -205,7 +203,11 @@ const Garage = (() => {
       rule: { out: true, ht: true, taf: false }, gearIds: [], trainer: 'direct', tires: { ...M.tires, setup: 'tube', surface: 'worn', hookless: false }, parts: {}, added: todayISO() };
   }
   const cur = () => { const g = G(); return g.bikes.find(b => b.id === g.sel) || g.bikes[0] || null; };
-  let mode = 'view', tab = 'parts', spendP = '365', sheetKey = null, allTags = false;
+  let mode = 'view', tab = 'parts', spendP = '365', sheetKey = null, allTags = false, zoneK = null;
+  // zones du vélo : un toucher sur la maquette montée rapproche la caméra de la zone et en détaille les pièces
+  const ZONES = { trans: ['Transmission', ['chain', 'cassette', 'crank', 'rd', 'fd', 'bb']], rear: ['Roue arrière', ['wheelR', 'tireR', 'cassette']], front: ['Roue avant', ['wheelF', 'tireF', 'fork']],
+    cockpit: ['Poste de pilotage', ['cockpit', 'levers', 'headset']], seat: ['Selle et batterie', ['saddle', 'seatpost', 'battery']], brakes: ['Freins', ['calipers', 'rotors']], frame: ['Cadre', ['frame', 'headset', 'bb', 'fork']] };
+  const zoneOfG = g => g === 'frame' ? 'frame' : Object.keys(ZONES).find(z => ZONES[z][1].includes(g)) || 'frame';
   const explode = () => mode === 'explode';
 
   // synthèse : état général, composants à surveiller, prochaine opération
@@ -231,32 +233,38 @@ const Garage = (() => {
 
   /* ---------- volet GARAGE ---------- */
   const head = t => `<div class="pane-head"><button class="pane-back" data-pp="back" aria-label="Retour">${BACK}</button><h2>${t}</h2></div>`;
-  const TABS = [['parts', 'Composants'], ['care', 'Entretien'], ['buy', 'Achats'], ['pressure', 'Pression'], ['rides', 'Sorties'], ['bike', 'Vélo']];
+  const TABS = [['parts', 'Composants'], ['care', 'Entretien'], ['fit', 'Position'], ['buy', 'Achats'], ['pressure', 'Pression'], ['rides', 'Sorties'], ['bike', 'Vélo']];
   function pane(){
     const g = G(), b = cur();
     if (!b) return `<div class="pane-in gr">${head('Garage')}<div class="gr-empty"><div class="gr-tl" style="font-size:44px">Garage</div><p class="small muted">Le carnet de vie de ton vélo. Le kilométrage se calcule tout seul à partir de tes sorties (dehors et home trainer, le vélotaf à part) et chaque composant affiche son état estimé.</p>
       <div class="gr-pick">${['aeroad-cfsl', 'aeroad-cfr', 'road'].map(m => `<button class="btn${m === 'aeroad-cfsl' ? ' primary' : ''}" data-gr="add" data-m="${m}">+ ${esc([MODELS[m].brand, MODELS[m].name].filter(Boolean).join(' '))}</button>`).join('')}</div></div></div>`;
-    const rs = ridesOf(b), s = stats(b, rs), sm = summary(b, rs), M = model(b), glb = !!b.glb, film = !!b.film;
+    const rs = ridesOf(b), s = stats(b, rs), sm = summary(b, rs), M = model(b), glb = !!b.glb;
     const split = s.total ? s.road/s.total : 1;
     let h = `<div class="pane-in gr">${head('Garage')}<div class="seg gr-bikes">${g.bikes.map(x => `<button type="button" class="${x.id === b.id ? 'on' : ''}" data-gr="sel" data-id="${x.id}">${esc(x.name)}</button>`).join('')}<button type="button" data-gr="addask" aria-label="Ajouter un vélo">+</button></div>
       <section class="gr-stage" data-mode="${mode}">
         <div class="gr-hud"><div><div class="gr-name">${esc(b.name)}</div><div class="tiny muted">${esc([b.brand, b.modelName, b.year].filter(Boolean).join(' · '))}</div></div>
           <div class="gr-odo"><b class="num">${n0(s.total)}</b><small>km</small><span class="gr-split" title="Route ${n0(s.road)} km · Home trainer ${n0(s.ht)} km"><i style="width:${split*100}%"></i></span><span class="tiny muted">${n0(s.road)} route · ${n0(s.ht)} HT</span></div></div>
-        <div class="gr-view" id="gr3d" data-exploded="${explode() ? 1 : 0}"><div class="gr-load tiny muted">${mode === 'film' ? (film ? 'Préparation du film…' : '') : 'Préparation du studio 3D…'}</div>${mode === 'film' && !film ? filmEmptyHTML() : ''}</div>
-        <div class="gr-ctl"><div class="seg gr-modes" role="tablist">${[['view', 'Vue'], ['explode', 'Éclaté'], ['film', 'Film']].map(([k, l]) => `<button type="button" role="tab" class="${mode === k ? 'on' : ''}" data-gr="mode" data-v="${k}">${l}</button>`).join('')}</div>
-          <button class="btn sm ghost${allTags ? ' on' : ''}" data-gr="labels" aria-pressed="${allTags}" title="Toutes les étiquettes" ${mode === 'explode' ? '' : 'hidden'}>Aa</button><button class="btn sm ghost" data-gr="reset3d" aria-label="Revenir à la vue initiale">⟲</button></div>
-        <div class="gr-hint tiny muted" id="grHint">${hint()}</div>
+        <div class="gr-view" id="gr3d" data-exploded="${explode() ? 1 : 0}"><div class="gr-load tiny muted">Préparation du studio 3D…</div></div>
+        <div class="gr-ctl"><div class="seg gr-modes" role="tablist">${[['view', 'Vue'], ['explode', 'Éclaté']].map(([k, l]) => `<button type="button" role="tab" class="${mode === k ? 'on' : ''}" data-gr="mode" data-v="${k}">${l}</button>`).join('')}</div>
+          <button class="btn sm ghost${allTags ? ' on' : ''}" data-gr="labels" aria-pressed="${allTags}" title="Toutes les étiquettes" ${mode === 'explode' ? '' : 'hidden'}>Aa</button><button class="btn sm ghost" data-gr="zoom" data-v="out" aria-label="Zoom arrière">−</button><button class="btn sm ghost" data-gr="zoom" data-v="in" aria-label="Zoom avant">+</button><button class="btn sm ghost" data-gr="reset3d" aria-label="Revenir à la vue initiale">⟲</button></div>
+        <div class="gr-hint tiny muted" id="grHint">${hint()}</div><div id="grZone">${zoneHTML(b, sm)}</div>
         <div class="gr-status"><button type="button" class="gr-chip" data-gr="tab" data-v="parts"><i class="gr-dot" style="background:${sm.state[1]}"></i>${sm.state[0]}</button>
           <button type="button" class="gr-chip" data-gr="tab" data-v="parts"><b>${sm.att}</b> à surveiller</button>
           ${sm.next ? `<button type="button" class="gr-chip gr-next" data-gr="${sm.next.care ? 'tab' : 'part'}" data-v="care" data-k="${sm.next.part || ''}"><span class="muted">Prochaine</span> <b>${esc(sm.next.l)}</b> <span style="color:${sm.next.col}">${esc(sm.next.txt)}</span></button>` : ''}</div>
         <div class="gr-fid tiny">${glb ? `🧩 Ton modèle 3D « ${esc(b.glb.name)} »` : '◇ Maquette générique : géométrie et implantation fidèles, formes simplifiées, sans marquages — importe ton modèle 3D dans l\'onglet Vélo'}</div>
       </section>
       <div class="seg gr-tabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" data-gr="tab" data-v="${k}">${l}</button>`).join('')}</div>
-      <div class="gr-panel">${({ parts: partsTab, care: careTab, buy: buyTab, pressure: pressTab, rides: ridesTab, bike: bikeTab })[tab](b, rs, s, sm)}</div></div>`;
+      <div class="gr-panel">${({ parts: partsTab, care: careTab, fit: fitTab, buy: buyTab, pressure: pressTab, rides: ridesTab, bike: bikeTab })[tab](b, rs, s, sm)}</div></div>`;
     return h;
   }
-  const hint = () => mode === 'film' ? 'Glisse le doigt sur le film pour monter / démonter le vélo' : mode === 'explode' ? 'Touche un composant pour sa fiche · pince pour zoomer · deux doigts pour déplacer' : 'Glisse pour tourner (haut, bas, côtés) · touche le vélo pour l\'éclater';
-  const filmEmptyHTML = () => `<div class="gr-filmempty"><b>Film du vélo</b><p class="tiny">Importe une vidéo (MP4) de ton vélo qui passe de monté à éclaté — générée par exemple avec Higgsfield, Kling ou Veo à partir de tes photos. Elle se pilote ensuite au doigt, image par image.</p><button class="btn sm primary" data-gr="filmimp">Importer une vidéo</button></div>`;
+  const hint = () => mode === 'explode' ? 'Touche un composant pour sa fiche · pince pour zoomer · deux doigts pour déplacer' : zoneK ? 'Touche une pièce pour sa fiche · tourne, pince, déplace librement' : 'Glisse pour tourner (haut, bas, côtés) · touche une zone du vélo pour voir ses pièces';
+  function zoneHTML(b, sm){
+    if (!zoneK || mode === 'explode') return '';
+    const [lab, gs] = ZONES[zoneK], ps = sm.parts.filter(i => gs.includes(i.g)).sort((x, y) => x.rem - y.rem);
+    return `<div class="gr-zone"><div class="row between"><b class="gr-zt">${lab}</b><button class="btn sm ghost" data-gr="zoneoff">Tout le vélo</button></div>
+      ${ps.length ? ps.map(i => `<button type="button" class="gr-zp" data-gr="part" data-k="${i.k}"><span>${esc(i.l)}</span>${barHTML(i.rem, i.charge)}<b style="color:${col(i.rem)}">${pct(i.rem)}</b></button>`).join('') : '<p class="tiny muted" style="margin:4px 0 0">Pas de pièce d\'usure suivie dans cette zone.</p>'}
+      <div class="gr-zs">${Object.entries(ZONES).map(([k, [l]]) => `<button type="button" class="${k === zoneK ? 'on' : ''}" data-gr="zone" data-v="${k}">${l}</button>`).join('')}</div></div>`;
+  }
 
   /* --- onglet Composants --- */
   function partsTab(b, rs, s, sm){
@@ -316,7 +324,8 @@ const Garage = (() => {
     return `<div class="gr-sec"><h3>Identité</h3><div class="gr-grid">${field('name', 'Nom', b.name, 'text', 'maxlength="40"')}${field('brand', 'Marque', b.brand, 'text', 'maxlength="30"')}${field('modelName', 'Modèle', b.modelName, 'text', 'maxlength="50"')}${field('year', 'Année', b.year, 'number', 'min="1990" max="2035" inputmode="numeric"')}${field('purchased', 'Date d\'achat', b.purchased, 'date')}${field('since', 'Sorties comptées depuis le', b.since, 'date')}</div>
       <label class="f">Gabarit (composants d'origine, maquette)</label><select data-grb="model">${Object.entries(MODELS).map(([k, m]) => `<option value="${k}"${k === b.model ? ' selected' : ''}>${esc([m.brand, m.name].filter(Boolean).join(' '))}</option>`).join('')}</select>
       <div class="gr-grid"><div><label class="f">Freins</label><select data-grv="brakes"><option value="rim"${V.brakes === 'rim' ? ' selected' : ''}>Patins (sur jante)</option><option value="disc"${V.brakes === 'disc' ? ' selected' : ''}>Disques</option></select></div>
-        <div><label class="f">Vitesses</label><select data-grv="speeds"><option value="11"${V.speeds === 11 ? ' selected' : ''}>11 (Di2 filaire)</option><option value="12"${V.speeds === 12 ? ' selected' : ''}>12 (leviers sans fil)</option></select></div></div>
+        <div><label class="f">Vitesses</label><select data-grv="speeds"><option value="11"${V.speeds === 11 ? ' selected' : ''}>11</option><option value="12"${V.speeds === 12 ? ' selected' : ''}>12</option></select></div>
+        <div><label class="f">Transmission</label><select data-grv="group"><option value="di2"${V.group === 'di2' ? ' selected' : ''}>Shimano Di2</option><option value="axs"${V.group === 'axs' ? ' selected' : ''}>SRAM AXS</option><option value="meca"${V.group === 'meca' ? ' selected' : ''}>Mécanique</option></select></div></div>
       <label class="row tiny" style="margin-top:8px;gap:8px"><input type="checkbox" data-grv="pm" ${V.pm ? 'checked' : ''}> Capteur de puissance sur le vélo</label></div>
       <div class="gr-sec"><h3>Kilométrage</h3><div class="gr-grid">${field('km0.road', 'Km route avant le suivi', +b.km0?.road || 0, 'number', 'min="0" inputmode="numeric"')}${field('km0.ht', 'Km home trainer avant', +b.km0?.ht || 0, 'number', 'min="0" inputmode="numeric"')}</div>
       <label class="f">Ce vélo reçoit</label><div class="row tiny" style="gap:14px"><label class="row" style="gap:6px"><input type="checkbox" data-grb="rule.out" ${b.rule?.out ? 'checked' : ''}> Sorties dehors</label><label class="row" style="gap:6px"><input type="checkbox" data-grb="rule.ht" ${b.rule?.ht ? 'checked' : ''}> Home trainer</label><label class="row" style="gap:6px"><input type="checkbox" data-grb="rule.taf" ${b.rule?.taf ? 'checked' : ''}> Vélotaf</label></div>
@@ -324,15 +333,75 @@ const Garage = (() => {
       <label class="f">Home trainer</label><select data-grb="trainer"><option value="direct"${b.trainer !== 'wheel' ? ' selected' : ''}>Transmission directe (Tacx Flux 2 : sa propre cassette)</option><option value="wheel"${b.trainer === 'wheel' ? ' selected' : ''}>Roue sur rouleau (cassette et moyeu AR tournent)</option></select></div>
       <div class="gr-sec"><h3>Maquette 3D</h3>${b.glb ? `<div class="row between"><span class="small">🧩 ${esc(b.glb.name)} · ${f1((b.glb.size || 0)/1048576)} Mo</span><span class="row" style="gap:6px"><button class="btn sm" data-gr="glbrot">↻ 90°</button><button class="btn sm danger" data-gr="glbdel">Retirer</button></span></div>${glbMapHTML(b)}`
         : `<p class="tiny muted" style="margin:0 0 8px">Pour une maquette fidèle (formes, couleurs, marquages), importe un vrai modèle 3D .glb de ton vélo : acheté sur un site de modèles 3D (vérifie la licence), généré à partir de tes photos (Hyper3D Rodin, Meshy, Tripo, Hunyuan3D…), ou modélisé dans Blender. Nomme ses objets (chain, cassette, fork, front tire…) pour qu'ils deviennent sélectionnables et s'éclatent ; sinon règle-les ici après l'import.</p>`}
-        <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm${b.glb ? '' : ' primary'}" data-gr="glbimp">${b.glb ? 'Remplacer le .glb' : 'Importer un .glb'}</button>${b.film ? `<button class="btn sm" data-gr="filmimp">Remplacer le film</button><button class="btn sm danger" data-gr="filmdel">Retirer le film</button>` : '<button class="btn sm" data-gr="filmimp">Importer un film (.mp4)</button>'}</div></div>
+        <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm${b.glb ? '' : ' primary'}" data-gr="glbimp">${b.glb ? 'Remplacer le .glb' : 'Importer un .glb'}</button></div></div>
       <div class="row between gr-sec">${g.bikes[0]?.id !== b.id ? '<button class="btn sm" data-gr="main">Vélo principal</button>' : '<span class="tiny muted">Vélo principal</span>'}<button class="btn sm danger" data-gr="del">Supprimer ce vélo</button></div>`;
   }
   let glbNames = null;
   function glbMapHTML(b){
     if (!glbNames) return '<p class="tiny muted">Ouvre la vue 3D pour lister les objets du modèle.</p>';
-    const map = b.glb.map || {}, auto = n => { for (const [k, rx] of Bike3D.NAME_RX) if (rx.test(n)) return k; return 'frame'; };
+    const map = b.glb.map || {}, auto = n => { const c = String(n).replace(/[_.\-]+/g, ' '); for (const [k, rx] of Bike3D.NAME_RX) if (rx.test(c)) return k; return 'frame'; };
     return `<details style="margin-top:8px"><summary class="small">Composants du modèle (${glbNames.length} objets)</summary><div class="gr-map">${glbNames.map(n => `<label><span class="tiny">${esc(n)}</span><select data-grmap="${esc(n)}">${['', ...Bike3D.KEYS].map(k => `<option value="${k}"${(map[n] || '') === k ? ' selected' : ''}>${k ? Bike3D.LABEL[k] : 'Auto : ' + Bike3D.LABEL[auto(n)]}</option>`).join('')}</select></label>`).join('')}</div></details>`;
   }
+
+  /* ---------- étude posturale (bike fit) ----------
+     Fiche PDF du fitter (formulaire Paris Bike Co « Road positioning chart » lu champ par champ avec pdf.js) ou photo de la fiche ;
+     seules les cotes sont reprises (pas le nom, le téléphone ni l'e-mail). Tout reste corrigeable à la main. */
+  const FIT_G = { selle: 'Selle', cockpit: 'Poste de pilotage', trans: 'Transmission', pieds: 'Pieds et cales', prolong: 'Prolongateurs (tri)', velo: 'Vélo étudié' };
+  const FIT = [
+    ['saddleH', 'Hauteur de selle', 'cm', 'selle', 'Text23'], ['setback', 'Recul de selle', 'cm', 'selle', 'Text21'], ['saddleA', 'Angle de selle', '°', 'selle', 'Text22'], ['saddleM', 'Selle', '', 'selle', 'Text16'],
+    ['sbReach', 'Distance selle → cintre', 'cm', 'cockpit', 'Text20'], ['drop', 'Drop selle → cintre', 'cm', 'cockpit', 'Text19'], ['stem', 'Potence', 'mm', 'cockpit', 'Text33'], ['stemNeed', 'Potence conseillée', 'mm', 'cockpit', 'Text34'],
+    ['stemA', 'Angle de potence', '°', 'cockpit', 'Text35'], ['spacers', 'Entretoises', 'mm', 'cockpit', 'Text37'], ['barA', 'Angle du cintre', '°', 'cockpit', 'Text36'], ['shifterA', 'Angle des cocottes', '°', 'cockpit', 'Text38'],
+    ['barW', 'Largeur du cintre', 'cm', 'cockpit', 'Text27'], ['barWNeed', 'Largeur conseillée', 'cm', 'cockpit', 'Text28'], ['dropW', 'Largeur aux drops', 'cm', 'cockpit', 'Text29'], ['barReach', 'Reach du cintre', 'mm', 'cockpit', 'Text25'],
+    ['grip', 'Largeur de prise (cocottes)', 'cm', 'cockpit', 'Text24'], ['barM', 'Cintre', '', 'cockpit', 'Text15'],
+    ['crank', 'Manivelles', 'mm', 'trans', 'Text17'], ['crankNeed', 'Manivelles conseillées', 'mm', 'trans', 'Text18'],
+    ['pedals', 'Pédales', '', 'pieds', 'Text10'], ['spL', 'Rondelles pédale gauche', '', 'pieds', 'Text11'], ['spR', 'Rondelles pédale droite', '', 'pieds', 'Text12'], ['shoes', 'Chaussures', '', 'pieds', 'Text13'], ['shoeSize', 'Pointure', '', 'pieds', 'Text14'],
+    ['extL', 'Longueur des extensions', 'mm', 'prolong', 'Text30'], ['extA', 'Angle des extensions', '°', 'prolong', 'Text31'], ['padH', 'Hauteur des repose-coudes', 'mm', 'prolong', 'Text32'], ['padW', 'Largeur des repose-coudes', 'mm', 'prolong', 'Text26'],
+    ['make', 'Marque', '', 'velo', 'Text4'], ['model', 'Modèle', '', 'velo', 'Text5'], ['size', 'Taille', '', 'velo', 'Text6'], ['stack', 'Stack', 'mm', 'velo', 'Text7'], ['reach', 'Reach', 'mm', 'velo', 'Text8'],
+  ];
+  const PDFJS = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/';
+  let pdfP = null;
+  const loadPdf = () => pdfP ||= new Promise((ok, ko) => { if (window.pdfjsLib) return ok(window.pdfjsLib); const sc = document.createElement('script'); sc.src = PDFJS + 'pdf.min.js';
+    sc.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js'; ok(window.pdfjsLib); }; sc.onerror = () => { pdfP = null; ko(new Error('lecteur PDF injoignable')); }; document.head.appendChild(sc); });
+  const toBlob = (c, q = .82) => new Promise(ok => c.toBlob(ok, 'image/jpeg', q));
+  async function readFit(file){
+    const out = { v: {}, title: '', date: null, src: '', thumb: null };
+    if (/pdf/i.test(file.type) || /\.pdf$/i.test(file.name)) {
+      const lib = await loadPdf(), doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+      try { const md = await doc.getMetadata(); out.title = String(md?.info?.Title || ''); const m = String(md?.info?.CreationDate || '').match(/D:(\d{4})(\d\d)(\d\d)/); if (m) out.date = `${m[1]}-${m[2]}-${m[3]}`; } catch (e) {}
+      let fields = {}; try { fields = (await doc.getFieldObjects()) || {}; } catch (e) {}
+      const val = n => { const f = fields[n]; const x = Array.isArray(f) ? f.find(y => y.value != null && String(y.value).trim() !== '') : null; return x ? String(x.value).trim() : ''; };
+      for (const [k, , , , fld] of FIT) { const v = val(fld).replace(/\bor\b/gi, 'ou'); if (v) out.v[k] = v; }
+      if (/paris.?bike/i.test(out.title) || (fields.Text23 && fields.Text33)) out.src = 'Paris Bike Co';
+      const pg = await doc.getPage(1), vp0 = pg.getViewport({ scale: 1 }), vp = pg.getViewport({ scale: Math.min(2.2, 1400/vp0.width) }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+      await pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; out.thumb = await toBlob(c);
+    } else {
+      const url = URL.createObjectURL(file), im = new Image(); await new Promise((ok, ko) => { im.onload = ok; im.onerror = () => ko(new Error('image illisible')); im.src = url; });
+      const k = Math.min(1, 1400/im.width), c = document.createElement('canvas'); c.width = im.width*k; c.height = im.height*k; c.getContext('2d').drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url); out.thumb = await toBlob(c);
+    }
+    if (!out.date) { const m = file.name.match(/(\d\d)(\d\d)(20\d\d)/); if (m) out.date = `${m[3]}-${m[2]}-${m[1]}`; } // …_06022026.pdf
+    return out;
+  }
+  const num = v => parseFloat(String(v || '').replace(',', '.').replace(/[^\d.\-]/g, ''));
+  function fitAdvice(f){
+    const v = f?.v || {}, out = [];
+    if (v.stemNeed && v.stemNeed !== v.stem) out.push(['Potence', v.stem ? v.stem + ' mm' : '—', v.stemNeed + ' mm']);
+    if (v.crankNeed && num(v.crankNeed) !== num(v.crank)) out.push(['Manivelles', v.crank ? v.crank + ' mm' : '—', v.crankNeed + ' mm']);
+    if (v.barWNeed && num(v.barWNeed) !== num(v.barW)) out.push(['Largeur du cintre', v.barW ? v.barW + ' cm' : '—', v.barWNeed + ' cm']);
+    return out;
+  }
+  function fitTab(b){
+    const f = b.fit;
+    if (!f) return `<div class="gr-sec"><h3>Étude posturale</h3><p class="small muted" style="margin:4px 0 10px">Charge la fiche de ton bike fit (PDF ou photo). Les cotes d'une fiche PDF remplie (ex. Paris Bike Co) sont lues automatiquement ; sinon tu les saisis ici. Tes coordonnées figurant sur la fiche ne sont pas reprises.</p>
+      <div class="row" style="gap:8px"><button class="btn primary" data-gr="fitimp">Charger mon étude</button><button class="btn" data-gr="fitnew">Saisir à la main</button></div></div>`;
+    const adv = fitAdvice(f), by = {}; for (const r of FIT) (by[r[3]] ||= []).push(r);
+    return `<div class="gr-sec"><div class="gr-fithead">${f.thumbId ? `<button type="button" class="gr-fitthumb" data-gr="fitopen" aria-label="Ouvrir l'étude"><img data-grthumb="${esc(f.thumbId)}" alt="Fiche de l'étude posturale"></button>` : ''}
+        <div style="flex:1;min-width:0"><b>Étude posturale</b><span class="tiny muted" style="display:block">${esc([f.src, f.date ? dfr(f.date) : ''].filter(Boolean).join(' · ') || 'Saisie manuelle')}${f.v?.model ? ` · ${esc([f.v.make, f.v.model, f.v.size].filter(Boolean).join(' '))}` : ''}</span>
+          <div class="row" style="gap:6px;margin-top:6px">${f.file ? '<button class="btn sm" data-gr="fitopen">Ouvrir</button>' : ''}<button class="btn sm" data-gr="fitimp">${f.file ? 'Remplacer' : 'Charger la fiche'}</button><button class="btn sm danger" data-gr="fitdel">Supprimer</button></div></div></div>
+      ${adv.length ? `<div class="gr-adv"><b>À changer d'après l'étude</b>${adv.map(([l, a, c]) => `<div class="gr-advr"><span>${l}</span><span class="muted">${esc(a)}</span><span>→</span><b>${esc(c)}</b></div>`).join('')}</div>` : ''}</div>
+      ${Object.entries(FIT_G).map(([g, l]) => `<div class="gr-sec"><h3>${l}</h3><div class="gr-fit">${by[g].map(([k, lab, u]) => `<label><span>${lab}</span><span class="gr-fv"><input data-grfit="${k}" value="${esc(f.v?.[k] || '')}" placeholder="—" inputmode="${u && u !== '°' ? 'decimal' : 'text'}">${u ? `<i>${u}</i>` : ''}</span></label>`).join('')}</div></div>`).join('')}
+      <p class="tiny muted gr-note">Valeurs reprises telles quelles de la fiche${f.src ? ' ' + esc(f.src) : ''} : vérifie-les, surtout les unités. La fiche elle-même reste privée (sur ton téléphone et dans ton espace).</p>`;
+  }
+  async function hydrateThumbs(){ for (const im of document.querySelectorAll('img[data-grthumb]')) { if (im.src) continue; const bl = await Media.get(im.dataset.grthumb).catch(() => null); if (bl && im.isConnected) im.src = URL.createObjectURL(bl); } }
 
   /* ---------- fiche latérale (composant) ---------- */
   let sheet = null;
@@ -354,7 +423,8 @@ const Garage = (() => {
         <div><dt>Dernière intervention</dt><dd>${i.last ? `${KIND[i.last.kind]?.[1] || ''}<small>${fmtShort(i.last.date)}</small>` : '—'}</dd></div>
         <div><dt>Prochaine conseillée</dt><dd style="font-size:12.5px">${esc(nextTxt)}</dd></div></dl>
       ${p.tip ? `<p class="small muted" style="margin:6px 0 10px">${esc(p.tip)}</p>` : ''}
-      ${i.charge ? `<div class="gr-act"><label class="f">Niveau lu (E-Tube, Edge…)</label><div class="row"><input type="number" min="0" max="100" inputmode="numeric" id="grLvl" placeholder="%" style="flex:1"><button class="btn" data-gr="level" data-k="${k}">Enregistrer</button></div><button class="btn primary" data-gr="charge" data-k="${k}" style="width:100%;margin-top:8px">🔋 Rechargé à 100 % aujourd'hui</button></div>` : ''}
+      ${i.charge ? `<div class="gr-act"><div class="gr-grid"><div><label class="f">Dernière recharge</label><input type="date" id="grChD" value="${todayISO()}" max="${todayISO()}"></div><div><label class="f">Niveau après (%)</label><input type="number" min="0" max="100" inputmode="numeric" id="grLvl" placeholder="100"></div></div>
+        <button class="btn primary" data-gr="charge" data-k="${k}" style="width:100%;margin-top:8px">🔋 Enregistrer la recharge</button><p class="tiny muted" style="margin:6px 0 0">Laisse 100 % pour une recharge complète, ou saisis le niveau lu dans E-Tube / sur l'Edge à cette date.</p></div>` : ''}
       ${k === 'chain' ? `<div class="gr-act"><label class="f">Mesure d'allongement (%)</label><div class="row"><input type="number" step="0.05" min="0" max="1.5" inputmode="decimal" id="grMeas" placeholder="0,25" style="flex:1"><button class="btn" data-gr="measure">Enregistrer</button></div></div>` : ''}
       ${!i.charge ? `<div class="gr-act"><label class="f">Inspection : état constaté ${i.inspect ? '(ou contrôle fait)' : ''}</label><div class="row"><input type="range" min="0" max="100" step="5" value="${Math.round(i.rem*100)}" id="grInsp" style="flex:1" oninput="this.nextElementSibling.textContent=this.value+' %'"><b class="num" style="min-width:44px">${Math.round(i.rem*100)} %</b><button class="btn" data-gr="inspect" data-k="${k}">Noter</button></div></div>` : ''}
       <details class="more"><summary>${i.charge ? 'Remplacer' : 'Remplacé / nouvelle pièce'}</summary>
@@ -394,17 +464,11 @@ const Garage = (() => {
     G().log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: at, part: k, kind: 'replace', label: spec || '', price: +price || 0, supplier: supplier || '' });
   }
 
-  /* ---------- scène : 3D ou film ---------- */
+  /* ---------- scène 3D ---------- */
   let mountTok = 0;
   async function mount(){
     const el = document.getElementById('gr3d'), b = cur(); if (!el || !b) return; const tok = ++mountTok;
-    if (mode === 'film') { if (!b.film) return; Bike3D.stop();
-      try { const blob = await Media.get(b.film.id); if (!blob) throw new Error('film introuvable sur cet appareil'); const lab = el.querySelector('.gr-load');
-        const f = await BikeFilm.decode(blob, b.film.id, p => { if (lab) lab.textContent = `Préparation du film… ${Math.round(p*100)} %`; }); if (tok !== mountTok || !el.isConnected) return;
-        el.querySelector('.gr-load')?.remove(); const ctl = BikeFilm.mount(el, f); el.insertAdjacentHTML('beforeend', `<div class="gr-filmbar"><button class="btn sm" data-grfilm="0">Monter</button><button class="btn sm primary" data-grfilm="1">Éclater</button></div>`);
-        el.querySelectorAll('[data-grfilm]').forEach(x => x.onclick = () => ctl.play(x.dataset.grfilm === '1')); }
-      catch (e) { el.innerHTML = `<div class="gr-load tiny muted">${esc(e.message || e)}</div>`; }
-      return; }
+    hydrateThumbs();
     const rs = ridesOf(b), parts = allParts(b, rs), tags = {};
     for (const i of parts) { if (!tags[i.g] || i.rem < tags[i.g].rem) tags[i.g] = { k: i.k, l: i.l, rem: i.rem, charge: i.charge, col: col(i.rem), txt: (i.charge ? '🔋 ' : '') + pct(i.rem) }; }
     let glb = null;
@@ -412,16 +476,18 @@ const Garage = (() => {
     const V = variant(b), key = [b.id, b.model, V.brakes, V.speeds, b.tires?.f, b.tires?.r, glb ? b.glb.id + ':' + (b.glb.rotY || 0) + ':' + JSON.stringify(b.glb.map || {}) : 'proc'].join('|');
     try {
       const info = await Bike3D.mount(el, { key, model: b.model, variant: { ...V, tireF: b.tires?.f, tireR: b.tires?.r }, glb, exploded: explode(), allTags, tags, onTap: g => {
-        if (!explode()) { setMode('explode'); return; }
+        if (!explode()) { const z = g ? zoneOfG(g) : null; if (!zoneK || !ZONES[zoneK][1].includes(g)) { if (z) setZone(z); return; } }
         const t = tags[g]; if (t) partSheet(t.k); else Bike3D.select(null);
       } });
       if (info?.names && JSON.stringify(info.names) !== JSON.stringify(glbNames)) { glbNames = info.names; if (tab === 'bike') render(); }
+      if (zoneK && !explode() && JSON.stringify(Bike3D.zoneKeys || []) !== JSON.stringify(ZONES[zoneK][1].filter(k => info.groups.includes(k)))) Bike3D.zone(ZONES[zoneK][1]);
     } catch (e) { if (tok === mountTok) el.innerHTML = `<div class="gr-load tiny muted">3D indisponible (${esc(e.message || e)}) — tout le reste du Garage fonctionne.</div>`; }
   }
+  function setZone(z){ zoneK = z; if (mode === 'explode') { mode = 'view'; Bike3D.explode(false); } Bike3D.zone(z ? ZONES[z][1] : null); syncUI(); }
+  function syncUI(){ const sm = cur() ? summary(cur()) : null, el = document.getElementById('grZone'); if (el && sm) el.innerHTML = zoneHTML(cur(), sm); const h = document.getElementById('grHint'); if (h) h.textContent = hint(); }
   function setMode(m){
-    const was = mode; mode = m;
-    if (m === 'film' || was === 'film') { render(); return; }
-    Bike3D.explode(m === 'explode'); const st = document.querySelector('.gr-stage'); if (st) st.dataset.mode = m;
+    mode = m; if (m === 'explode' && zoneK) zoneK = null;
+    Bike3D.explode(m === 'explode'); syncUI(); const st = document.querySelector('.gr-stage'); if (st) st.dataset.mode = m;
     const v = document.getElementById('gr3d'); if (v) v.dataset.exploded = m === 'explode' ? 1 : 0; const h = document.getElementById('grHint'); if (h) h.textContent = hint();
     document.querySelectorAll('[data-gr="mode"]').forEach(x => x.classList.toggle('on', x.dataset.v === m)); const lb = document.querySelector('[data-gr="labels"]'); if (lb) lb.hidden = m !== 'explode';
   }
@@ -439,7 +505,10 @@ const Garage = (() => {
     if (a === 'mode') setMode(x.dataset.v);
     else if (a === 'tab') { tab = x.dataset.v; render(); document.querySelector('.gr-tabs')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
     else if (a === 'per') { spendP = x.dataset.v; render(); }
-    else if (a === 'reset3d') Bike3D.resetView();
+    else if (a === 'reset3d') { zoneK = null; Bike3D.resetView(); syncUI(); }
+    else if (a === 'zoom') Bike3D.zoom(x.dataset.v === 'in' ? .8 : 1.25);
+    else if (a === 'zone') setZone(x.dataset.v);
+    else if (a === 'zoneoff') setZone(null);
     else if (a === 'labels') { allTags = !allTags; Bike3D.labels(allTags); x.classList.toggle('on', allTags); x.setAttribute('aria-pressed', allTags); }
     else if (a === 'part') { if (x.dataset.k) partSheet(x.dataset.k); else { tab = 'care'; render(); } }
     else if (a === 'care') { const k = x.dataset.k; if (k === 'check') { partSheet('chain'); setTimeout(() => document.getElementById('grMeas')?.focus(), 60); return; }
@@ -447,8 +516,8 @@ const Garage = (() => {
     else if (a === 'measure') { const v = parseFloat(String($('#grMeas')?.value || '').replace(',', '.')); if (!(v >= 0 && v <= 1.5)) return toast('Mesure entre 0 et 1,5 %');
       g.log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: todayISO(), part: 'chain', kind: 'check', label: '', price: 0, value: v }); refreshSheet('chain'); toast(v >= (variant(b).speeds === 12 ? .5 : .75) ? 'Chaîne à changer' : 'Mesure enregistrée'); }
     else if (a === 'inspect') { const v = +$('#grInsp')?.value; g.log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: todayISO(), part: x.dataset.k, kind: P(x.dataset.k).basis === 'inspect' ? 'service' : 'inspect', label: '', price: 0, value: P(x.dataset.k).basis === 'inspect' ? null : v }); refreshSheet(x.dataset.k); toast('Inspection notée'); }
-    else if (a === 'charge') { g.log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: todayISO(), part: x.dataset.k, kind: 'charge', label: '', price: 0, value: 100 }); refreshSheet(x.dataset.k); toast('Rechargé 🔋'); }
-    else if (a === 'level') { const v = +$('#grLvl')?.value; if (!(v >= 0 && v <= 100)) return toast('Niveau entre 0 et 100 %'); g.log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: todayISO(), part: x.dataset.k, kind: 'charge', label: 'niveau lu', price: 0, value: v }); refreshSheet(x.dataset.k); toast('Niveau enregistré'); }
+    else if (a === 'charge') { const d = $('#grChD')?.value || todayISO(), lv = $('#grLvl')?.value, v = lv === '' || lv == null ? 100 : +lv; if (!(v >= 0 && v <= 100)) return toast('Niveau entre 0 et 100 %'); if (d > todayISO()) return toast('Date dans le futur');
+      g.log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: d, part: x.dataset.k, kind: 'charge', label: v < 100 ? 'niveau lu' : '', price: 0, value: v }); refreshSheet(x.dataset.k); toast(`Recharge du ${fmtShort(d)} enregistrée 🔋`); }
     else if (a === 'replace') { const k = x.dataset.k; setPart(b, k, $('#grRepD')?.value || todayISO(), $('#grRepS')?.value.trim(), $('#grRepP')?.value, $('#grRepF')?.value.trim()); refreshSheet(k); toast(`${P(k).l} : compteur remis à zéro`); }
     else if (a === 'life') { const v = +$('#grLife')?.value; if (!(v > 0)) return; b.parts ||= {}; b.parts[x.dataset.k] = { ...(b.parts[x.dataset.k] || {}), life: v }; refreshSheet(x.dataset.k); toast('Seuil mis à jour'); }
     else if (a === 'log') logDlg();
@@ -461,14 +530,20 @@ const Garage = (() => {
     else if (a === 'logdel') { g.log = g.log.filter(y => y.id !== x.dataset.id); done('Supprimé'); }
     else if (a === 'main') { g.bikes = [b, ...g.bikes.filter(y => y !== b)]; done('Vélo principal'); }
     else if (a === 'del') { if (!confirm(`Supprimer « ${b.name} » et son carnet ?`)) return; g.bikes = g.bikes.filter(y => y !== b); g.log = g.log.filter(y => y.bikeId !== b.id); for (const r in g.assign) if (g.assign[r] === b.id) delete g.assign[r];
-      if (b.glb) Media.del(b.glb.id); if (b.film) Media.del(b.film.id); g.sel = g.bikes[0]?.id; mode = 'view'; done('Vélo supprimé'); }
+      if (b.glb) Media.del(b.glb.id); if (b.fit?.file) Media.del(b.fit.file.id); g.sel = g.bikes[0]?.id; mode = 'view'; done('Vélo supprimé'); }
     else if (a === 'glbimp') { const f = await pickFile('.glb,model/gltf-binary', 50*1048576); if (!f) return; const id = 'glb-' + rid(); toast('Import du modèle 3D…');
       const cloud = await Media.put(id, f); if (b.glb) Media.del(b.glb.id); b.glb = { id, name: f.name.replace(/\.glb$/i, ''), size: f.size, rotY: 0, map: {} }; glbNames = null; mode = 'view'; done(cloud ? 'Modèle 3D importé et sauvegardé' : 'Modèle 3D importé sur cet appareil'); }
+    else if (a === 'fitimp') { const f = await pickFile('.pdf,application/pdf,image/*', 20*1048576); if (!f) return; toast('Lecture de l\'étude…');
+      let r; try { r = await readFit(f); } catch (e) { return toast('Étude illisible : ' + (e.message || e)); }
+      const id = 'fit-' + rid(), tid = 'fitthumb-' + rid(); const cloud = await Media.put(id, f); if (r.thumb) await Media.put(tid, r.thumb);
+      if (b.fit?.file) Media.del(b.fit.file.id); if (b.fit?.thumbId) Media.del(b.fit.thumbId);
+      const n = Object.keys(r.v).length; b.fit = { date: r.date || todayISO(), src: r.src, title: r.title, v: { ...(n ? {} : b.fit?.v || {}), ...r.v }, file: { id, name: f.name, type: f.type || '' }, thumbId: r.thumb ? tid : null };
+      tab = 'fit'; done(n ? `Étude chargée : ${n} cotes lues${cloud ? '' : ' (sur cet appareil)'}` : 'Étude chargée : saisis les cotes à la main'); }
+    else if (a === 'fitnew') { b.fit = { date: todayISO(), src: '', v: {} }; save(); render(); }
+    else if (a === 'fitopen') { const bl = b.fit?.file ? await Media.get(b.fit.file.id) : null; if (!bl) return toast('Fichier introuvable sur cet appareil'); const u = URL.createObjectURL(bl); window.open(u, '_blank') || (location.href = u); }
+    else if (a === 'fitdel') { if (!confirm('Supprimer l\'étude posturale de ce vélo ?')) return; if (b.fit?.file) Media.del(b.fit.file.id); if (b.fit?.thumbId) Media.del(b.fit.thumbId); delete b.fit; done('Étude supprimée'); }
     else if (a === 'glbrot') { b.glb.rotY = ((b.glb.rotY || 0) + 90) % 360; save(); render(); }
     else if (a === 'glbdel') { Media.del(b.glb.id); delete b.glb; glbNames = null; done('Retour à la maquette générique'); }
-    else if (a === 'filmimp') { const f = await pickFile('video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm', 50*1048576); if (!f) return; const id = 'film-' + rid(); toast('Import du film…');
-      const cloud = await Media.put(id, f); if (b.film) Media.del(b.film.id); b.film = { id, name: f.name, size: f.size }; mode = 'film'; done(cloud ? 'Film importé et sauvegardé' : 'Film importé sur cet appareil'); }
-    else if (a === 'filmdel') { Media.del(b.film.id); delete b.film; if (mode === 'film') mode = 'view'; done('Film retiré'); }
   });
   const setPath = (o, p, v) => { const ks = p.split('.'); let t = o; for (const k of ks.slice(0, -1)) t = (t[k] ||= {}); t[ks[ks.length - 1]] = v; };
   document.addEventListener('change', e => {
@@ -477,7 +552,8 @@ const Garage = (() => {
     if (t.dataset.grcond != null) { if (t.value === 'dry') delete g.cond[t.dataset.grcond]; else g.cond[t.dataset.grcond] = t.value; save(); render(); return; }
     if (t.dataset.grgear != null) { const id = t.dataset.grgear; b.gearIds = (b.gearIds || []).filter(x => x !== id); if (t.checked) { for (const o of g.bikes) o.gearIds = (o.gearIds || []).filter(x => x !== id); b.gearIds.push(id); } save(); render(); return; }
     if (t.dataset.grmap != null) { b.glb.map ||= {}; if (t.value) b.glb.map[t.dataset.grmap] = t.value; else delete b.glb.map[t.dataset.grmap]; save(); render(); return; }
-    if (t.dataset.grv) { const k = t.dataset.grv; b.variant ||= {}; b.variant[k] = t.type === 'checkbox' ? t.checked : k === 'speeds' ? +t.value : t.value; save(); render(); return; }
+    if (t.dataset.grv) { const k = t.dataset.grv; b.variant ||= {}; b.variant[k] = t.type === 'checkbox' ? t.checked : k === 'speeds' ? +t.value : t.value; if (k === 'group' && t.value === 'axs') b.variant.speeds = 12; save(); render(); return; }
+    if (t.dataset.grfit) { b.fit ||= { v: {} }; b.fit.v ||= {}; const v = t.value.trim(); if (v) b.fit.v[t.dataset.grfit] = v; else delete b.fit.v[t.dataset.grfit]; if (!b.fit.date) b.fit.date = todayISO(); save(); render(); return; }
     if (t.dataset.grt) { const k = t.dataset.grt; b.tires ||= {}; const v = t.type === 'checkbox' ? t.checked : t.type === 'number' ? (t.value === '' ? null : +String(t.value).replace(',', '.')) : t.value;
       if (k.startsWith('silca.')) { b.tires.silca ||= {}; b.tires.silca[k.slice(6)] = v; b.tires.silca.date = todayISO(); } else b.tires[k] = v; save(); render(); return; }
     if (t.dataset.grb) { const k = t.dataset.grb, v = t.type === 'checkbox' ? t.checked : t.type === 'number' ? (t.value === '' ? null : Math.max(0, +t.value || 0)) : t.value;
@@ -487,6 +563,6 @@ const Garage = (() => {
       else setPath(b, k, typeof v === 'string' && k !== 'since' && k !== 'purchased' ? v.trim() : v);
       save(); render(); }
   });
-  return { tileHTML, pane, mount, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet,
+  return { tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet,
     wipeLocal: () => Media.wipe(), get mode(){ return mode; }, get explode(){ return explode(); } };
 })();
