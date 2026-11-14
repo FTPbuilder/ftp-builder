@@ -46,17 +46,19 @@ await wz('pick', 'ca-chorus:meca:disc'); await pg.waitForTimeout(300);
 const r2 = await ev(() => { const b = S.garage.bikes[0], P = Garage.allParts(b).map(p => p.k); return { name: b.modelName, gs: b.groupset, di2: P.includes('di2'), coin: P.includes('coin') }; });
 assert(r2.name === '765 Optimum' && r2.gs === 'ca-chorus:meca:disc' && !r2.di2 && !r2.coin, 'cadre et groupe changés, plus d\'électronique à suivre');
 // facture PDF → nouveau vélo Scott Addict RC + Ultegra Di2 12 v + achat
-const pdf = (() => { const lines = ['FACTURE N 2023-0412', 'Cycles Dupont - Paris', 'Date : 12/03/2023', 'Velo SCOTT Addict RC 20 2023 taille M', 'Groupe Shimano Ultegra Di2 R8170 12v disc', 'Total TTC 4 999,00 EUR'];
+const mkPdf = lines => {
   const stream = 'BT /F1 12 Tf 50 750 Td 16 TL ' + lines.map(l => `(${l}) Tj T*`).join(' ') + ' ET';
   const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
     `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
   let s = '%PDF-1.4\n'; const off = []; objs.forEach((o, i) => { off.push(s.length); s += `${i + 1} 0 obj\n${o}\nendobj\n`; });
   const x = s.length; s += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + off.map(o => String(o).padStart(10, '0') + ' 00000 n \n').join('') + `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF`;
-  return Buffer.from(s, 'latin1'); })();
+  return Buffer.from(s, 'latin1'); };
+const pdf = mkPdf(['FACTURE N 2023-0412', 'Cycles Dupont - Paris', 'Date : 12/03/2023', 'Velo SCOTT Addict RC 20 2023 taille M', 'Groupe Shimano Ultegra Di2 R8170 12v disc', 'Total TTC 4 999,00 EUR']);
 await pg.tap('[data-gr="addask"]'); await pg.waitForTimeout(150);
 const fc = pg.waitForEvent('filechooser'); await wz('inv'); (await fc).setFiles({ name: 'facture.pdf', mimeType: 'application/pdf', buffer: pdf });
 await pg.waitForSelector('text=Facture lue', { timeout: 15000 });
 const conf = await sheet(); console.log('FACTURE:', conf.replace(/\n+/g, ' | '));
+assert(/texte lu sur la facture/i.test(conf), 'texte lu consultable');
 assert(/Scott Addict RC/.test(conf) && /Ultegra Di2 12 v/.test(conf) && /12 mars 2023/.test(conf) && /4\s?999/.test(conf), 'facture lue : cadre, groupe, date, montant');
 await pg.screenshot({ path: out + '/catalogue-facture.png' });
 await pg.tap('[data-wz="pick"]'); await pg.waitForTimeout(400);
@@ -64,4 +66,10 @@ const r3 = await ev(() => { const g = S.garage, b = g.bikes.find(x => x.frame?.k
 console.log(JSON.stringify(r3));
 assert(r3 && r3.gs === 'sh-ult-12:elec:disc' && r3.purchased === '2023-03-12' && r3.buy === 4999 && r3.n === 2, 'vélo créé depuis la facture, avec son achat');
 assert(r3 && !r3.rule.out && !r3.rule.ht, '2e vélo : ne prend pas les sorties du premier sans qu\'on le coche');
+// facture scannée (aucun texte) : message clair, choix à la main
+await pg.tap('[data-gr="addask"]'); await pg.waitForTimeout(150);
+const fc2 = pg.waitForEvent('filechooser'); await wz('inv'); (await fc2).setFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: mkPdf([]) });
+await pg.waitForSelector('text=Facture lue', { timeout: 15000 });
+const sc = await sheet(); assert(/image/.test(sc) && /à la main/i.test(sc) && !/Créer ce vélo/.test(sc), 'PDF scanné : message clair, pas de création à l\'aveugle');
+await wz('fix'); assert(await pg.locator('[data-wz="frame"]').count() === 11, '« Choisir à la main » ramène au catalogue');
 console.log(ok && !errs.length ? 'OK' : 'ÉCHEC', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);

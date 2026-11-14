@@ -492,7 +492,8 @@ const Garage = (() => {
       ${genOf()?.elecOnly ? '<p class="tiny muted">Ce cadre ne prévoit que les transmissions électroniques.</p>' : ''}`;
     else if (wz.step === 'confirm') { const i = wz.inv, gx = i.group ? BIKE_CAT.groupOf(i.group) : null;
       h = `<h3>Facture lue</h3><div class="gr-sec small">${[fr ? `🚲 <b>${esc(fr.f.brand)} ${esc(fr.f.model)}</b> · ${esc(fr.g.l)}` : '🚲 Cadre non reconnu', gx ? `⚙️ <b>${esc(gx.name)}</b> · ${esc(gx.v.l)}` : '⚙️ Transmission non reconnue', i.date ? `📅 Acheté le ${dfr(i.date)}` : '', i.price ? `💶 ${n0(i.price)} €` : ''].filter(Boolean).map(x => `<div style="margin:4px 0">${x}</div>`).join('')}</div>
-        <p class="tiny muted">Vérifie : la lecture repère les noms de modèles et de groupes, elle peut se tromper.</p>
+        ${i.scan ? '<p class="note warn small">Ce PDF est une image (facture scannée ou photo) : il ne contient pas de texte à lire. Choisis ton vélo à la main.</p>' : `<p class="tiny muted">Vérifie : la lecture repère les noms de modèles et de groupes, elle peut se tromper.</p>
+        <details><summary class="tiny" style="cursor:pointer;color:var(--accent)">Texte lu sur la facture</summary><pre class="tiny" style="white-space:pre-wrap;max-height:160px;overflow:auto;margin:6px 0">${esc((i.raw || '').slice(0, 600))}</pre></details>`}
         <div class="row" style="gap:8px">${fr && gx ? `<button class="btn primary" data-wz="pick" data-v="${esc(i.group)}">${wz.mode === 'add' ? 'Créer ce vélo' : 'Appliquer'}</button>` : ''}<button class="btn" data-wz="fix">${fr && gx ? 'Corriger' : 'Choisir à la main'}</button></div>`; }
     el.innerHTML = `<div class="gr-sh gr-wz"><button class="x" data-grclose aria-label="Fermer">×</button>${crumbs.length && !['frame', 'confirm'].includes(wz.step) ? `<div class="row tiny" style="gap:6px;flex-wrap:wrap;margin:0 0 8px">${crumbs.map(([l, s]) => `<button class="gr-chip" data-wz="back" data-v="${s}">${esc(l)} ✎</button>`).join('')}</div>` : ''}${h}</div>`;
     el.onclick = wzClick; if (!el.open) el.showModal();
@@ -513,8 +514,15 @@ const Garage = (() => {
     wzRender();
   }
   async function wzInvoice(){
-    const f = await pickFile('.pdf,application/pdf', 20*1048576); if (!f) return; toast('Lecture de la facture…');
-    let r; try { r = BIKE_CAT.parseInvoice(await BIKE_CAT.pdfText(f, loadPdf)); } catch (e) { return toast('Facture illisible : ' + (e.message || e)); }
+    const f = await pickFile('.pdf,application/pdf', 20*1048576); if (!f) return;
+    if (!/pdf/i.test(f.type) && !/\.pdf$/i.test(f.name)) return toast('Choisis un fichier PDF');
+    toast('Lecture de la facture…');
+    let r, txt = '';
+    try {
+      const lib = () => Promise.race([loadPdf(), new Promise((_, ko) => setTimeout(() => ko(new Error('le lecteur PDF ne répond pas (connexion ?)')), 20000))]);
+      txt = await BIKE_CAT.pdfText(f, lib); r = BIKE_CAT.parseInvoice(txt);
+    } catch (e) { Errors.report(e, 'facture PDF'); return toast('Facture illisible : ' + (e.message || e)); }
+    r.scan = txt.replace(/\s+/g, '').length < 20; // PDF scanné : une image, aucun texte à lire
     wz.inv = r; wz.fk = r.frame; wz.gk = r.gen || (r.frame ? BIKE_CAT.frameOf(r.frame)?.g.k : null); wz.step = 'confirm'; wzRender();
   }
   // applique le cadre et le groupe choisis (création ou modification)
@@ -590,7 +598,10 @@ const Garage = (() => {
     const v = document.getElementById('gr3d'); if (v) v.dataset.exploded = m === 'explode' ? 1 : 0; const h = document.getElementById('grHint'); if (h) h.textContent = hint();
     document.querySelectorAll('[data-gr="mode"]').forEach(x => x.classList.toggle('on', x.dataset.v === m)); const lb = document.querySelector('[data-gr="labels"]'); if (lb) lb.hidden = m !== 'explode';
   }
-  function pickFile(accept, max){ return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => { const f = i.files?.[0]; if (f && f.size > max) { toast(`Fichier trop lourd (${f1(f.size/1048576)} Mo, max ${Math.round(max/1048576)} Mo)`); ok(null); } else ok(f || null); }; i.click(); }); }
+  // le champ fichier est posé dans la page (dans la feuille ouverte s'il y en a une) : Safari iOS ignore parfois un champ détaché ou hors de la fenêtre modale
+  function pickFile(accept, max){ return new Promise(ok => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.style.cssText = 'position:fixed;left:-9999px;width:1px;height:1px;opacity:0';
+    const host = document.querySelector('dialog[open]') || document.body; host.appendChild(i); setTimeout(() => i.remove(), 120000);
+    i.onchange = () => { i.remove(); const f = i.files?.[0]; if (f && f.size > max) { toast(`Fichier trop lourd (${f1(f.size/1048576)} Mo, max ${Math.round(max/1048576)} Mo)`); ok(null); } else ok(f || null); }; i.click(); }); }
 
   /* ---------- événements ---------- */
   const done = (msg, keep) => { save(); if (!keep) closeSheet(); render(); if (msg) toast(msg); };
