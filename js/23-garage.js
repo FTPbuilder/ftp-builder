@@ -89,11 +89,12 @@ const Garage = (() => {
     return out.sort((x, y) => (y.date.localeCompare(x.date)) || (y.ts - x.ts));
   }
   const kindOf = r => r.ht ? 'ht' : r.taf ? 'taf' : 'out';
+  const activeOn = (b, d) => !b.retired || d <= b.retired.date; // un vélo vendu / volé / réformé ne reçoit plus de sorties après cette date
   function bikeIdOf(r){
     const g = G(), o = g.assign[r.ref];
     if (o) return o === 'none' || !g.bikes.some(b => b.id === o) ? null : o;
-    if (r.gear) { const b = g.bikes.find(b => b.gearIds?.includes(r.gear)); if (b) return b.id; if (g.bikes.some(b => b.gearIds?.length)) { const free = g.bikes.find(b => !b.gearIds?.length && r.date >= (b.since || '0000') && b.rule?.[kindOf(r)]); return free ? free.id : null; } }
-    const b = g.bikes.find(b => r.date >= (b.since || '0000') && b.rule?.[kindOf(r)]);
+    if (r.gear) { const b = g.bikes.find(b => b.gearIds?.includes(r.gear) && activeOn(b, r.date)); if (b) return b.id; if (g.bikes.some(b => b.gearIds?.length)) { const free = g.bikes.find(b => !b.gearIds?.length && r.date >= (b.since || '0000') && activeOn(b, r.date) && b.rule?.[kindOf(r)]); return free ? free.id : null; } }
+    const b = g.bikes.find(b => r.date >= (b.since || '0000') && activeOn(b, r.date) && b.rule?.[kindOf(r)]);
     return b ? b.id : null;
   }
   const ridesOf = (b, all = rides()) => all.filter(r => bikeIdOf(r) === b.id);
@@ -202,7 +203,8 @@ const Garage = (() => {
     return { id: rid(), name: m === 'road' ? M.name : 'Vélo de tri', brand: M.brand, modelName: M.name, year: null, purchased: null, model: m, variant: {}, since: first, km0: { road: 0, ht: 0 },
       rule: { out: true, ht: true, taf: false }, gearIds: [], trainer: 'direct', tires: { ...M.tires, setup: 'tube', surface: 'worn', hookless: false }, parts: {}, added: todayISO() };
   }
-  const cur = () => { const g = G(); return g.bikes.find(b => b.id === g.sel) || g.bikes[0] || null; };
+  const cur = () => { const g = G(); return g.bikes.find(b => b.id === g.sel) || g.bikes.find(b => !b.retired) || g.bikes[0] || null; };
+  const RETIRE = { sold: ['🤝', 'Vendu'], stolen: ['🚨', 'Volé'], broken: ['💥', 'Cassé / réformé'], given: ['🎁', 'Donné'], other: ['📦', 'Autre'] };
   let mode = 'view', tab = 'parts', spendP = '365', sheetKey = null, allTags = false, zoneK = null;
   // zones du vélo : un toucher sur la maquette montée rapproche la caméra de la zone et en détaille les pièces
   const ZONES = { trans: ['Transmission', ['chain', 'cassette', 'crank', 'rd', 'fd', 'bb']], rear: ['Roue arrière', ['wheelR', 'tireR', 'cassette']], front: ['Roue avant', ['wheelF', 'tireF', 'fork']],
@@ -240,7 +242,8 @@ const Garage = (() => {
       <div class="gr-pick">${['aeroad-cfsl', 'aeroad-cfr', 'road'].map(m => `<button class="btn${m === 'aeroad-cfsl' ? ' primary' : ''}" data-gr="add" data-m="${m}">+ ${esc([MODELS[m].brand, MODELS[m].name].filter(Boolean).join(' '))}</button>`).join('')}</div></div></div>`;
     const rs = ridesOf(b), s = stats(b, rs), sm = summary(b, rs), M = model(b), glb = !!b.glb;
     const split = s.total ? s.road/s.total : 1;
-    let h = `<div class="pane-in gr">${head('Garage')}<div class="seg gr-bikes">${g.bikes.map(x => `<button type="button" class="${x.id === b.id ? 'on' : ''}" data-gr="sel" data-id="${x.id}">${esc(x.name)}</button>`).join('')}<button type="button" data-gr="addask" aria-label="Ajouter un vélo">+</button></div>
+    let h = `<div class="pane-in gr">${head('Garage')}<div class="seg gr-bikes">${[...g.bikes.filter(x => !x.retired), ...g.bikes.filter(x => x.retired)].map(x => `<button type="button" class="${x.id === b.id ? 'on' : ''}${x.retired ? ' gr-old' : ''}" data-gr="sel" data-id="${x.id}"${x.retired ? ` title="${esc(RETIRE[x.retired.reason]?.[1] || 'Ancien vélo')}"` : ''}>${x.retired ? RETIRE[x.retired.reason]?.[0] + ' ' : ''}${esc(x.name)}</button>`).join('')}<button type="button" data-gr="addask" aria-label="Ajouter un vélo">+</button></div>
+      ${b.retired ? `<div class="note warn" style="margin:0 0 10px">${RETIRE[b.retired.reason]?.[0] || '📦'} <b>${esc(RETIRE[b.retired.reason]?.[1] || 'Ancien vélo')}</b> le ${dfr(b.retired.date)}${b.retired.price ? ` · ${n0(b.retired.price)} €` : ''}${b.retired.note ? ` · ${esc(b.retired.note)}` : ''}. Son carnet est conservé, il ne reçoit plus de sorties après cette date.<div class="row" style="gap:6px;margin-top:8px"><button class="btn sm" data-gr="unretire">Je l'ai encore</button></div></div>` : ''}
       <section class="gr-stage" data-mode="${mode}">
         <div class="gr-hud"><div><div class="gr-name">${esc(b.name)}</div><div class="tiny muted">${esc([b.brand, b.modelName, b.year].filter(Boolean).join(' · '))}</div></div>
           <div class="gr-odo"><b class="num">${n0(s.total)}</b><small>km</small><span class="gr-split" title="Route ${n0(s.road)} km · Home trainer ${n0(s.ht)} km"><i style="width:${split*100}%"></i></span><span class="tiny muted">${n0(s.road)} route · ${n0(s.ht)} HT</span></div></div>
@@ -334,7 +337,9 @@ const Garage = (() => {
       <div class="gr-sec"><h3>Maquette 3D</h3>${b.glb ? `<div class="row between"><span class="small">🧩 ${esc(b.glb.name)} · ${f1((b.glb.size || 0)/1048576)} Mo</span><span class="row" style="gap:6px"><button class="btn sm" data-gr="glbrot">↻ 90°</button><button class="btn sm danger" data-gr="glbdel">Retirer</button></span></div>${glbMapHTML(b)}`
         : `<p class="tiny muted" style="margin:0 0 8px">Pour une maquette fidèle (formes, couleurs, marquages), importe un vrai modèle 3D .glb de ton vélo : acheté sur un site de modèles 3D (vérifie la licence), généré à partir de tes photos (Hyper3D Rodin, Meshy, Tripo, Hunyuan3D…), ou modélisé dans Blender. Nomme ses objets (chain, cassette, fork, front tire…) pour qu'ils deviennent sélectionnables et s'éclatent ; sinon règle-les ici après l'import.</p>`}
         <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm${b.glb ? '' : ' primary'}" data-gr="glbimp">${b.glb ? 'Remplacer le .glb' : 'Importer un .glb'}</button></div></div>
-      <div class="row between gr-sec">${g.bikes[0]?.id !== b.id ? '<button class="btn sm" data-gr="main">Vélo principal</button>' : '<span class="tiny muted">Vélo principal</span>'}<button class="btn sm danger" data-gr="del">Supprimer ce vélo</button></div>`;
+      <div class="gr-sec"><h3>Ce vélo</h3>${b.retired ? '' : `<div class="row between">${g.bikes[0]?.id !== b.id ? '<button class="btn sm" data-gr="main">Vélo principal</button>' : '<span class="tiny muted">Vélo principal</span>'}<button class="btn sm" data-gr="retire">Je n'ai plus ce vélo</button></div>
+        <p class="tiny muted" style="margin:6px 0 10px">Vendu, volé, cassé ou donné : le vélo passe dans tes anciens vélos avec ses km et son carnet, et ne reçoit plus de sorties.</p>`}
+        <div class="row between"><span class="tiny muted">Effacer le vélo, son carnet, sa maquette et son étude posturale.</span><button class="btn sm danger" data-gr="del">Supprimer</button></div></div>`;
   }
   let glbNames = null;
   function glbMapHTML(b){
@@ -457,6 +462,16 @@ const Garage = (() => {
       <p class="tiny muted" style="margin-top:10px">Un 2e vélo (vélotaf…) ne reçoit que les sorties que tu lui attribues : ses km ne se mélangent jamais à ceux du vélo de tri.</p></div>`;
     if (!el.open) el.showModal();
   }
+  function retireDlg(b){
+    const el = sheetEl(); el.innerHTML = `<div class="gr-sh"><button class="x" data-grclose aria-label="Fermer">×</button><h3>Je n'ai plus « ${esc(b.name)} »</h3>
+      <div class="seg" id="grRtR" style="flex-wrap:wrap">${Object.entries(RETIRE).map(([k, [i, l]], n) => `<button type="button" data-v="${k}" class="${n ? '' : 'on'}">${i} ${l}</button>`).join('')}</div>
+      <div class="gr-grid"><div><label class="f" for="grRtD">Depuis le</label><input type="date" id="grRtD" value="${todayISO()}" max="${todayISO()}"></div><div><label class="f" for="grRtP">Prix de vente (€, facultatif)</label><input type="number" id="grRtP" min="0" inputmode="numeric"></div></div>
+      <label class="f" for="grRtN">Note (facultatif)</label><input type="text" id="grRtN" maxlength="80" placeholder="Acheteur, n° de plainte, assurance…">
+      <p class="tiny muted">Les sorties d'après cette date iront sur tes autres vélos. Tu pourras annuler avec « Je l'ai encore ».</p>
+      <button class="btn primary" data-gr="retireok" style="width:100%;margin-top:6px">Confirmer</button></div>`;
+    el.querySelector('#grRtR').onclick = e => { const t = e.target.closest('button'); if (!t) return; el.querySelectorAll('#grRtR button').forEach(x => x.classList.toggle('on', x === t)); };
+    if (!el.open) el.showModal();
+  }
   const KIND = { replace: ['🔧', 'Remplacement'], buy: ['🛒', 'Achat'], inspect: ['🔍', 'Inspection'], check: ['📏', 'Mesure de chaîne'], charge: ["🔋", "Recharge / niveau lu"], lube: ['💧', 'Lubrification'],
     degrease: ['🧴', 'Dégraissage'], clean: ['🧽', 'Nettoyage transmission'], jockey: ['⚙️', 'Inspection des galets'], wipe: ['🧻', 'Sueur essuyée'], service: ['🛠️', 'Révision / contrôle'] };
   function setPart(b, k, at, spec, price, supplier){
@@ -529,7 +544,13 @@ const Garage = (() => {
       done('Enregistré'); }
     else if (a === 'logdel') { g.log = g.log.filter(y => y.id !== x.dataset.id); done('Supprimé'); }
     else if (a === 'main') { g.bikes = [b, ...g.bikes.filter(y => y !== b)]; done('Vélo principal'); }
-    else if (a === 'del') { if (!confirm(`Supprimer « ${b.name} » et son carnet ?`)) return; g.bikes = g.bikes.filter(y => y !== b); g.log = g.log.filter(y => y.bikeId !== b.id); for (const r in g.assign) if (g.assign[r] === b.id) delete g.assign[r];
+    else if (a === 'retire') retireDlg(b);
+    else if (a === 'retireok') { const d = $('#grRtD').value || todayISO(); if (d > todayISO()) return toast('Date dans le futur');
+      const reason = document.querySelector('#grRtR button.on')?.dataset.v || 'other', price = +String($('#grRtP').value || '').replace(',', '.') || 0, note = $('#grRtN').value.trim();
+      b.retired = { date: d, reason, ...(price ? { price } : {}), ...(note ? { note } : {}) };
+      g.sel = g.bikes.find(y => !y.retired)?.id || b.id; mode = 'view'; closeSheet(); done(`${RETIRE[reason][0]} « ${b.name} » rangé dans tes anciens vélos`); }
+    else if (a === 'unretire') { delete b.retired; done(`« ${b.name} » est de retour au garage`); }
+    else if (a === 'del') { if (!confirm(`Supprimer définitivement « ${b.name} », son carnet, sa maquette et son étude posturale ?${b.retired ? '' : "\n\nSi tu l'as vendu ou perdu, « Je n'ai plus ce vélo » garde son historique."}`)) return; g.bikes = g.bikes.filter(y => y !== b); g.log = g.log.filter(y => y.bikeId !== b.id); for (const r in g.assign) if (g.assign[r] === b.id) delete g.assign[r];
       if (b.glb) Media.del(b.glb.id); if (b.fit?.file) Media.del(b.fit.file.id); g.sel = g.bikes[0]?.id; mode = 'view'; done('Vélo supprimé'); }
     else if (a === 'glbimp') { const f = await pickFile('.glb,model/gltf-binary', 50*1048576); if (!f) return; const id = 'glb-' + rid(); toast('Import du modèle 3D…');
       const cloud = await Media.put(id, f); if (b.glb) Media.del(b.glb.id); b.glb = { id, name: f.name.replace(/\.glb$/i, ''), size: f.size, rotY: 0, map: {} }; glbNames = null; mode = 'view'; done(cloud ? 'Modèle 3D importé et sauvegardé' : 'Modèle 3D importé sur cet appareil'); }
