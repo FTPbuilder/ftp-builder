@@ -554,6 +554,8 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 .gr-sh h3{font:italic 900 26px/1 "Barlow Condensed","Arial Narrow",sans-serif;text-transform:uppercase;margin:2px 0 4px}.gr-sh h4{margin:16px 0 4px;font-size:13px}
 .gr-shot{display:block;width:calc(100% + 36px);margin:-18px -18px 10px;height:190px;object-fit:contain;background:radial-gradient(90% 90% at 50% 45%,#2a2e37,#121418);border-radius:22px 22px 0 0}
 .gr-cat0{text-transform:uppercase;letter-spacing:.08em}
+.gr-wzg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}.gr-wzb{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:10px 12px;white-space:normal}.gr-wzb .tiny{font-weight:400}
+.gr-catl{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}.gr-catl>div{display:flex;flex-direction:column;min-width:0}
 .gr-sib{display:flex;gap:4px;margin:8px 0 0}.gr-sib button{border:1px solid var(--line);background:var(--bg2);color:var(--text);border-radius:999px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}.gr-sib button.on{border-color:var(--accent)}
 .gr-big{display:flex;align-items:baseline;gap:8px;margin:14px 0 6px}.gr-big .num{font:italic 900 48px/1 "Barlow Condensed","Arial Narrow",sans-serif}
 .gr-sh .gr-bar{width:100%;height:8px}.gr-sh .gr-bar.bat{height:16px}
@@ -674,31 +676,32 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.40.1';</script>
-<script src="js/00-schema.js?v=0.40.1"></script>
-<script src="js/01-core.js?v=0.40.1"></script>
-<script src="js/02-plan.js?v=0.40.1"></script>
-<script src="js/03-fit-metrics.js?v=0.40.1"></script>
-<script src="js/04-fit-write-coach.js?v=0.40.1"></script>
-<script src="js/05-charts.js?v=0.40.1"></script>
-<script src="js/06-render.js?v=0.40.1"></script>
-<script src="js/07-health-import.js?v=0.40.1"></script>
-<script src="js/08-explain-challenges.js?v=0.40.1"></script>
-<script src="js/09-mobility.js?v=0.40.1"></script>
-<script src="js/10-test-absences.js?v=0.40.1"></script>
-<script src="js/11-session-chart.js?v=0.40.1"></script>
-<script src="js/12-tracks.js?v=0.40.1"></script>
-<script src="js/13-climbs.js?v=0.40.1"></script>
-<script src="js/14-adjust.js?v=0.40.1"></script>
-<script src="js/15-dialogs.js?v=0.40.1"></script>
-<script src="js/16-clicks.js?v=0.40.1"></script>
-<script src="js/17-cloud.js?v=0.40.1"></script>
-<script src="js/18-social.js?v=0.40.1"></script>
-<script src="js/19-onboarding.js?v=0.40.1"></script>
-<script src="js/20-health-shortcut.js?v=0.40.1"></script>
-<script src="js/21-library.js?v=0.40.1"></script>
-<script src="js/22-bike3d.js?v=0.40.1"></script>
-<script src="js/23-garage.js?v=0.40.1"></script>
-<script src="js/24-boot.js?v=0.40.1"></script>
+<script>"use strict"; const APP_VERSION = '0.41.0';</script>
+<script src="js/00-schema.js?v=0.41.0"></script>
+<script src="js/01-core.js?v=0.41.0"></script>
+<script src="js/02-plan.js?v=0.41.0"></script>
+<script src="js/03-fit-metrics.js?v=0.41.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.41.0"></script>
+<script src="js/05-charts.js?v=0.41.0"></script>
+<script src="js/06-render.js?v=0.41.0"></script>
+<script src="js/07-health-import.js?v=0.41.0"></script>
+<script src="js/08-explain-challenges.js?v=0.41.0"></script>
+<script src="js/09-mobility.js?v=0.41.0"></script>
+<script src="js/10-test-absences.js?v=0.41.0"></script>
+<script src="js/11-session-chart.js?v=0.41.0"></script>
+<script src="js/12-tracks.js?v=0.41.0"></script>
+<script src="js/13-climbs.js?v=0.41.0"></script>
+<script src="js/14-adjust.js?v=0.41.0"></script>
+<script src="js/15-dialogs.js?v=0.41.0"></script>
+<script src="js/16-clicks.js?v=0.41.0"></script>
+<script src="js/17-cloud.js?v=0.41.0"></script>
+<script src="js/18-social.js?v=0.41.0"></script>
+<script src="js/19-onboarding.js?v=0.41.0"></script>
+<script src="js/20-health-shortcut.js?v=0.41.0"></script>
+<script src="js/21-library.js?v=0.41.0"></script>
+<script src="js/22-bike3d.js?v=0.41.0"></script>
+<script src="js/23-garage-catalog.js?v=0.41.0"></script>
+<script src="js/23-garage.js?v=0.41.0"></script>
+<script src="js/24-boot.js?v=0.41.0"></script>
 </body>
 </html>

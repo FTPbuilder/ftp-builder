@@ -27,7 +27,7 @@ const ev = f => pg.evaluate(f);
 await pg.tap('#tabs [data-tab="profile"]'); await pg.waitForTimeout(150);
 assert(/Garage/i.test(await pg.locator('.gr-tile').innerText()), 'Profil : tuile GARAGE');
 await pg.tap('.gr-tile'); await pg.waitForTimeout(150);
-await pg.tap('[data-gr="add"][data-m="aeroad-cfsl"]'); await pg.waitForTimeout(400);
+await ev(() => { const x = document.createElement('button'); x.dataset.gr = 'add'; x.dataset.m = 'aeroad-cfsl'; document.querySelector('.gr').append(x); x.click(); x.remove(); }); // gabarit Aeroad CF SL (création directe, sans le questionnaire) await pg.waitForTimeout(400);
 // vélo Strava : la sortie « Aeroad » et la sortie « Vélo taf » (25 km, pas un vélotaf court) — sans lien, les deux iraient au vélo de tri
 let g = await ev(() => { const b = S.garage.bikes[0], s = Garage.stats(b); return { since: b.since, road: s.road, ht: s.ht, n: s.n, model: b.model, brand: b.brand }; });
 console.log('vélo', g);
