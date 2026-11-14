@@ -38,6 +38,9 @@ assert(/CN-M9100/.test(spec) && /BR-R9200/.test(spec) && /RD-R9250/.test(spec), 
 await pg.tap('[data-gr="wzframe"]'); await pg.waitForTimeout(150); await wz('frame', 'look-765');
 assert(/marque/i.test(await sheet()), 'après le cadre, on enchaîne sur la transmission');
 const b765 = await pg.locator('[data-wz="brand"]').allInnerTexts(); assert(b765.includes('Campagnolo'), 'cadre mécanique possible : Campagnolo proposé');
+await wz('brand', 'SRAM'); const sh = await pg.locator('[data-wz="shift"]').allInnerTexts(); assert(sh.some(x => /Mécanique/.test(x)) && sh.some(x => /Électronique/.test(x)), 'SRAM : électronique (AXS) ou mécanique (22)');
+await wz('shift', 'meca'); const s22 = await pg.locator('[data-wz="pick"]').allInnerTexts(); assert(s22.length === 3 && /Rival 22/.test(s22.join()) && /Force 22/.test(s22.join()) && /Red 22/.test(s22.join()), `SRAM mécanique disques : Rival, Force, Red 22 (${s22.length})`);
+await wz('back', 'brand');
 await wz('brand', 'Campagnolo'); assert(/Quelle déclinaison/i.test(await sheet()), 'Campagnolo disques : mécanique et disques déduits');
 await wz('pick', 'ca-chorus:meca:disc'); await pg.waitForTimeout(300);
 const r2 = await ev(() => { const b = S.garage.bikes[0], P = Garage.allParts(b).map(p => p.k); return { name: b.modelName, gs: b.groupset, di2: P.includes('di2'), coin: P.includes('coin') }; });
