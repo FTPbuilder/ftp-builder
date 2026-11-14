@@ -705,6 +705,45 @@ const Garage = (() => {
       else setPath(b, k, typeof v === 'string' && k !== 'since' && k !== 'purchased' ? v.trim() : v);
       save(); render(); }
   });
-  return { tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet,
+  /* ---------- admin : demandes d'ajout au catalogue (📮 dans le Profil) ---------- */
+  const Adm = { is: false, uid: null, list: null, err: '' };
+  async function admCheck(){
+    const u = Cloud.user; if (!Cloud.sb || !u || Adm.uid === u.id) return; Adm.uid = u.id;
+    try { const { data } = await Cloud.sb.rpc('is_admin'); Adm.is = data === true; if (Adm.is) { await admLoad(); render(); } } catch (e) { Adm.is = false; }
+  }
+  async function admLoad(){
+    const { data, error } = await Cloud.sb.from('bike_requests').select('*').order('at', { ascending: false }).limit(200);
+    Adm.err = error ? error.message : ''; if (!error) Adm.list = data || [];
+  }
+  const RSTAT = { nouveau: ['📮', 'Nouvelle'], ajoute: ['✅', 'Ajoutée'], refuse: ['✖️', 'Refusée'] };
+  const reqTxt = r => `Ajoute au catalogue du garage FTP Builder : ${r.brand} ${r.model}${r.year ? ` (${r.year})` : ''}${r.groupset ? ` — transmission : ${r.groupset}` : ''}${r.note ? ` — précisions : ${r.note}` : ''} (demande n° ${r.id})`;
+  function reqTileHTML(){
+    if (Cloud.user && Adm.uid !== Cloud.user.id) setTimeout(admCheck, 0);
+    if (!Adm.is) return '';
+    const n = (Adm.list || []).filter(r => r.status === 'nouveau').length;
+    return `<button class="card set-mail" data-req="open" aria-label="Demandes d'ajout au catalogue${n ? ` : ${n} nouvelle${n > 1 ? 's' : ''}` : ''}"><span class="set-mail-ic" aria-hidden="true">📮</span><span class="tiny">Demandes</span>${n ? `<span class="set-dot">${n}</span>` : ''}</button>`;
+  }
+  function reqPane(){
+    const L = Adm.list || [], nw = L.filter(r => r.status === 'nouveau'), old = L.filter(r => r.status !== 'nouveau');
+    const card = r => `<div class="card gr-req"><div class="row between" style="gap:8px"><b>${esc(r.brand)} ${esc(r.model)}${r.year ? ` <span class="muted">· ${esc(r.year)}</span>` : ''}</b><span class="tiny">${RSTAT[r.status]?.[0] || ''} ${RSTAT[r.status]?.[1] || esc(r.status)}</span></div>
+      ${r.groupset ? `<div class="small">⚙️ ${esc(r.groupset)}</div>` : ''}${r.note ? `<div class="small muted">${esc(r.note)}</div>` : ''}<div class="tiny muted">Reçue le ${dfr(String(r.at).slice(0, 10))} · n° ${r.id}</div>
+      <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-req="copy" data-id="${r.id}">📋 Copier pour Claude</button>${r.status === 'nouveau' ? `<button class="btn sm" data-req="set" data-s="ajoute" data-id="${r.id}">✓ Ajoutée</button><button class="btn sm ghost" data-req="set" data-s="refuse" data-id="${r.id}">Refuser</button>` : `<button class="btn sm ghost" data-req="set" data-s="nouveau" data-id="${r.id}">Rouvrir</button>`}</div></div>`;
+    return `<div class="pane-in"><div class="pane-head"><button class="pane-back" data-settings="back" aria-label="Retour au profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>Demandes</h2><span class="pane-num num">${nw.length}</span></div>
+      <p class="small muted">Vélos et groupes que les membres ne trouvent pas au catalogue. Copie une demande et colle-la à Claude pour qu'il l'ajoute, puis marque-la « Ajoutée ».</p>
+      <div class="row" style="gap:8px;margin:8px 0">${nw.length > 1 ? '<button class="btn sm" data-req="copyall">📋 Tout copier</button>' : ''}<button class="btn sm ghost" data-req="reload">↻ Actualiser</button></div>
+      ${Adm.err ? `<p class="note warn small">${esc(Adm.err)}</p>` : ''}
+      ${nw.length ? nw.map(card).join('') : '<div class="card"><p class="small muted" style="margin:0">Aucune nouvelle demande 📭</p></div>'}
+      ${old.length ? `<h3 style="margin:16px 0 6px">Traitées</h3>${old.map(card).join('')}` : ''}</div>`;
+  }
+  document.addEventListener('click', async e => {
+    const x = e.target.closest('[data-req]'); if (!x) return; const a = x.dataset.req, r = (Adm.list || []).find(y => String(y.id) === x.dataset.id);
+    const copy = async t => { try { await navigator.clipboard.writeText(t); toast('Copié : colle-le à Claude'); } catch (err) { toast('Copie impossible'); } };
+    if (a === 'open') { PROFILE_PANE = 'requests'; TAB = 'profile'; render(); window.scrollTo(0, 0); admLoad().then(render); }
+    else if (a === 'reload') { await admLoad(); render(); toast('Demandes à jour'); }
+    else if (a === 'copy' && r) copy(reqTxt(r));
+    else if (a === 'copyall') copy((Adm.list || []).filter(y => y.status === 'nouveau').map(reqTxt).join('\n'));
+    else if (a === 'set' && r) { const { error } = await Cloud.sb.from('bike_requests').update({ status: x.dataset.s }).eq('id', r.id); if (error) return toast('Échec : ' + error.message); r.status = x.dataset.s; render(); toast(RSTAT[r.status][1]); }
+  });
+  return { reqTileHTML, reqPane, Adm, tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet,
     wipeLocal: () => Media.wipe(), get mode(){ return mode; }, get explode(){ return explode(); } };
 })();

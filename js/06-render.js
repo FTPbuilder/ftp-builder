@@ -1520,7 +1520,8 @@ function profileHTML(){
   if (PROFILE_PANE === 'climbs') return Library.climbsPane();
   if (PROFILE_PANE === 'gpx') return Library.gpxPane();
   if (PROFILE_PANE === 'garage') return Garage.pane();
-  return settingsBtnHTML() + Library.squaresHTML() + Garage.tileHTML() + Library.racesHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
+  if (PROFILE_PANE === 'requests' && Garage.Adm.is) return Garage.reqPane();
+  return `<div class="set-row">${settingsBtnHTML()}${Garage.reqTileHTML()}</div>` + Library.squaresHTML() + Garage.tileHTML() + Library.racesHTML() + qHTML(S.profile, false) + `<div class="card"><h2>Données</h2>
     <div class="row" style="margin-bottom:8px"><button class="btn" data-tour="open">Revoir la visite guidée</button></div>
     <div class="row"><button class="btn" id="expJson">Exporter mes données (JSON)</button><button class="btn" id="impJson">Importer</button>
     <select id="themeSel" style="width:auto"><option value="auto">Thème auto</option><option value="dark">Sombre</option><option value="light">Clair</option></select></div>
