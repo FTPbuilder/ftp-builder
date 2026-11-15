@@ -5,7 +5,7 @@ const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('console', m => { if (/warn|error/.test(m.type())) console.log('[console]', m.type(), m.text().slice(0, 300)); }); pg.on('requestfailed', r => console.log('[échec requête]', r.url().slice(0, 120))); pg.on('pageerror', e => errs.push(e.message));
 await pg.route('**/pdfjs-dist@3.11.174/build/*', r => r.fulfill({ path: out + '/node_modules/pdfjs-dist/build/' + r.request().url().split('/').pop(), contentType: 'application/javascript' }));
-for (const f of ['build/three.min.js', 'examples/js/controls/OrbitControls.js', 'examples/js/environments/RoomEnvironment.js', 'examples/js/loaders/GLTFLoader.js', 'examples/js/loaders/DRACOLoader.js', 'examples/js/exporters/GLTFExporter.js'])
+for (const f of ['build/three.min.js', 'examples/js/controls/OrbitControls.js', 'examples/js/environments/RoomEnvironment.js', 'examples/js/loaders/GLTFLoader.js', 'examples/js/loaders/DRACOLoader.js', 'examples/js/exporters/GLTFExporter.js', 'examples/js/libs/meshopt_decoder.js'])
   await pg.route('**/three@0.147.0/' + f, r => r.fulfill({ path: out + '/node_modules/three/' + f, contentType: 'application/javascript' }));
 await pg.clock.setFixedTime(new Date('2026-11-13T20:00:00+01:00'));
 await pg.addInitScript(() => {
@@ -115,14 +115,34 @@ const az0 = await ev(() => Bike3D.R.ctl.getAzimuthalAngle());
 await pg.locator('#gr3d').scrollIntoViewIfNeeded(); await pg.waitForTimeout(300); const vb = await pg.locator('#gr3d').boundingBox(); await pg.mouse.move(vb.x + vb.width*.15, vb.y + vb.height*.5); await pg.mouse.down(); for (let i = 1; i <= 8; i++) await pg.mouse.move(vb.x + vb.width*(.15 + i*.08), vb.y + vb.height*.5); await pg.mouse.up(); await pg.waitForTimeout(500);
 assert(await pg.evaluate(az0 => Math.abs(Bike3D.R.ctl.getAzimuthalAngle() - az0) > .3, az0) && await pg.evaluate(() => getComputedStyle(document.querySelector('.gr-tags')).pointerEvents) === 'none', 'éclaté : le vélo tourne au doigt comme en vue montée');
 console.log('arêtes', await ev(() => [Bike3D.R.edges?.length, Bike3D.R.groups.frame.userData.lineMat?.opacity]));
-await pg.tap('[data-gr="labels"]'); await pg.waitForTimeout(500);
-assert(await ev(() => Bike3D.R.edges?.length > 50 && document.querySelectorAll('.gr-lines line').length > 8), 'mode ingénieur : arêtes, étiquettes et lignes de rappel');
+await pg.tap('[data-gr="labels"]'); await pg.waitForFunction(() => document.querySelectorAll('.gr-lines line').length > 8, null, { timeout: 20000 }).catch(() => {}); // une image peut prendre ~0,5 s en rendu logiciel
+assert(await ev(() => Bike3D.R.edges?.length > 20 && document.querySelectorAll('.gr-lines line').length > 8), 'mode ingénieur : arêtes, étiquettes et lignes de rappel'); // arêtes des pièces usinées (les pièces sculptées n'en ont pas)
 await pg.locator('.gr-stage').screenshot({ path: out + '/garage-exploded.png' }); await pg.tap('[data-gr="labels"]'); await pg.waitForTimeout(300);
 await pg.locator('.gr-dots [data-gd="battery"]').click(); await pg.waitForTimeout(700);
 assert(/Batterie Di2/.test(await pg.locator('#grSheet').textContent()) && await ev(() => Bike3D.sel === 'battery'), 'toucher un témoin → fiche + composant mis en avant');
 assert(await ev(() => /^data:image\/png/.test(document.querySelector('.gr-shot')?.src || '')), 'fiche : rendu 3D du composant');
 await pg.screenshot({ path: out + '/garage-part.png' });
 await pg.tap('#grSheet [data-grclose]'); await pg.waitForTimeout(300);
+// maquette FTP Builder : Aeroad CF SL → freins à patins et cassette 11 v ; personnalisation (couleur, sticker, jantes) ; passage aux disques
+const parts3d = () => ev(() => { const R = Bike3D.R, n = new Set(); R.root.traverse(o => { if (o.userData.part) n.add(o.userData.part); }); return { ftp: !!R.ft, key: R.key, groups: Object.keys(R.groups), names: [...n] }; });
+let m3 = await parts3d(); console.log('maquette', m3.key, m3.groups.join());
+assert(m3.ftp && m3.names.includes('RimBrake_F') && m3.names.includes('RimBrake_R') && m3.names.includes('Cassette_Cogs_11') && !m3.names.includes('Caliper_F') && !m3.names.includes('Cassette_Cogs') && !m3.groups.includes('rotors'),
+  'maquette FTP : étriers à patins et cassette 11 v, sans disques');
+assert(['frame', 'fork', 'cockpit', 'levers', 'crank', 'chain', 'fd', 'rd', 'calipers', 'wheelF', 'wheelR', 'tireF', 'tireR', 'cassette', 'saddle', 'seatpost', 'headset', 'bb', 'battery'].every(k => m3.groups.includes(k)), 'maquette FTP : tous les composants suivis');
+await pg.tap('.gr-tabs [data-v="bike"]'); await pg.waitForTimeout(200);
+await pg.locator('[data-grlook="paint"][data-v="volcan"]').click(); await pg.waitForTimeout(400);
+const paint = await ev(() => { let c = null; Bike3D.R.groups.frame.traverse(o => { if (o.material?.name === 'Paint_Frame') c = o.material.color.getHexString(); }); return { look: S.garage.bikes[0].look, c, want: new THREE.Color('#ff5b1f').convertSRGBToLinear().getHexString(), key: Bike3D.R.key }; });
+assert(paint.look?.paint === 'volcan' && paint.c === paint.want && paint.key === m3.key, 'personnalisation : couleur appliquée tout de suite, sans reconstruire la scène');
+await pg.fill('[data-grlookt]', 'Arnaud TRI'); await pg.locator('[data-grlookt]').dispatchEvent('change'); await pg.waitForTimeout(200);
+assert(await ev(() => S.garage.bikes[0].look.name === 'Arnaud TRI' && Bike3D.R.ft.look.name === 'Arnaud TRI'), 'sticker : nom libre enregistré et peint sur le cadre');
+await pg.locator('[data-grlook="rim"][data-v="62"]').click();
+await pg.waitForFunction(() => Bike3D.R && /\|ftp62$/.test(Bike3D.R.key), null, { timeout: 30000 }).catch(() => {}); await pg.waitForTimeout(300);
+assert(await ev(() => /\|ftp62$/.test(Bike3D.R.key) && Bike3D.R.ft.look.rim === 62 && Bike3D.R.ft.look.paint === 'volcan'), 'jantes de 62 mm : maquette reconstruite, couleur conservée');
+await ev(() => { const b = S.garage.bikes[0]; b.variant.brakes = 'disc'; b.variant.speeds = 12; save(); render(); });
+await pg.waitForFunction(() => Bike3D.R && /\|disc\|12\|/.test(Bike3D.R.key), null, { timeout: 30000 }).catch(() => {}); await pg.waitForTimeout(300);
+m3 = await parts3d(); console.log('maquette disques', m3.key);
+assert(m3.groups.includes('rotors') && m3.names.includes('Caliper_F') && m3.names.includes('Cassette_Cogs') && !m3.names.includes('RimBrake_F') && !m3.names.includes('Cassette_Cogs_11'), 'freins à disque 12 v : disques et étriers, cassette 12 v');
+await ev(() => { const b = S.garage.bikes[0]; b.variant.brakes = 'rim'; b.variant.speeds = 11; save(); });
 // import d'un vrai modèle GLB (objets nommés) → composants reconnus
 const glbOk = await ev(async () => {
   await new Promise((ok, ko) => { const s = document.createElement('script'); s.src = 'https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/exporters/GLTFExporter.js'; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });

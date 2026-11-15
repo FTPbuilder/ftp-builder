@@ -4,7 +4,8 @@
    S.garage = { bikes:[Bike], log:[Entrée], assign:{ ref → bikeId | 'none' }, cond:{ ref → 'dry'|'wet'|'rain' }, sel }
    - Bike = { id, name, brand, modelName, year, purchased, model (gabarit : 'aeroad-cfsl' | 'aeroad-cfr' | 'road'), variant:{ brakes, speeds, pm },
               since, km0:{ road, ht }, rule:{ out, ht, taf }, gearIds:[], trainer, tires:{…, maxF, maxR, rimMax, silca:{ f, r, date } }, parts:{ clé → { at, spec, life } },
-              glb:{ id, name, size, rotY, map }, fit:{ date, src, title, v:{ clé → valeur }, file:{ id, name, type }, thumb } }
+              glb:{ id, name, size, rotY, map }, fit:{ date, src, title, v:{ clé → valeur }, file:{ id, name, type }, thumb },
+              look:{ paint, finish, custom, name, font, ink, rim, wall } (maquette FTP Builder : couleur, sticker, hauteur de jante, flancs) }
    - Entrée = { id, bikeId, date, part, kind, label, brand, ref, supplier, buyDate, price, value, cat, note }
        kind : replace (pose → compteur à zéro) · buy · charge (value = % lu) · inspect (value = état constaté %) · check (allongement chaîne %)
               lube · degrease · clean · jockey · wipe · service
@@ -258,7 +259,7 @@ const Garage = (() => {
         <div class="gr-status"><button type="button" class="gr-chip" data-gr="tab" data-v="parts"><i class="gr-dot" style="background:${sm.state[1]}"></i>${sm.state[0]}</button>
           <button type="button" class="gr-chip" data-gr="tab" data-v="parts"><b>${sm.att}</b> à surveiller</button>
           ${sm.next ? `<button type="button" class="gr-chip gr-next" data-gr="${sm.next.care ? 'tab' : 'part'}" data-v="care" data-k="${sm.next.part || ''}"><span class="muted">Prochaine</span> <b>${esc(sm.next.l)}</b> <span style="color:${sm.next.col}">${esc(sm.next.txt)}</span></button>` : ''}</div>
-        <div class="gr-fid tiny">${glb ? `🧩 Ton modèle 3D « ${esc(b.glb.name)} »` : '◇ Maquette générique : géométrie et implantation fidèles, formes simplifiées, sans marquages — importe ton modèle 3D dans l\'onglet Vélo'}</div>
+        <div class="gr-fid tiny">${glb ? `🧩 Ton modèle 3D « ${esc(b.glb.name)} »` : '◇ Maquette FTP Builder : géométrie et implantation fidèles, cadre aéro sans marque · couleur, sticker et jantes dans l\'onglet Vélo'}</div>
       </section>
       <div class="seg gr-tabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" data-gr="tab" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="gr-panel">${({ parts: partsTab, care: careTab, fit: fitTab, buy: buyTab, pressure: pressTab, rides: ridesTab, bike: bikeTab })[tab](b, rs, s, sm)}</div></div>`;
@@ -324,6 +325,19 @@ const Garage = (() => {
         return `<div class="gr-ride"><span class="gr-ic" aria-hidden="true">${r.ht ? '🏠' : r.taf ? '🚲' : '🚴'}</span><span style="flex:1;min-width:0"><b>${esc(r.name)}</b><span class="tiny muted" style="display:block">${fmtShort(r.date)} · ${n0(r.km)} km${r.est ? ' (est.)' : ''} · ${r.ht ? 'home trainer' : r.taf ? 'vélotaf' : 'route'}${r.gearName ? ' · ' + esc(r.gearName) : ''}${bb ? '' : ' · non compté'}</span></span>
           ${r.ht ? '' : `<select data-grcond="${esc(r.ref)}" aria-label="Météo de la sortie" class="gr-cond">${Object.entries(COND).map(([k, [ic, l]]) => `<option value="${k}"${c === k ? ' selected' : ''}>${ic} ${l}</option>`).join('')}</select>`}<select data-grassign="${esc(r.ref)}" aria-label="Vélo de cette sortie">${opts(r)}</select></div>`; }).join('') || '<p class="small muted">Aucune sortie pour l\'instant.</p>'}</div></div>`;
   }
+  /* --- onglet Vélo : personnalisation de la maquette FTP (b.look) --- */
+  function lookHTML(b){
+    const L = Bike3D.lookOf(b.look, b.model), P = Bike3D.PAINTS.find(p => p.id === L.paint), fin = L.finish || P.finish, btn = (k, v, on, inner, attrs = '') => `<button type="button" class="${on ? 'on' : ''}" data-grlook="${k}" data-v="${v}"${attrs}>${inner}</button>`;
+    return `<div class="gr-look"><div class="row between"><label class="f">Couleur</label><span class="tiny muted">${L.custom ? 'Couleur perso' : esc(P.name)} · ${Bike3D.FINISHES[fin].l}</span></div>
+      <div class="gr-sw">${Bike3D.PAINTS.map(p => btn('paint', p.id, !L.custom && L.paint === p.id, '', ` style="--c:${p.hex}" title="${esc(p.name)}" aria-label="${esc(p.name)}"${p.irid ? ' data-irid="1"' : ''}`)).join('')}
+        <label class="gr-swc${L.custom ? ' on' : ''}" style="--c:${L.custom || '#808080'}" title="Couleur perso"><input type="color" data-grlookc value="${L.custom || '#808080'}" aria-label="Couleur personnalisée"><span>+</span></label></div>
+      <div class="seg gr-lseg">${Object.entries(Bike3D.FINISHES).map(([k, f]) => btn('finish', k, fin === k, f.l)).join('')}</div>
+      <label class="f" for="grLookName">Sticker</label><div class="row" style="gap:8px"><input id="grLookName" type="text" maxlength="22" data-grlookt value="${esc(L.name)}" placeholder="FTP builder" style="flex:1;min-width:0"><button class="btn sm ghost" data-grlook="name" data-v="FTP builder" aria-label="Remettre FTP builder">↺</button></div>
+      <div class="seg gr-lseg">${Object.entries(Bike3D.FONTS).map(([k, f]) => btn('font', k, L.font === k, `<span style="font-family:'${f.fam}',sans-serif;font-style:${f.style};font-weight:${f.w}">Aa</span> ${f.l}`)).join('')}</div>
+      <div class="gr-ink">${Bike3D.INKS.map(i => btn('ink', i.id, L.ink === i.id, `<i class="${i.id}" style="--c:${i.hex || 'transparent'}"></i><span>${i.name}</span>`, ` title="${esc(i.name)}"`)).join('')}</div>
+      <label class="f">Hauteur de jante</label><div class="seg gr-lseg">${Bike3D.RIMS.map(r => btn('rim', r, L.rim === r, `${r} mm`)).join('')}</div>
+      <label class="f">Flancs des pneus</label><div class="seg gr-lseg">${[['noir', 'Noirs'], ['beige', 'Beiges']].map(([k, l]) => btn('wall', k, L.wall === k, l)).join('')}</div></div>`;
+  }
   /* --- onglet Vélo --- */
   function bikeTab(b){
     const g = G(), M = model(b), V = variant(b), FR = frm(b), GX = grp(b), gears = [...new Map(rides().filter(r => r.gear).map(r => [r.gear, r.gearName || r.gear])).entries()];
@@ -341,7 +355,7 @@ const Garage = (() => {
       <label class="f">Vélo dans Strava / Intervals.icu</label>${gears.length ? `<div class="row tiny" style="gap:12px">${gears.map(([id, nm]) => `<label class="row" style="gap:6px"><input type="checkbox" data-grgear="${esc(id)}" ${b.gearIds?.includes(id) ? 'checked' : ''}> ${esc(nm)}</label>`).join('')}</div>` : '<p class="tiny muted" style="margin:0">Aucun vélo Strava / Intervals vu pour l\'instant : il s\'affichera ici après les prochaines synchros. Coche-le pour attribuer ses sorties automatiquement.</p>'}
       <label class="f">Home trainer</label><select data-grb="trainer"><option value="direct"${b.trainer !== 'wheel' ? ' selected' : ''}>Transmission directe (Tacx Flux 2 : sa propre cassette)</option><option value="wheel"${b.trainer === 'wheel' ? ' selected' : ''}>Roue sur rouleau (cassette et moyeu AR tournent)</option></select></div>
       <div class="gr-sec"><h3>Maquette 3D</h3>${b.glb ? `<div class="row between"><span class="small">🧩 ${esc(b.glb.name)} · ${f1((b.glb.size || 0)/1048576)} Mo</span><span class="row" style="gap:6px"><button class="btn sm" data-gr="glbrot">↻ 90°</button><button class="btn sm danger" data-gr="glbdel">Retirer</button></span></div>${glbMapHTML(b)}`
-        : `<p class="tiny muted" style="margin:0 0 8px">Pour une maquette fidèle (formes, couleurs, marquages), importe un vrai modèle 3D .glb de ton vélo : acheté sur un site de modèles 3D (vérifie la licence), généré à partir de tes photos (Hyper3D Rodin, Meshy, Tripo, Hunyuan3D…), ou modélisé dans Blender. Nomme ses objets (chain, cassette, fork, front tire…) pour qu'ils deviennent sélectionnables et s'éclatent ; sinon règle-les ici après l'import.</p>`}
+        : `${lookHTML(b)}<p class="tiny muted" style="margin:12px 0 8px">Ton vrai vélo en 3D : importe un modèle .glb (acheté sur un site de modèles 3D en vérifiant la licence, généré à partir de tes photos, ou modélisé dans Blender). Nomme ses objets (chain, cassette, fork, front tire…) pour qu'ils deviennent sélectionnables et s'éclatent ; sinon règle-les ici après l'import.</p>`}
         <div class="row" style="gap:8px;margin-top:8px"><button class="btn sm${b.glb ? '' : ' primary'}" data-gr="glbimp">${b.glb ? 'Remplacer le .glb' : 'Importer un .glb'}</button></div></div>
       <div class="gr-sec"><h3>Ce vélo</h3>${b.retired ? '' : `<div class="row between">${g.bikes[0]?.id !== b.id ? '<button class="btn sm" data-gr="main">Vélo principal</button>' : '<span class="tiny muted">Vélo principal</span>'}<button class="btn sm" data-gr="retire">Je n'ai plus ce vélo</button></div>
         <p class="tiny muted" style="margin:6px 0 10px">Vendu, volé, cassé ou donné : le vélo passe dans tes anciens vélos avec ses km et son carnet, et ne reçoit plus de sorties.</p>`}
@@ -603,13 +617,14 @@ const Garage = (() => {
     for (const i of parts) { if (!tags[i.g] || i.rem < tags[i.g].rem) tags[i.g] = { k: i.k, l: i.l, rem: i.rem, charge: i.charge, col: col(i.rem), txt: (i.charge ? '🔋 ' : '') + pct(i.rem) }; }
     let glb = null;
     if (b.glb) { const blob = await Media.get(b.glb.id).catch(() => null); if (blob) glb = { blob, rotY: b.glb.rotY || 0, map: b.glb.map || {} }; }
-    const V = variant(b), key = [b.id, b.model, V.brakes, V.speeds, b.tires?.f, b.tires?.r, glb ? b.glb.id + ':' + (b.glb.rotY || 0) + ':' + JSON.stringify(b.glb.map || {}) : 'proc'].join('|');
+    const V = variant(b), look = Bike3D.lookOf(b.look, b.model), key = [b.id, b.model, V.brakes, V.speeds, b.tires?.f, b.tires?.r, glb ? b.glb.id + ':' + (b.glb.rotY || 0) + ':' + JSON.stringify(b.glb.map || {}) : 'ftp' + look.rim].join('|');
     try {
-      const info = await Bike3D.mount(el, { key, model: b.model, variant: { ...V, tireF: b.tires?.f, tireR: b.tires?.r }, glb, exploded: explode(), allTags, tags, onTap: g => {
+      const info = await Bike3D.mount(el, { key, model: b.model, variant: { ...V, tireF: b.tires?.f, tireR: b.tires?.r }, glb, look, exploded: explode(), allTags, tags, onTap: g => {
         if (!explode()) { const z = g ? zoneOfG(g) : null; if (!zoneK || !ZONES[zoneK][1].includes(g)) { if (z) setZone(z); return; } }
         const t = tags[g]; if (t) partSheet(t.k); else Bike3D.select(null);
       } });
-      if (info?.names && JSON.stringify(info.names) !== JSON.stringify(glbNames)) { glbNames = info.names; if (tab === 'bike') render(); }
+      if (!info || tok !== mountTok) return; // un montage plus récent a pris la main
+      if (info.names && JSON.stringify(info.names) !== JSON.stringify(glbNames)) { glbNames = info.names; if (tab === 'bike') render(); }
       if (zoneK && !explode() && JSON.stringify(Bike3D.zoneKeys || []) !== JSON.stringify(ZONES[zoneK][1].filter(k => info.groups.includes(k)))) Bike3D.zone(ZONES[zoneK][1]);
     } catch (e) { if (tok === mountTok) el.innerHTML = `<div class="gr-load tiny muted">3D indisponible (${esc(e.message || e)}) — tout le reste du Garage fonctionne.</div>`; }
   }
@@ -629,6 +644,16 @@ const Garage = (() => {
   /* ---------- événements ---------- */
   const done = (msg, keep) => { save(); if (!keep) closeSheet(); render(); if (msg) toast(msg); };
   const refreshSheet = k => { save(); render(); partSheet(k); };
+  // personnalisation de la maquette : couleur, finition, sticker, jantes, flancs (appliqué tout de suite à la scène 3D)
+  const setLook = (b, patch) => { b.look = { ...(b.look || {}), ...patch }; save(); };
+  document.addEventListener('click', e => {
+    const x = e.target.closest('[data-grlook]'), b = cur(); if (!x || !b) return; const k = x.dataset.grlook, v = x.dataset.v;
+    setLook(b, k === 'paint' ? { paint: v, custom: null, finish: null } : k === 'rim' ? { rim: +v } : { [k]: v }); render();
+  });
+  document.addEventListener('input', e => {
+    const t = e.target, b = cur(); if (!b || !(t.dataset.grlookt != null || t.dataset.grlookc != null)) return;
+    b.look = { ...(b.look || {}), ...(t.dataset.grlookt != null ? { name: t.value.slice(0, 22) } : { custom: t.value }) }; Bike3D.setLook(Bike3D.lookOf(b.look, b.model)); // aperçu en direct, enregistré au « change »
+  });
   document.addEventListener('click', async e => {
     const x = e.target.closest('[data-gr]'); if (!x) return; const a = x.dataset.gr, g = G(), b = cur();
     if (a === 'add') { const nb = newBike(x.dataset.m); if (g.bikes.length) { nb.rule = { out: false, ht: false, taf: true }; nb.name = x.dataset.m === 'road' ? 'Vélotaf' : nb.name; } g.bikes.push(nb); g.sel = nb.id; PROFILE_PANE = 'garage'; TAB = 'profile'; mode = 'view'; tab = 'parts'; done('Vélo ajouté au garage'); window.scrollTo(0, 0); return; }
@@ -685,7 +710,7 @@ const Garage = (() => {
     else if (a === 'fitopen') { const bl = b.fit?.file ? await Media.get(b.fit.file.id) : null; if (!bl) return toast('Fichier introuvable sur cet appareil'); const u = URL.createObjectURL(bl); window.open(u, '_blank') || (location.href = u); }
     else if (a === 'fitdel') { if (!confirm('Supprimer l\'étude posturale de ce vélo ?')) return; if (b.fit?.file) Media.del(b.fit.file.id); if (b.fit?.thumbId) Media.del(b.fit.thumbId); delete b.fit; done('Étude supprimée'); }
     else if (a === 'glbrot') { b.glb.rotY = ((b.glb.rotY || 0) + 90) % 360; save(); render(); }
-    else if (a === 'glbdel') { Media.del(b.glb.id); delete b.glb; glbNames = null; done('Retour à la maquette générique'); }
+    else if (a === 'glbdel') { Media.del(b.glb.id); delete b.glb; glbNames = null; done('Retour à la maquette FTP Builder'); }
   });
   const setPath = (o, p, v) => { const ks = p.split('.'); let t = o; for (const k of ks.slice(0, -1)) t = (t[k] ||= {}); t[ks[ks.length - 1]] = v; };
   document.addEventListener('change', e => {
@@ -693,6 +718,8 @@ const Garage = (() => {
     if (t.dataset.grassign != null) { if (t.value) g.assign[t.dataset.grassign] = t.value; else delete g.assign[t.dataset.grassign]; save(); render(); return; }
     if (t.dataset.grcond != null) { if (t.value === 'dry') delete g.cond[t.dataset.grcond]; else g.cond[t.dataset.grcond] = t.value; save(); render(); return; }
     if (t.dataset.grgear != null) { const id = t.dataset.grgear; b.gearIds = (b.gearIds || []).filter(x => x !== id); if (t.checked) { for (const o of g.bikes) o.gearIds = (o.gearIds || []).filter(x => x !== id); b.gearIds.push(id); } save(); render(); return; }
+    if (t.dataset.grlookt != null) { setLook(b, { name: t.value.slice(0, 22) }); return; }
+    if (t.dataset.grlookc != null) { setLook(b, { custom: t.value }); render(); return; }
     if (t.dataset.grmap != null) { b.glb.map ||= {}; if (t.value) b.glb.map[t.dataset.grmap] = t.value; else delete b.glb.map[t.dataset.grmap]; save(); render(); return; }
     if (t.dataset.grv) { const k = t.dataset.grv; b.variant ||= {}; b.variant[k] = t.type === 'checkbox' ? t.checked : k === 'speeds' ? +t.value : t.value; if (k === 'group' && t.value === 'axs') b.variant.speeds = 12; save(); render(); return; }
     if (t.dataset.grfit) { b.fit ||= { v: {} }; b.fit.v ||= {}; const v = t.value.trim(); if (v) b.fit.v[t.dataset.grfit] = v; else delete b.fit.v[t.dataset.grfit]; if (!b.fit.date) b.fit.date = todayISO(); save(); render(); return; }
