@@ -5,8 +5,8 @@ const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.dev
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-10-28T12:51:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
-await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' });
+ await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(() => { const c = FTPB.S.challenges ? FTPB.S.challenges[0] : null; render(); const sq = (FTPB.S.challenges || []).find(x => x.id === 'bulgares'); sq.entries['2026-10-26'] = 120; sq.entries['2026-10-27'] = 200; FTPB.save(); render(); });
 await pg.click('.home [data-pane=defis]'); await pg.click('[data-chadd="bulgares"][data-v="32"]'); await pg.clock.setFixedTime(new Date('2026-10-28T12:58:00+01:00')); await pg.click('[data-chadd="bulgares"][data-v="16"]');
 await pg.locator('.chhead[data-chedit="bulgares"]').click(); await pg.waitForTimeout(200);

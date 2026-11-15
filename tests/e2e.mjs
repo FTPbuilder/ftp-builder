@@ -8,14 +8,19 @@ const b = await chromium.launch(); const pg = await b.newPage({ viewport:{ width
 const errs = []; pg.on('pageerror', e => errs.push(e.message)); pg.on('console', m => m.type()==='error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
 await pg.clock.setFixedTime(new Date('2026-10-20T10:00:00+02:00'));
 await pg.goto('file://' + root + '/index.html');
-// pré-remplissage depuis le .fit
+// questionnaire en étapes : intro → toi (pré-remplissage depuis le .fit) → vélo → semaine → objectif → courses
+await pg.click('#wzNext');
 const fc = pg.waitForEvent('filechooser'); await pg.click('#prefill'); (await fc).setFiles(root + '/tests/2026-10-19_seance.fit');
-await pg.waitForFunction(() => document.querySelector('#prefillInfo').textContent.length > 5);
+await pg.waitForFunction(() => /Trouvé/.test(document.querySelector('#prefillInfo')?.textContent || ''));
 console.log('PREFILL:', await pg.textContent('#prefillInfo'));
-await pg.fill('[name=ftp]', '255');
 await pg.fill('[name=name]', 'Arnaud');
 await pg.screenshot({ path: out + '/01-questionnaire.png', fullPage:true });
-await pg.click('button[type=submit]');
+await pg.click('#wzNext');
+await pg.fill('[name=ftp]', '255'); await pg.click('#wzNext');
+await pg.click('#wzNext');
+await pg.fill('[name=goalFtp]', '300'); await pg.click('#wzNext');
+await pg.click('#wzNext'); // Créer mon plan
+await pg.click('[data-wz=connected]'); await pg.evaluate(() => Tour.close());
 await pg.waitForSelector('#tabs:not(.hidden)');
 const st = await pg.evaluate(() => { const S = FTPB.S; return { n:S.plan.length, mand:S.plan.filter(s=>s.kind!=='optional').length, first:S.plan.slice(0,6).map(s=>s.date+' '+s.workoutId+' '+s.kind), tests:S.plan.filter(s=>s.kind==='test').map(s=>s.date), last:S.plan.slice(-3).map(s=>s.date+' '+s.workoutId), weeks:[...new Set(S.plan.map(s=>s.block))] }; });
 console.log('PLAN', JSON.stringify(st, null, 1));

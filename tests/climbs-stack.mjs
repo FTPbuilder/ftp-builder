@@ -21,8 +21,8 @@ await pg.route('**/*.supabase.co/**', async r => {
 await pg.addInitScript(() => localStorage.setItem('sb-jhemwfhmohqncywjixgh-auth-token', JSON.stringify({ access_token:'x.y.z', refresh_token:'r', token_type:'bearer', expires_in:3600, expires_at:Math.floor(Date.now()/1000)+3600, user:{ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' } })));
 await pg.clock.setFixedTime(new Date('2026-10-28T00:10:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
-await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)').catch(async e => { console.log('ERRS', errs, await pg.evaluate(() => document.body.innerText.slice(0, 300))); throw e; });
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' });
+ await pg.waitForSelector('#tabs:not(.hidden)').catch(async e => { console.log('ERRS', errs, await pg.evaluate(() => document.body.innerText.slice(0, 300))); throw e; });
 await pg.evaluate(() => {
   const mk = (lat0, lon0, km, H, T, prof) => { const lat = [], lon = [], alt = [], t = [], d = []; let x = 0, tt = 0, h = 500;
     const seg = (k, dh, dur) => { const n = Math.round(k*30); for (let i = 0; i < n; i++) { x += k/n; tt += dur/n; h += dh/n; d.push(+x.toFixed(4)); t.push(Math.round(tt)); alt.push(+h.toFixed(1)); lat.push(lat0 + x*0.004); lon.push(lon0); } };

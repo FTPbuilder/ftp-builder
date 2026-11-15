@@ -16,24 +16,25 @@ async function scenario(name, delay, during){
   const r = await during(pg);
   assert(!errs.length, `${name} : aucune erreur JS ${errs.join(' | ')}`); await ctx.close(); return r;
 }
-// 1 · je tape pendant que le compte charge : le champ garde le focus et sa valeur, puis j'envoie
+// 1 · je tape pendant que le compte charge (étape « Toi » du questionnaire) : le champ garde le focus et sa valeur
 await scenario('frappe pendant le chargement', 400, async pg => {
-  await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=startDate]', '2026-10-21');
-  await pg.focus('[name=ftp]'); await pg.keyboard.type('2'); 
+  await pg.click('#wzNext'); await pg.fill('[name=birthDate]', '1998-05-14');
+  await pg.focus('[name=weightKg]'); await pg.keyboard.type('8');
   await pg.waitForFunction(() => Cloud.ready, null, { timeout: 20000 }); await pg.waitForTimeout(300); // le compte a fini de charger pendant la frappe
-  await pg.keyboard.type('55');
-  const v = await pg.evaluate(() => ({ ftp: document.querySelector('[name=ftp]').value, age: document.querySelector('[name=age]').value, focus: document.activeElement?.name }));
-  assert(v.ftp === '255' && v.age === '28', `la saisie survit au chargement du compte (ftp ${v.ftp}, âge ${v.age})`);
-  assert(v.focus === 'ftp', `le champ en cours garde le focus (${v.focus})`);
-  await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)', { timeout: 10000 });
-  assert(await pg.evaluate(() => S.profile?.ftp === 255 && S.plan.length >= 35), 'plan généré avec la FTP saisie');
+  await pg.keyboard.type('3');
+  const v = await pg.evaluate(() => ({ w: document.querySelector('[name=weightKg]').value, b: document.querySelector('[name=birthDate]').value, focus: document.activeElement?.name }));
+  assert(v.w === '83' && v.b === '1998-05-14', `la saisie survit au chargement du compte (poids ${v.w}, naissance ${v.b})`);
+  assert(v.focus === 'weightKg', `le champ en cours garde le focus (${v.focus})`);
+  await pg.click('#wzNext'); await pg.fill('[name=ftp]', '255'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('#wzNext');
+  await pg.waitForSelector('[data-wz=connected]', { timeout: 10000 });
+  assert(await pg.evaluate(() => S.profile?.ftp === 255 && S.profile.age >= 27 && S.plan.length >= 30), 'plan généré avec la FTP saisie');
 });
-// 2 · j'envoie tout de suite, les réponses du serveur arrivent après : le profil reste, pas de retour au questionnaire
+// 2 · je valide tout de suite, les réponses du serveur arrivent après : le profil reste, pas de retour au questionnaire
 await scenario('envoi avant la réponse du serveur', 1200, async pg => {
-  await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-  await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)', { timeout: 10000 });
+  await pg.waitForFunction(() => typeof Onboard !== 'undefined');
+  await pg.evaluate(() => Onboard.finish({ ...Onboard.draft(), age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' }, { quick:true })); await pg.waitForSelector('#tabs:not(.hidden)', { timeout: 10000 });
   await pg.waitForFunction(() => Cloud.ready, null, { timeout: 30000 }); await pg.waitForTimeout(1500);
-  const v = await pg.evaluate(() => ({ prof: !!S.profile, tabs: !document.querySelector('#tabs').classList.contains('hidden'), form: !!document.querySelector('.onb') }));
+  const v = await pg.evaluate(() => ({ prof: !!S.profile, tabs: !document.querySelector('#tabs').classList.contains('hidden'), form: !!document.querySelector('.wiz') }));
   assert(v.prof && v.tabs && !v.form, 'le profil reste en place après les réponses tardives');
 });
 console.log(ok ? 'OK' : 'ÉCHEC'); await b.close(); process.exit(ok ? 0 : 1);

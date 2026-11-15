@@ -10,8 +10,8 @@ await pg.route('**/three@0.147.0/examples/js/controls/OrbitControls.js', r => r.
 let tiles = 0; await pg.route('**/World_Imagery/MapServer/tile/**', r => { tiles++; return r.fulfill({ path: new URL('./fixtures/tile.png', import.meta.url).pathname, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' } }); });
 await pg.clock.setFixedTime(new Date('2026-10-27T21:30:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
-await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' });
+ await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(() => {
   // aller-retour de 30 km avec une montée de col en lacets (≈ 600 m de D+)
   const lat = [], lon = [], alt = [], t = [], hr = [];
