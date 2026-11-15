@@ -6,8 +6,8 @@ const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.pu
 await pg.clock.setFixedTime(new Date('2026-10-27T21:00:00+01:00'));
 const url = 'file://' + new URL('../index.html', import.meta.url).pathname;
 await pg.goto(url);
-await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' });
+ await pg.waitForSelector('#tabs:not(.hidden)');
 // état d'Arnaud avant correctif : trajet Apple Santé de 16 min rattaché au test rampe du 26
 const testId = await pg.evaluate(() => { const S = FTPB.S;
   let t = S.plan.find(s => s.kind === 'test'); t.date = '2026-10-26'; t.workoutId = 'ramp'; t.status = 'done'; t.activityId = 'j29';

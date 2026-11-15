@@ -1,6 +1,7 @@
 "use strict";
 // FTP Builder · démarrage, mise à jour, accès pour les tests
 if (S.profile && repairAutoLinks()) save();
+if (S.profile?.birthDate) S.profile.age = ageFrom(S.profile.birthDate); // l'âge suit la date de naissance
 const _cal = (() => { try { return Levels.monthly(); } catch(e) { Errors.report(e, 'calibrage'); return null; } })(); // calibrage mensuel des niveaux
 render();
 if (_cal) setTimeout(() => toast(`Calibrage du mois : ${_cal.changes.length ? `${_cal.changes.length} séance${_cal.changes.length > 1 ? 's' : ''} recalée${_cal.changes.length > 1 ? 's' : ''} sur tes niveaux` : 'programme déjà au bon niveau'}`), 600);

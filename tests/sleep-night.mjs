@@ -5,8 +5,8 @@ const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.dev
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-11-04T09:00:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
-await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' });
+ await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(() => {
   const H = Health.H; H.daily.length = 0; H.sleep.length = 0; H.segs = []; H.samples = [];
   // 6 nuits : 5 cycles (léger → profond → léger → paradoxal), profond en début, paradoxal qui s'allonge

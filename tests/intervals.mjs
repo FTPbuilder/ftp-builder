@@ -29,9 +29,8 @@ await pg.addInitScript(() => {
   localStorage.setItem('sb-jhemwfhmohqncywjixgh-auth-token', JSON.stringify({ access_token:'x.y.z', refresh_token:'r', token_type:'bearer', expires_in:3600, expires_at:Math.floor(Date.now()/1000)+3600, user:{ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' } }));
 });
 await pg.goto(new URL('../index.html', import.meta.url).href);
-await pg.fill('[name=age]','27'); await pg.fill('[name=weightKg]','83.2'); await pg.fill('[name=ftp]','255');
-await pg.fill('[name=startDate]','2026-10-19');
-await pg.evaluate(()=>document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)'); await pg.evaluate(() => Tour.close()); // visite guidée (affichée après connexion) fermée
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:27, weightKg:83.2, ftp:255, goalFtp:300, startDate:'2026-10-19' });
+ await pg.waitForSelector('#tabs:not(.hidden)'); await pg.evaluate(() => Tour.close()); // visite guidée (affichée après connexion) fermée
 await pg.evaluate(()=>document.querySelector('button[data-tab=profile]').click()); await pg.waitForTimeout(300);
 await pg.evaluate(()=>document.querySelector('[data-settings=open]').click()); await pg.waitForTimeout(300);
 await pg.evaluate(() => { const d = document.querySelector('#icuKey').closest('details'); if (d) d.open = true; }); // la clé API est le repli, rangée sous « Ou avec une clé API »

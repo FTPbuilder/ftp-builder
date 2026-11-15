@@ -7,7 +7,8 @@ function render(){
   applyTheme(); applyWarmupPref();
   const app = $('#app'); const tabs = $('#tabs');
   // questionnaire déjà affiché : on n'y touche pas (un réaffichage pendant le chargement du compte faisait perdre le focus et la frappe en cours)
-  if (!S.profile) { tabs.classList.add('hidden'); if (app.querySelector('.onb #qform')) return; app.innerHTML = onboardingHTML(); bindQuestionnaire(true); return; }
+  // accueil (compte obligatoire), questionnaire de départ et branchements : plein écran, sans onglets
+  if (Onboard.active()) { tabs.classList.add('hidden'); Onboard.show(app); return; }
   tabs.classList.remove('hidden');
   tabs.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.tab === TAB));
   const head = `<header class="top"><div class="brand"><h1><span class="ftp">FTP</span><b>·</b>Builder</h1><small>v${APP_VERSION}</small></div><span class="chip num">FTP <b>${ftp()} W</b> · <b>${(ftp()/S.profile.weightKg).toFixed(2).replace('.', ',')}</b> W/kg</span></header>`;
@@ -1472,13 +1473,20 @@ function qHTML(p, onboarding){
     <div class="grid2">
       <div><label class="f">Prénom</label><input type="text" name="name" value="${esc(p.name)}"></div>
       <div><label class="f">Sexe</label><select name="sex"><option value="M" ${p.sex==='M'?'selected':''}>Homme</option><option value="F" ${p.sex==='F'?'selected':''}>Femme</option></select></div>
-      <div><label class="f">Âge</label><input type="number" name="age" min="12" max="99" value="${p.age}" required></div>
+      <div><label class="f">Date de naissance</label><input type="date" name="birthDate" value="${p.birthDate || ''}">${!p.birthDate && p.age ? `<span class="tiny muted">${p.age} ans</span>` : ''}</div>
       <div><label class="f">Poids (kg)</label><input type="number" name="weightKg" step="0.1" min="35" max="160" value="${p.weightKg}" required></div>
       <div><label class="f">Taille (cm)</label><input type="number" name="heightCm" min="130" max="220" value="${p.heightCm}"></div>
       <div><label class="f">FC max (bpm)</label><input type="number" name="hrMax" min="140" max="230" value="${p.hrMax}" placeholder="ex. 188"></div>
     </div>
     <div id="prefillInfo" class="tiny muted" style="margin-top:8px"></div>
   </div>
+  ${onboarding ? '' : (() => { const e = p.equip || {}, o = (n, opts, v) => `<select name="${n}">${opts.map(([x, l]) => `<option value="${x}" ${String(v ?? '') === String(x) ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+    return `<div class="card"><h2>Mon sport et mon équipement</h2><div class="grid2">
+      <div><label class="f">Sport de prédilection</label>${o('sport', [['bike', 'Vélo'], ['tri', 'Triathlon'], ['run', 'Course à pied']], p.sport || 'bike')}</div>
+      <div><label class="f">Home trainer</label>${o('eq_trainer', [['smart', 'Connecté (ERG)'], ['classic', 'Classique'], ['none', 'Aucun']], e.trainer || 'smart')}</div>
+      <div><label class="f">Capteur de puissance</label>${o('eq_pm', [['1', 'Oui'], ['0', 'Non']], e.pm ? 1 : 0)}</div>
+      <div><label class="f">Ceinture cardio</label>${o('eq_hr', [['1', 'Oui'], ['0', 'Non']], e.hr === false ? 0 : 1)}</div>
+      <div style="grid-column:1/-1"><label class="f">Compteur ou montre</label>${o('eq_device', [['', '—'], ['edge', 'Compteur Garmin Edge'], ['garmin', 'Montre Garmin'], ['wahoo', 'Wahoo'], ['coros', 'Coros'], ['polar', 'Polar'], ['suunto', 'Suunto'], ['apple', 'Apple Watch'], ['other', 'Autre'], ['none', 'Aucun']], e.device || '')}</div></div></div>`; })()}
   <div class="card"><h2>Ton objectif</h2>
     <div class="grid2">
       <div><label class="f">FTP actuelle (W)</label><input type="number" name="ftp" min="80" max="600" value="${p.ftp}" required placeholder="ex. 255"></div>
@@ -1507,15 +1515,13 @@ function qHTML(p, onboarding){
   <div class="row" style="margin-bottom:16px"><button class="btn primary" type="submit">${onboarding ? 'Générer mon plan' : 'Enregistrer et régénérer les séances à venir'}</button>${onboarding?'':'<button class="btn" type="button" id="saveOnly">Enregistrer sans régénérer</button>'}</div>
   </form>`;
 }
-function onboardingHTML(){
-  return `<div class="onb"><div class="hero"><h1>FTP<b>·</b>Builder</h1><p class="muted">Réponds à quelques questions : je construis ton plan de séances jusqu'à ton test final, avec les watts exacts à envoyer sur ton Edge.</p></div>${qHTML(_draft ||= defaultProfile(), true)}
-    <div class="card"><h3>Déjà des données ?</h3><div class="row"><button class="btn sm" data-auth="open">Se connecter</button><button class="btn sm" data-guide="open">Comment ça marche ?</button><button class="btn sm" id="importJsonOnb">Restaurer une sauvegarde JSON</button></div></div><p class="tiny muted" style="text-align:center"><a href="confidentialite.html">Politique de confidentialité</a></p></div>`;
-}
 let _draft = null;
 function readForm(base){
   const f = $('#qform'); const fd = new FormData(f); const p = structuredClone(base);
   for (const k of ['name','sex','goalDate','endDate','startDate','testProtocol']) p[k] = fd.get(k);
-  for (const k of ['age','weightKg','heightCm','ftp','hrMax','goalFtp','minSessions','ctl0','warmupMin']) p[k] = fd.get(k) === '' ? '' : +fd.get(k);
+  for (const k of ['weightKg','heightCm','ftp','hrMax','goalFtp','minSessions','ctl0','warmupMin']) p[k] = fd.get(k) === '' ? '' : +fd.get(k);
+  if (fd.get('birthDate')) { p.birthDate = fd.get('birthDate'); p.age = ageFrom(p.birthDate); }
+  if (fd.has('sport')) { p.sport = fd.get('sport'); p.equip = { trainer: fd.get('eq_trainer'), pm: fd.get('eq_pm') === '1', hr: fd.get('eq_hr') === '1', device: fd.get('eq_device') }; }
   p.otherSports = !!fd.get('otherSports'); p.holidays = !!fd.get('holidays');
   f.querySelectorAll('.day').forEach(el => { const d = +el.dataset.day; p.days[d].max = +el.querySelector('input').value || 60; });
   return p;

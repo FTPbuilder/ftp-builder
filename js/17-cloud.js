@@ -3,15 +3,15 @@
 /* ============ cloud : Supabase (compte, synchro) + Strava ============ */
 const Cloud = (() => {
   const sb = window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, { auth: { persistSession: true, detectSessionInUrl: true, flowType: 'pkce' } }) : null;
-  let session = null, pushTimer = null, strava = { connected: false }, busy = false, ready = false; // ready : compte et connexions vérifiés (le guide attend ce moment)
+  let session = null, authKnown = false, pushTimer = null, strava = { connected: false }, busy = false, ready = false; // ready : compte et connexions vérifiés (le guide attend ce moment)
   const appUrl = () => location.origin + location.pathname;
   // Intervals.icu exige une adresse de retour identique au caractère près : toujours la racine de l'app, sans index.html
   const icuRedirect = () => location.origin + location.pathname.replace(/index\.html$/, '');
   const user = () => session?.user || null;
 
   async function init(){
-    if (!sb) { ready = true; render(); window.splashReady?.(); return; }
-    const { data } = await sb.auth.getSession(); session = data.session;
+    if (!sb) { authKnown = true; ready = true; render(); window.splashReady?.(); return; }
+    const { data } = await sb.auth.getSession(); session = data.session; authKnown = true;
     if (!session) { ready = true; render(); window.splashReady?.(); }
     sb.auth.onAuthStateChange((ev, s) => { const was = !!session; session = s; if (s && !was) afterLogin(); if (!s && was) { strava = { connected:false }; pulled = false; hold = false; render(); } });
     await handleStravaReturn();
@@ -386,10 +386,18 @@ const Cloud = (() => {
       <div class="row" style="margin-top:12px"><button class="btn primary" id="aIn">Se connecter</button><button class="btn" id="aUp">Créer un compte</button></div>
       <div id="aMsg" class="small" style="margin-top:10px"></div>`);
     const msg = t => $('#aMsg').textContent = t;
-    $('#gBtn').onclick = () => sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: appUrl() } });
-    $('#aIn').onclick = async () => { const { error } = await sb.auth.signInWithPassword({ email: $('#aEmail').value.trim(), password: $('#aPass').value }); if (error) msg(error.message === 'Invalid login credentials' ? 'Email ou mot de passe incorrect.' : error.message); else { closeDlg(); toast('Connecté'); } };
-    $('#aUp').onclick = async () => { const { data, error } = await sb.auth.signUp({ email: $('#aEmail').value.trim(), password: $('#aPass').value, options:{ emailRedirectTo: appUrl() } }); if (error) msg(error.message); else if (!data.session) msg('Compte créé : clique sur le lien reçu par email pour l’activer.'); else { closeDlg(); toast('Compte créé'); } };
+    $('#gBtn').onclick = signInGoogle;
+    $('#aIn').onclick = async () => { const r = await signIn($('#aEmail').value, $('#aPass').value); if (r) msg(r); else { closeDlg(); toast('Connecté'); } };
+    $('#aUp').onclick = async () => { const r = await signUp($('#aEmail').value, $('#aPass').value); if (r === 'confirm') msg('Compte créé : clique sur le lien reçu par email pour l’activer.'); else if (r) msg(r); else { closeDlg(); toast('Compte créé'); } };
   }
+  // connexion / inscription (page d'accueil et fenêtre Mon compte) : renvoient un message d'erreur, ou rien si c'est bon
+  const AUTH_FR = { 'Invalid login credentials':'Email ou mot de passe incorrect.', 'User already registered':'Un compte existe déjà avec cet email : connecte-toi.', 'Email not confirmed':'Email pas encore confirmé : clique sur le lien reçu par email.' };
+  const authMsg = e => AUTH_FR[e.message] || (/at least 8|Password should be/.test(e.message) ? 'Mot de passe trop court : 8 caractères minimum.' : /invalid/i.test(e.message) && /email/i.test(e.message) ? 'Adresse email invalide.' : e.message);
+  const signInGoogle = () => sb?.auth.signInWithOAuth({ provider:'google', options:{ redirectTo: appUrl() } });
+  async function signIn(email, pass){ if (!sb) return 'Pas de connexion internet.'; const { error } = await sb.auth.signInWithPassword({ email: String(email).trim(), password: pass }); return error ? authMsg(error) : null; }
+  async function signUp(email, pass){ if (!sb) return 'Pas de connexion internet.'; if (String(pass).length < 8) return 'Mot de passe trop court : 8 caractères minimum.';
+    const { data, error } = await sb.auth.signUp({ email: String(email).trim(), password: pass, options:{ emailRedirectTo: appUrl() } });
+    if (error) return authMsg(error); if (!data.session) return 'confirm'; return null; }
   document.addEventListener('click', e => {
     const a = e.target.closest('[data-auth],[data-strava],[data-feelact],[data-icu]'); if (!a) return;
     if (a.dataset.icu === 'on') { connectIcu(); return; }
@@ -406,5 +414,5 @@ const Cloud = (() => {
     else if (a.dataset.feelact) feelDlg(a.dataset.feelact);
   });
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) { importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); autoIcu(); } });
-  return { init, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, connectIcuOAuth, connectStrava, authDlg, get ready(){ return ready; }, get icu(){ return icu; }, get strava(){ return strava; }, get user(){ return user(); }, get sb(){ return sb; } };
+  return { init, signIn, signUp, signInGoogle, get authKnown(){ return authKnown; }, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, connectIcuOAuth, connectStrava, authDlg, get ready(){ return ready; }, get icu(){ return icu; }, get strava(){ return strava; }, get user(){ return user(); }, get sb(){ return sb; } };
 })();

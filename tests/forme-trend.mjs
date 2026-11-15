@@ -5,8 +5,8 @@ const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.dev
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
 await pg.clock.setFixedTime(new Date('2026-10-28T22:05:00+01:00'));
 await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname);
-await pg.fill('[name=age]', '28'); await pg.fill('[name=weightKg]', '83'); await pg.fill('[name=ftp]', '255'); await pg.fill('[name=startDate]', '2026-10-21');
-await pg.evaluate(() => document.querySelector('button[type=submit]').click()); await pg.waitForSelector('#tabs:not(.hidden)');
+await pg.waitForFunction(() => typeof Onboard !== 'undefined' && Cloud.ready); await pg.evaluate(o => Onboard.finish({ ...Onboard.draft(), ...o }, { quick:true }), { age:28, weightKg:83, ftp:255, goalFtp:300, startDate:'2026-10-21' });
+ await pg.waitForSelector('#tabs:not(.hidden)');
 await pg.evaluate(() => { const H = Health.H; H.daily.length = 0; H.sleep.length = 0;
   for (let i = 40; i >= 0; i--) { const d = addDays(todayISO(), -i); H.daily.push({ day: d, metric: 'hrv', value: 62 + Math.sin(i)*6 - (i < 3 ? 9 : 0) }, { day: d, metric: 'rhr', value: 49 + (i < 2 ? 4 : Math.cos(i)) }, { day: d, metric: 'weight', value: 83.2 - i*0.01 });
     H.sleep.push(i === 0 ? { night: d, asleep_min: 412, source: 'Intervals.icu' } : { night: d, asleep_min: 420 + Math.round(Math.sin(i*1.7)*50), deep_min: 60, core_min: 240, rem_min: 90, awake_min: 25, source: 'Apple Watch', bed_start: d + 'T22:40:00Z', bed_end: addDays(d, 1) + 'T06:10:00Z' }); }
