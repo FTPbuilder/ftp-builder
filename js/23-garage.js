@@ -329,7 +329,7 @@ const Garage = (() => {
   function lookHTML(b){
     const L = Bike3D.lookOf(b.look, b.model), P = Bike3D.PAINTS.find(p => p.id === L.paint), fin = L.finish || P.finish, btn = (k, v, on, inner, attrs = '') => `<button type="button" class="${on ? 'on' : ''}" data-grlook="${k}" data-v="${v}"${attrs}>${inner}</button>`;
     return `<div class="gr-look"><div class="row between"><label class="f">Couleur</label><span class="tiny muted">${L.custom ? 'Couleur perso' : esc(P.name)} · ${Bike3D.FINISHES[fin].l}</span></div>
-      <div class="gr-sw">${Bike3D.PAINTS.map(p => btn('paint', p.id, !L.custom && L.paint === p.id, '', ` style="--c:${p.hex}" title="${esc(p.name)}" aria-label="${esc(p.name)}"${p.irid ? ' data-irid="1"' : ''}`)).join('')}
+      <div class="gr-sw">${Bike3D.PAINTS.map(p => btn('paint', p.id, !L.custom && L.paint === p.id, '', ` style="--c:${p.hex}${p.sw ? ';background:' + p.sw : ''}" title="${esc(p.name)}" aria-label="${esc(p.name)}"`)).join('')}
         <label class="gr-swc${L.custom ? ' on' : ''}" style="--c:${L.custom || '#808080'}" title="Couleur perso"><input type="color" data-grlookc value="${L.custom || '#808080'}" aria-label="Couleur personnalisée"><span>+</span></label></div>
       <div class="seg gr-lseg">${Object.entries(Bike3D.FINISHES).map(([k, f]) => btn('finish', k, fin === k, f.l)).join('')}</div>
       <label class="f" for="grLookName">Sticker</label><div class="row" style="gap:8px"><input id="grLookName" type="text" maxlength="22" data-grlookt value="${esc(L.name)}" placeholder="FTP builder" style="flex:1;min-width:0"><button class="btn sm ghost" data-grlook="name" data-v="FTP builder" aria-label="Remettre FTP builder">↺</button></div>

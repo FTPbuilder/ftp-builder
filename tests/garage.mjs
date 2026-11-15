@@ -138,6 +138,9 @@ assert(await ev(() => S.garage.bikes[0].look.name === 'Arnaud TRI' && Bike3D.R.f
 await pg.locator('[data-grlook="rim"][data-v="62"]').click();
 await pg.waitForFunction(() => Bike3D.R && /\|ftp62$/.test(Bike3D.R.key), null, { timeout: 30000 }).catch(() => {}); await pg.waitForTimeout(300);
 assert(await ev(() => /\|ftp62$/.test(Bike3D.R.key) && Bike3D.R.ft.look.rim === 62 && Bike3D.R.ft.look.paint === 'volcan'), 'jantes de 62 mm : maquette reconstruite, couleur conservée');
+await pg.locator('[data-grlook="paint"][data-v="scarabee"]').click(); await pg.waitForTimeout(300);
+assert(await ev(() => { let f = 0, d = 0; Bike3D.R.root.traverse(o => { const m = o.material; if (m?.name === 'Paint_Frame') f = m.userData.flip?.ftpbFlip.value; if (/^Decal_DownTube/.test(m?.name || '')) d = m.iridescence; }); return S.garage.bikes[0].look.paint === 'scarabee' && f === 1 && d === 1; }),
+  'peinture Scarabée : teinte selon l\'angle de vue, sticker holographique');
 await ev(() => { const b = S.garage.bikes[0]; b.variant.brakes = 'disc'; b.variant.speeds = 12; save(); render(); });
 await pg.waitForFunction(() => Bike3D.R && /\|disc\|12\|/.test(Bike3D.R.key), null, { timeout: 30000 }).catch(() => {}); await pg.waitForTimeout(300);
 m3 = await parts3d(); console.log('maquette disques', m3.key);
