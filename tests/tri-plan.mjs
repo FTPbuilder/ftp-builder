@@ -15,9 +15,11 @@ await pg.goto('file://' + new URL('../index.html', import.meta.url).pathname); a
 await pg.evaluate(() => { S.plan = generatePlan(S.profile); save(); render(); });
 await pg.tap('button[data-tab="cal"]'); await pg.waitForTimeout(200);
 await pg.locator('[data-trisetup]').first().tap(); await pg.waitForTimeout(200);
-assert(await pg.inputValue('[name=css]') !== '' && /^\d'\d\d$/.test(await pg.inputValue('[name=runThr]')), 'allures pré-remplies depuis les séances');
+assert(await pg.inputValue('[name=css_min]') !== '' && await pg.inputValue('[name=runThr_min]') !== '', 'allures pré-remplies depuis les séances (cases min / s)');
+// clavier numérique de l'iPhone : l'allure se saisit en deux cases min / s
+await pg.fill('[name=css_min]', '1'); await pg.fill('[name=css_s]', '52');
 await pg.tap('#triGo'); await pg.waitForTimeout(300);
-const r = await pg.evaluate(() => ({ n: S.triPlan.length, swim: S.triPlan.filter(x => x.sport === 'swim').length, run: S.triPlan.filter(x => x.sport === 'run' && x.wid !== 'brick').length,
+const r = await pg.evaluate(() => ({ css: S.tri.css, n: S.triPlan.length, swim: S.triPlan.filter(x => x.sport === 'swim').length, run: S.triPlan.filter(x => x.sport === 'run' && x.wid !== 'brick').length,
   race: S.triPlan.filter(x => x.sport === 'race').map(x => x.date), end: S.profile.endDate, after: S.plan.filter(s => s.date > '2027-06-05').length,
   spec: S.plan.some(s => s.block === 'Spécifique montagne'), long3h: S.plan.some(s => s.workoutId === 'end_180'), longDp: S.triPlan.filter(x => x.wid === 'long' && x.dp >= 800).length,
   weekOk: (() => { const w = S.triPlan.filter(x => x.date >= '2026-11-09' && x.date <= '2026-11-15'); return [w.filter(x => x.sport === 'swim').length, w.filter(x => x.sport === 'run').length]; })(),
@@ -25,6 +27,7 @@ const r = await pg.evaluate(() => ({ n: S.triPlan.length, swim: S.triPlan.filter
   swimWeek: S.triPlan.filter(x => x.sport === 'swim' && x.date >= '2026-11-09' && x.date <= '2026-11-15').map(x => DOW[dowMon(x.date)].toLowerCase()),
   raceWeekBike: S.plan.filter(s => s.date >= '2027-05-31').map(s => s.workoutId) }));
 console.log(JSON.stringify(r));
+assert(r.css === 112, `CSS saisie en min / s : 1'52 → 112 s (${r.css})`);
 assert(r.race.join() === '2027-06-05' && r.end === '2027-06-05' && r.after === 0, 'course le 5 juin, plan vélo prolongé jusqu\'à la course');
 assert(r.weekOk.join() === '2,3', '2 nat + 3 course par semaine (défaut)');
 assert(r.runWeek.join() === 'lun:easy,mer:qual,dim:long' && r.swimWeek.join() === 'mar,ven', 'semaine type : footing lun., qualité mer., longue dim., nat mar. + ven.');

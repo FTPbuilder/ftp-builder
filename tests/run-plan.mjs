@@ -20,7 +20,7 @@ assert(Math.abs(v.t10 - 2481) < 10 && Math.abs(v.tm - 11449) < 40 && Math.abs(v.
 const bikeBefore = await pg.evaluate(() => ({ end: S.profile.endDate, n: S.plan.length }));
 await pg.tap('button[data-tab="cal"]'); await pg.waitForTimeout(200);
 await pg.locator('[data-runsetup]').first().tap(); await pg.waitForTimeout(200);
-assert(/^\d'\d\d$/.test(await pg.inputValue('[name=runThr]')), 'seuil pré-rempli depuis les courses');
+assert(+await pg.inputValue('[name=runThr_min]') >= 3 && await pg.inputValue('[name=runThr_s]') !== '', 'seuil pré-rempli depuis les courses (cases min / s)');
 assert(await pg.inputValue('[name=date]') === '2027-01-24', `10 km par défaut : date conseillée à 10 semaines (${await pg.inputValue('[name=date]')})`);
 await pg.locator('[data-rdist] button', { hasText: 'Semi' }).tap();
 assert(await pg.inputValue('[name=date]') === '2027-02-07', 'semi : la date proposée passe à 12 semaines');

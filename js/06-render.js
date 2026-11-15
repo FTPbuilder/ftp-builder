@@ -723,6 +723,9 @@ function calHTML(){
 }
 
 /* ----- Triathlon : réglages, fiche séance, intégration calendrier / programme ----- */
+// allure en 2 cases min / s : le clavier numérique de l'iPhone n'a ni « ' » ni « : »
+const paceIn = (name, sec, ph = '') => { const v = +sec > 0 ? Math.round(sec) : null; return `<div class="tgrow pc">${[['min', v != null ? Math.floor(v/60) : '', 59], ['s', v != null ? v % 60 : '', 59]].map(([u, x, mx]) => `<label><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="${mx}" name="${name}_${u}" value="${x}"${ph && !v ? ` placeholder="${u === 'min' ? ph.split("'")[0] : ph.split("'")[1] || ''}"` : ''} aria-label="${name} ${u}"><span>${u}</span></label>`).join('')}</div>`; };
+const paceRead = (E, name, def) => { const m = E[name + '_min']?.value, s = E[name + '_s']?.value; if ((m ?? '') === '' && (s ?? '') === '') return def; const v = (+m || 0)*60 + (+s || 0); return v > 0 ? v : def; };
 const parsePace = (v, def) => { const m = String(v || '').trim().match(/^(\d{1,2})\s*[:'’.,h]\s*(\d{1,2})/); return m ? +m[1]*60 + +m[2] : (+v > 30 ? +v : def); };
 // estimations depuis tes séances : CSS ≈ allure moyenne des nats ≥ 1,5 km − 5 s ; seuil course ≈ allure des courses de 35-70 min les plus rapides
 function triGuess(){
@@ -758,8 +761,8 @@ function triSetupDlg(){
       <div><label class="f">Vélo D+ (m)</label><input type="number" name="bikeDp" value="${T.race.bikeDp}" step="10"></div>
       <div><label class="f">Course (km)</label><input type="number" name="run" value="${T.race.run}" step="0.1"></div>
       <div><label class="f">Course D+ (m)</label><input type="number" name="runDp" value="${T.race.runDp}" step="10"></div>
-      <div><label class="f">CSS nat (/100 m)</label><input type="text" name="css" value="${fmtPace(T.css)}" inputmode="numeric"><span class="tiny muted">${g.css && !S.tri ? 'estimée sur tes nats' : 'allure seuil en piscine'}</span></div>
-      <div><label class="f">Seuil course (/km)</label><input type="text" name="runThr" value="${fmtPace(T.runThr)}" inputmode="numeric"><span class="tiny muted">${g.runThr && !S.tri ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
+      <div><label class="f">CSS nat (/100 m)</label>${paceIn('css', T.css)}<span class="tiny muted">${g.css && !S.tri ? 'estimée sur tes nats' : 'allure seuil en piscine'}</span></div>
+      <div><label class="f">Seuil course (/km)</label>${paceIn('runThr', T.runThr)}<span class="tiny muted">${g.runThr && !S.tri ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
       <div style="grid-column:1/-1"><label class="f">Ma semaine</label>${weekGridHTML(wm)}
         <p class="tiny muted" style="margin:6px 0 0">Vélo : les 2 jours les plus espacés portent les séances clés (durées max dans Profil). Course : la dernière de la semaine = sortie longue ; avec 3 courses, la 1re = footing facile. Nat : la 1re = qualité.</p></div>
       <div style="grid-column:1/-1"><label class="f">Sortie vélo longue du week-end <span class="tiny muted">(à partir du bloc VO2)</span></label><select name="longRide">${[120, 150, 180, 210].map(m => `<option value="${m}" ${T.longRide === m ? 'selected' : ''}>jusqu'à ${fmtDur(m*60)}</option>`).join('')}</select></div>
@@ -775,7 +778,7 @@ function triSetupDlg(){
   $('#triGo').onclick = () => {
     const E = f.elements, race = { name: E.name.value.trim() || 'Course A', date: E.date.value, swim: +E.swim.value || 2000, bike: +E.bike.value || 90, bikeDp: +E.bikeDp.value || 0, run: +E.run.value || 21, runDp: +E.runDp.value || 0 };
     if (T.race.bikeProf && race.bike === T.race.bike) race.bikeProf = T.race.bikeProf; if (T.race.runProf && race.run === T.race.run) race.runProf = T.race.runProf; // tracés GPX gardés si la distance ne change pas
-    const nT = { ...T, mode:'tri', enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: Math.min(3, wm.swim.length), runPerWeek: Math.min(3, wm.run.length), swimDays: wm.swim, runDays: wm.run, doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
+    const nT = { ...T, mode:'tri', enabled:true, race, css: paceRead(E, 'css', T.css), runThr: paceRead(E, 'runThr', T.runThr), swimPerWeek: Math.min(3, wm.swim.length), runPerWeek: Math.min(3, wm.run.length), swimDays: wm.swim, runDays: wm.run, doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
     const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : !wm.bike.length ? 'Coche au moins un jour de vélo.' : !wm.swim.length ? 'Coche au moins un jour de nat.' : !wm.run.length ? 'Coche au moins un jour de course.' : '';
     if (msg) { $('#triMsg').textContent = msg; $('#triMsg').style.color = 'var(--bad)'; return; }
     for (let d = 0; d < 7; d++) S.profile.days[d].avail = wm.bike.includes(d);
@@ -813,7 +816,7 @@ function runSetupDlg(){
       <div><label class="f">D+ (m)</label><input type="number" name="runDp" value="${T.race.runDp || ''}" step="10" min="0" placeholder="0"></div>
       <p class="tiny muted" style="grid-column:1/-1;margin:-4px 0 0" id="runDateHint">${cur ? '' : 'Pas de course précise ? Garde la date proposée (durée conseillée) : le dernier jour sera ton chrono test.'}</p>
       <div style="grid-column:1/-1"><label class="f">Objectif de temps <span class="tiny muted">(facultatif)</span></label><div class="tgin">${hms('goal', T.goal || 0)}</div></div>
-      <div><label class="f">Seuil course (/km)</label><input type="text" name="runThr" value="${fmtPace(T.runThr)}" inputmode="numeric"><span class="tiny muted">${g.runThr && !cur ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
+      <div><label class="f">Seuil course (/km)</label>${paceIn('runThr', T.runThr)}<span class="tiny muted">${g.runThr && !cur ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
       <div><label class="f">ou un chrono récent</label><select name="refM"><option value="">—</option>${RUN_REF.map(([m, l]) => `<option value="${m}" ${T.ref?.m === m ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
       <div style="grid-column:1/-1" id="refBox" ${T.ref ? '' : 'hidden'}><div class="tgin">${hms('ref', T.ref?.t || 0)}</div><span class="tiny muted">Un chrono de moins de 2 mois, couru à fond : plus fiable que le seuil estimé.</span></div>
       <div style="grid-column:1/-1"><label class="f">Ma semaine</label>${weekGridHTML(wm, WG_SP.filter(x => x[0] !== 'swim'))}
@@ -825,7 +828,7 @@ function runSetupDlg(){
   const f = $('#runF'), E = f.elements; bindWeekGrid(f, wm);
   const sec = pre => { const n = u => +(E[`${pre}_${u}`]?.value || 0); return n('h')*3600 + n('min')*60 + n('s') || null; };
   const read = () => { const D = RUN_D[dist], refM = +E.refM.value || 0, ref = refM && sec('ref') ? { m: refM, t: sec('ref') } : null;
-    const nT = { ...T, mode:'run', dist, goal: sec('goal'), ref, runThr: parsePace(E.runThr.value, T.runThr),
+    const nT = { ...T, mode:'run', dist, goal: sec('goal'), ref, runThr: paceRead(E, 'runThr', T.runThr),
       race: { name: E.name.value.trim(), date: E.date.value, run: Math.round(D.km*10)/10, runDp: +E.runDp.value || 0, swim:0, bike:0, bikeDp:0 } };
     if (ref) nT.runThr = Math.round(vdotTime(vdotOf(ref.m, ref.t), 10000)/10 + 8); // seuil cohérent avec le chrono
     return nT; };

@@ -41,7 +41,7 @@ async function page(init){
   assert((await pg.textContent('#goalCheck')).length > 10, 'objectif : réalisme affiché');
   await pg.click('#wzNext');
   assert(await pg.locator('[data-k=kind] [data-v=tri].on').count() === 1, 'courses : triathlon pré-sélectionné (sport de prédilection)');
-  await pg.click('[data-k=fmt] [data-v=m]'); await pg.fill('[name=rname]', 'Triathlon de Paris'); await pg.fill('[name=rdate]', '2027-06-27'); await pg.fill('[name=css]', "1'55");
+  await pg.click('[data-k=fmt] [data-v=m]'); await pg.fill('[name=rname]', 'Triathlon de Paris'); await pg.fill('[name=rdate]', '2027-06-27'); await pg.fill('[name=css_min]', '1'); await pg.fill('[name=css_s]', '55');
   await pg.screenshot({ path: SC + '/onb-courses.png' });
   await pg.click('#wzNext');
   await pg.waitForSelector('[data-wz=connected]');
