@@ -251,7 +251,10 @@ const Bike3D = (() => {
     { id: 'nuit', name: 'Bleu Nuit', hex: '#1b2742', finish: 'metal' }, { id: 'ciel', name: 'Bleu Glacier', hex: '#a7c8d8', finish: 'gloss' },
     { id: 'petrole', name: 'Pétrole', hex: '#1f5862', finish: 'metal' }, { id: 'bordeaux', name: 'Bordeaux', hex: '#5c1424', finish: 'metal' },
     { id: 'volcan', name: 'Orange Volcan', hex: '#ff5b1f', finish: 'gloss' }, { id: 'fluo', name: 'Jaune Fluo', hex: '#d9f23c', finish: 'gloss' },
-    { id: 'lavande', name: 'Lavande', hex: '#aa9ed2', finish: 'mat' }, { id: 'cameleon', name: 'Caméléon', hex: '#2b1e58', finish: 'metal', irid: true },
+    { id: 'lavande', name: 'Lavande', hex: '#aa9ed2', finish: 'mat' },
+    { id: 'cameleon', name: 'Caméléon', hex: '#2b1e58', finish: 'metal', irid: true, sw: 'conic-gradient(from 210deg,#2b1e58,#3a5fb8,#1d8a86,#7e3a9e,#2b1e58)' },
+    // peinture à effet (flip-flop) : rose magenta face au regard, or puis vert olive quand la surface fuit ou regarde vers le haut ; sticker holographique par défaut
+    { id: 'scarabee', name: 'Scarabée', hex: '#a8155a', finish: 'metal', flip: ['#a8155a', '#c79a35', '#4f6e2c'], ink: 'holo', sw: 'conic-gradient(from 200deg,#a8155a,#c79a35,#4f6e2c,#a8155a)' },
   ];
   const FINISHES = { mat: { l: 'Mat', rough: .6, metal: 0, cc: 0, ccr: .6 }, satin: { l: 'Satiné', rough: .42, metal: 0, cc: .45, ccr: .32 },
     gloss: { l: 'Brillant', rough: .3, metal: 0, cc: 1, ccr: .03 }, metal: { l: 'Métallisé', rough: .34, metal: .62, cc: 1, ccr: .04 } };
@@ -295,6 +298,18 @@ const Bike3D = (() => {
           reflectedLight.directDiffuse *= mix(0.55, 1.0, bao); reflectedLight.directSpecular *= mix(0.55, 1.0, bao); }`);
     };
     m.customProgramCacheKey = () => 'ftpbAO'; return m;
+  }
+  // peinture à effet : la teinte glisse de C0 (surface face au regard) à C1 puis C2 (surface rasante ou tournée vers le haut), comme une peinture caméléon
+  function withFlip(m){
+    const U = m.userData.flip = { ftpbC0: { value: new THREE.Color() }, ftpbC1: { value: new THREE.Color() }, ftpbC2: { value: new THREE.Color() }, ftpbFlip: { value: 0 } }, ao = m.onBeforeCompile;
+    m.onBeforeCompile = sh => { ao(sh); Object.assign(sh.uniforms, U);
+      sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec3 ftpbC0; uniform vec3 ftpbC1; uniform vec3 ftpbC2; uniform float ftpbFlip;')
+        .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        if (ftpbFlip > 0.0) { float fv = clamp(dot(normal, normalize(vViewPosition)), 0.0, 1.0); vec3 wn = inverseTransformDirection(normal, viewMatrix);
+          float ft = clamp((1.0 - fv)*1.7 + max(wn.y, 0.0)*0.8, 0.0, 1.0);
+          vec3 fc = ft < 0.42 ? mix(ftpbC0, ftpbC1, smoothstep(0.08, 0.42, ft)) : mix(ftpbC1, ftpbC2, smoothstep(0.62, 0.98, ft));
+          diffuseColor.rgb = mix(diffuseColor.rgb, fc, ftpbFlip); }`); };
+    m.customProgramCacheKey = () => 'ftpbAOflip'; return m;
   }
   // jante profilée (révolution autour de z), rayons droits, valve
   const R_TOP = .3152, HOOK_IN = .0116, W_TOP = .0146;
@@ -360,7 +375,7 @@ const Bike3D = (() => {
     const mats = {}, paints = [], decals = [], walls = [];
     const matFor = (k, kind) => { const id = k + ':' + kind; if (mats[id]) return mats[id];
       const m = mats[id] = DECAL[kind] ? decalMat(DECAL[kind].t) : (KIND[kind] || KIND.Anodized_Black)(); m.name = kind;
-      if (kind === 'Paint_Frame') paints.push(m); else if (DECAL[kind]) decals.push(m); else if (kind === 'Tyre_Wall') walls.push(m); return m; };
+      if (kind === 'Paint_Frame') paints.push(withFlip(m)); else if (DECAL[kind]) decals.push(m); else if (kind === 'Tyre_Wall') walls.push(m); return m; };
     const nameOf = o => { for (let p = o; p; p = p.parent) if (FTP_G[p.name]) return p.name; return null; };
     const tw = { F: clamp((+V.tireF || 28)/28, .93, 1.15), R: clamp((+V.tireR || 28)/28, .93, 1.15) };
     const meshes = []; scene.traverse(o => { if (o.isMesh) meshes.push(o); });
@@ -401,10 +416,12 @@ const Bike3D = (() => {
     let cur = null;
     const ft = { look: null, set(look){ const L = lookOf(look, opts.model), sig = JSON.stringify(L); if (sig === cur) return false; cur = sig; ft.look = L;
       const P = PAINTS.find(p => p.id === L.paint) || PAINTS[1], hex = L.custom || P.hex, F = FINISHES[L.finish] || FINISHES[P.finish] || FINISHES.mat, pc = lin(T, hex);
-      for (const m of paints) { m.color.copy(pc); m.roughness = F.rough; m.metalness = F.metal; m.clearcoat = F.cc; m.clearcoatRoughness = F.ccr; m.iridescence = P.irid && !L.custom ? 1 : 0; m.iridescenceIOR = 1.75; m.iridescenceThicknessRange = [260, 820]; m.needsUpdate = true; }
-      const lum = .2126*pc.r + .7152*pc.g + .0722*pc.b, ink = INKS.find(i => i.id === L.ink) || INKS[0];
-      const spec = ink.id === 'auto' ? { hex: lum > .32 ? '#141414' : '#f4f4f2' } : ink.id === 'ton' ? { hex, gloss: true, tone: true } : ink;
-      for (const m of decals) { const onRim = m === rimDecal, s2 = onRim ? (ink.id === 'auto' ? { hex: '#e9e9e9' } : ink.id === 'ton' || ink.id === 'noir' ? { hex: '#2b2b2d', gloss: true } : ink) : spec;
+      const flip = !L.custom && P.flip;
+      for (const m of paints) { m.color.copy(pc); m.roughness = F.rough; m.metalness = F.metal; m.clearcoat = F.cc; m.clearcoatRoughness = F.ccr; m.iridescence = P.irid && !L.custom ? 1 : 0; m.iridescenceIOR = 1.75; m.iridescenceThicknessRange = [260, 820];
+        const U = m.userData.flip; if (U) { U.ftpbFlip.value = flip ? 1 : 0; if (flip) [U.ftpbC0, U.ftpbC1, U.ftpbC2].forEach((u, i) => u.value.copy(lin(T, P.flip[i]))); } m.needsUpdate = true; }
+      const lum = .2126*pc.r + .7152*pc.g + .0722*pc.b, ink = INKS.find(i => i.id === L.ink) || INKS[0], auto = !L.custom && P.ink ? INKS.find(i => i.id === P.ink) : null;
+      const spec = ink.id === 'auto' ? auto || { hex: lum > .32 ? '#141414' : '#f4f4f2' } : ink.id === 'ton' ? { hex, gloss: true, tone: true } : ink;
+      for (const m of decals) { const onRim = m === rimDecal, s2 = onRim ? (ink.id === 'auto' ? auto || { hex: '#e9e9e9' } : ink.id === 'ton' || ink.id === 'noir' ? { hex: '#2b2b2d', gloss: true } : ink) : spec;
         m.color.copy(lin(T, s2.hex)); if (s2.tone) m.color.offsetHSL(0, 0, lum > .3 ? -.06 : .05); m.metalness = s2.metal ? .75 : 0; m.roughness = s2.metal ? .26 : s2.gloss ? .12 : .34;
         m.iridescence = s2.irid ? 1 : 0; m.iridescenceIOR = 1.9; m.iridescenceThicknessRange = [200, 900]; m.needsUpdate = true; }
       const name = L.name.trim() || 'FTP builder', Fo = FONTS[L.font] || FONTS.sport, Fb = L.font === 'script' ? FONTS.bloc : Fo;
