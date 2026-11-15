@@ -368,7 +368,7 @@ const Library = (() => {
     const r = S.tri?.race; if (!r?.date || !r.name || r.date >= todayISO()) return;
     const key = 'tri-' + r.date; if (races().some(x => x.auto === key) || (S.racesSkip || []).includes(key)) return;
     const sp = daySplits(r.date), sec = Object.values(sp).reduce((a, b) => a + b, 0);
-    races().push({ id: rid(), auto: key, name: r.name, date: r.date, sport: 'tri', time: sec ? hms(sec) : '', splits: sp, rank: '', note: '', photos: [] }); save();
+    races().push({ id: rid(), auto: key, name: r.name, date: r.date, sport: S.tri?.mode === 'run' ? 'run' : 'tri', time: sec ? hms(sec) : '', splits: sp, rank: '', note: '', photos: [] }); save();
   }
   function racesHTML(){
     autoRace();
