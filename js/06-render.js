@@ -731,17 +731,17 @@ function triGuess(){
   return { css: sw.length >= 2 ? Math.round(med(sw) - 5) : null, runThr: rn.length ? Math.round(rn[0]*0.95) : null };
 }
 const WG_SP = [['bike', '🚴', 'Vélo'], ['swim', '🏊', 'Nat'], ['run', '🏃', 'Course']];
-function weekGridHTML(m){ // m = { bike:[jours], swim:[…], run:[…] }
+function weekGridHTML(m, SP = WG_SP){ // m = { bike:[jours], swim:[…], run:[…] }
   const DN = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
   return `<div class="wgrid" role="group" aria-label="Ma semaine"><span></span>${DN.map((d, i) => `<span class="wh">${d}</span>`).join('')}
-    ${WG_SP.map(([k, ic, l]) => `<span class="wl">${ic} ${l}</span>${DN.map((_, i) => `<button type="button" class="wc ${k} ${m[k].includes(i) ? 'on' : ''}" data-wg="${k}" data-v="${i}" aria-pressed="${m[k].includes(i)}" aria-label="${l} ${DOW[i]}">${m[k].includes(i) ? ic : ''}</button>`).join('')}`).join('')}</div>`;
+    ${SP.map(([k, ic, l]) => `<span class="wl">${ic} ${l}</span>${DN.map((_, i) => `<button type="button" class="wc ${k} ${m[k].includes(i) ? 'on' : ''}" data-wg="${k}" data-v="${i}" aria-pressed="${m[k].includes(i)}" aria-label="${l} ${DOW[i]}">${m[k].includes(i) ? ic : ''}</button>`).join('')}`).join('')}</div>`;
 }
 function bindWeekGrid(root, m){
   root.querySelectorAll('[data-wg]').forEach(b => b.onclick = e => { e.stopPropagation(); const k = b.dataset.wg, v = +b.dataset.v, on = !m[k].includes(v);
     m[k] = on ? [...m[k], v].sort((a, c) => a - c) : m[k].filter(x => x !== v); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); b.textContent = on ? WG_SP.find(x => x[0] === k)[1] : ''; });
 }
 function triSetupDlg(){
-  const T = Object.assign(TRI_DEF(), S.tri || {}), g = triGuess();
+  const T = Object.assign(TRI_DEF(), S.tri?.mode === 'run' ? { runThr: S.tri.runThr } : S.tri || {}), g = triGuess();
   const wm = { bike: [0, 1, 2, 3, 4, 5, 6].filter(d => S.profile.days[d]?.avail), swim: T.swimDays.slice(0, T.swimPerWeek), run: T.runDays.slice(0, T.runPerWeek) };
   if (!S.tri) { if (g.css) T.css = g.css; if (g.runThr) T.runThr = g.runThr; }
   const DN = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
@@ -765,7 +765,7 @@ function triSetupDlg(){
       <label class="small" style="grid-column:1/-1;display:flex;gap:8px;align-items:center"><input type="checkbox" name="doubles" ${T.doubles ? 'checked' : ''} style="width:auto"> Doubles séances (nat le matin + vélo le soir, enchaînements vélo → course)</label>
     </form>
     <p class="tiny muted" id="triMsg" style="margin:8px 0 0"></p>
-    <div class="row" style="margin-top:12px"><button class="btn primary" id="triGo">${triOn() ? 'Mettre à jour le plan' : 'Créer le plan triathlon'}</button>${triOn() ? '<button class="btn ghost" id="triOff">Revenir au plan vélo seul</button>' : ''}</div>`);
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="triGo">${triFull() ? 'Mettre à jour le plan' : 'Créer le plan triathlon'}</button>${triFull() ? '<button class="btn ghost" id="triOff">Revenir au plan vélo seul</button>' : ''}</div>`);
   const f = $('#triF'); bindWeekGrid(f, wm);
   f.querySelectorAll('[data-days] button').forEach(b => b.onclick = () => { b.classList.toggle('on'); b.setAttribute('aria-pressed', b.classList.contains('on')); });
   f.querySelectorAll('[data-cnt] button').forEach(b => b.onclick = () => { b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); });
@@ -774,7 +774,7 @@ function triSetupDlg(){
   $('#triGo').onclick = () => {
     const E = f.elements, race = { name: E.name.value.trim() || 'Course A', date: E.date.value, swim: +E.swim.value || 2000, bike: +E.bike.value || 90, bikeDp: +E.bikeDp.value || 0, run: +E.run.value || 21, runDp: +E.runDp.value || 0 };
     if (T.race.bikeProf && race.bike === T.race.bike) race.bikeProf = T.race.bikeProf; if (T.race.runProf && race.run === T.race.run) race.runProf = T.race.runProf; // tracés GPX gardés si la distance ne change pas
-    const nT = { ...T, enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: Math.min(3, wm.swim.length), runPerWeek: Math.min(3, wm.run.length), swimDays: wm.swim, runDays: wm.run, doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
+    const nT = { ...T, mode:'tri', enabled:true, race, css: parsePace(E.css.value, T.css), runThr: parsePace(E.runThr.value, T.runThr), swimPerWeek: Math.min(3, wm.swim.length), runPerWeek: Math.min(3, wm.run.length), swimDays: wm.swim, runDays: wm.run, doubles: E.doubles.checked, longRide: +E.longRide.value || 180 };
     const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : !wm.bike.length ? 'Coche au moins un jour de vélo.' : !wm.swim.length ? 'Coche au moins un jour de nat.' : !wm.run.length ? 'Coche au moins un jour de course.' : '';
     if (msg) { $('#triMsg').textContent = msg; $('#triMsg').style.color = 'var(--bad)'; return; }
     for (let d = 0; d < 7; d++) S.profile.days[d].avail = wm.bike.includes(d);
@@ -782,9 +782,94 @@ function triSetupDlg(){
   };
   if ($('#triOff')) $('#triOff').onclick = () => { S.tri.enabled = false; S.triPlan = (S.triPlan || []).filter(x => x.date < todayISO()); save(); closeDlg(); render(); toast('Plan triathlon désactivé : les séances nat / course à venir sont retirées'); };
 }
+/* ----- Plan course à pied : 10 km, semi, marathon ----- */
+const RUN_REF = [[5000, '5 km'], [10000, '10 km'], [21097.5, 'Semi'], [42195, 'Marathon']];
+// faisabilité de l'objectif : gain de VDOT demandé vs semaines dispo (ordre de grandeur : ~1 point par mois d'entraînement bien suivi)
+function runFeas(T, v0 = runVdot(T)){
+  const D = RUN_D[T.dist], n = Math.max(1, diffDays(monday(todayISO()), monday(T.race.date))/7), vg = runGoalVdot(T), m = D.km*1000;
+  const out = { n, short: n < D.min, v0, vg };
+  if (!vg) return { ...out, cls:'', txt:`Sans objectif de temps, les séances spécifiques se font à l'allure prédite (${fmtPace(runPredict(T, v0)/D.km)} /km).` };
+  const gain = vg - v0, ok = Math.min(0.2*n, 4), hard = Math.min(0.35*n, 6), real = runPredict(T, v0 + ok);
+  if (gain <= 0) return { ...out, cls:'ok', txt:`Objectif déjà à ta portée d'après ton niveau actuel : garde-le comme plancher ou vise ${fmtHMS(runPredict(T, v0 + Math.min(0.15*n, 3)))}.` };
+  if (gain <= ok) return { ...out, cls:'ok', txt:`Objectif réaliste : +${gain.toFixed(1).replace('.', ',')} VDOT en ${n} semaines.` };
+  if (gain <= hard) return { ...out, cls:'warn', txt:`Objectif ambitieux : +${gain.toFixed(1).replace('.', ',')} VDOT en ${n} semaines. Jouable si l'entraînement est régulier${T.goal < real - 30 ? ` ; un objectif plus sûr serait ${fmtHMS(real)}` : ''}.` };
+  return { ...out, cls:'bad', txt:`Objectif très ambitieux : +${gain.toFixed(1).replace('.', ',')} VDOT en ${n} semaines, c'est beaucoup. Un objectif réaliste serait autour de ${fmtHMS(real)}.` };
+}
+function runPacesLine(vd, T){ const P = runPaces(vd, T); return `Footing ${fmtPace(P.e)} · marathon ${fmtPace(P.m)} · seuil ${fmtPace(P.t)} · VO2 ${fmtPace(P.i)} · vitesse ${fmtPace(P.r)} · <b>course ${fmtPace(P.rp)}</b> /km`; }
+function runSetupDlg(){
+  const cur = S.tri?.mode === 'run' ? S.tri : null, g = triGuess();
+  const T = Object.assign(RUN_DEF(), cur || {}); if (!cur) T.runThr = g.runThr || S.tri?.runThr || T.runThr;
+  if (!cur) { const free = [0, 1, 2, 3, 4, 5, 6].filter(d => !S.profile.days[d]?.avail); if (free.length >= 3) { T.runDays = free.slice(-4); T.runPerWeek = T.runDays.length; } } // par défaut : les jours sans vélo
+  let dist = T.dist, dateTouched = !!cur?.race?.date;
+  const wm = { bike: [0, 1, 2, 3, 4, 5, 6].filter(d => S.profile.days[d]?.avail), run: T.runDays.slice(0, T.runPerWeek) };
+  const hms = (pre, v, ph = 0) => `<div class="tgrow"><span class="tgl"></span>${[['h', Math.floor(v/3600), 9], ['min', Math.floor(v % 3600/60), 59], ['s', Math.round(v % 60), 59]].map(([u, x, mx]) => `<label><input type="number" inputmode="numeric" pattern="[0-9]*" min="0" max="${mx}" name="${pre}_${u}" value="${v ? x : ''}"><span>${u}</span></label>`).join('')}</div>`;
+  openDlg(`<h2 style="margin:0 0 4px">🏃 Plan course à pied</h2>
+    <p class="small muted" style="margin:0 0 10px">Construit en arrière depuis ta course : base → seuil → VO2 / allure → spécifique → affûtage. Allures de Jack Daniels (VDOT) calées sur ton niveau, séances spécifiques à l'allure de ton objectif. Le plan vélo garde ses dates.</p>
+    <form id="runF" class="grid2" style="gap:10px">
+      <div style="grid-column:1/-1"><label class="f">Distance</label><div class="seg" data-rdist>${Object.entries(RUN_D).map(([k, D]) => `<button type="button" class="${+k === dist ? 'on' : ''}" data-v="${k}">${k === '21' ? 'Semi' : D.l}</button>`).join('')}</div></div>
+      <div style="grid-column:1/-1"><label class="f">Course <span class="tiny muted">(si tu en as une)</span></label><input type="text" name="name" value="${esc(T.race.name || '')}" placeholder="ex. Semi de Paris"></div>
+      <div><label class="f">Date</label><input type="date" name="date" value="${T.race.date || runDefaultDate(dist)}" min="${addDays(todayISO(), 21)}"></div>
+      <div><label class="f">D+ (m)</label><input type="number" name="runDp" value="${T.race.runDp || ''}" step="10" min="0" placeholder="0"></div>
+      <p class="tiny muted" style="grid-column:1/-1;margin:-4px 0 0" id="runDateHint">${cur ? '' : 'Pas de course précise ? Garde la date proposée (durée conseillée) : le dernier jour sera ton chrono test.'}</p>
+      <div style="grid-column:1/-1"><label class="f">Objectif de temps <span class="tiny muted">(facultatif)</span></label><div class="tgin">${hms('goal', T.goal || 0)}</div></div>
+      <div><label class="f">Seuil course (/km)</label><input type="text" name="runThr" value="${fmtPace(T.runThr)}" inputmode="numeric"><span class="tiny muted">${g.runThr && !cur ? 'estimé sur tes courses' : '≈ allure 10 km + 8 s'}</span></div>
+      <div><label class="f">ou un chrono récent</label><select name="refM"><option value="">—</option>${RUN_REF.map(([m, l]) => `<option value="${m}" ${T.ref?.m === m ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+      <div style="grid-column:1/-1" id="refBox" ${T.ref ? '' : 'hidden'}><div class="tgin">${hms('ref', T.ref?.t || 0)}</div><span class="tiny muted">Un chrono de moins de 2 mois, couru à fond : plus fiable que le seuil estimé.</span></div>
+      <div style="grid-column:1/-1"><label class="f">Ma semaine</label>${weekGridHTML(wm, WG_SP.filter(x => x[0] !== 'swim'))}
+        <p class="tiny muted" style="margin:6px 0 0">Course : la dernière de la semaine = sortie longue ; 2-3 courses = 1 séance de qualité, 4 et plus = 2. Évite la qualité course la veille d'une séance clé vélo.</p></div>
+    </form>
+    <div class="note" id="runInfo" style="margin-top:10px"></div>
+    <p class="tiny muted" id="runMsg" style="margin:8px 0 0"></p>
+    <div class="row" style="margin-top:12px;flex-wrap:wrap"><button class="btn primary" id="runGo">${runOn() ? 'Mettre à jour le plan' : 'Créer le plan course'}</button>${runOn() ? '<button class="btn ghost" id="runOff">Revenir au plan vélo seul</button>' : ''}</div>`);
+  const f = $('#runF'), E = f.elements; bindWeekGrid(f, wm);
+  const sec = pre => { const n = u => +(E[`${pre}_${u}`]?.value || 0); return n('h')*3600 + n('min')*60 + n('s') || null; };
+  const read = () => { const D = RUN_D[dist], refM = +E.refM.value || 0, ref = refM && sec('ref') ? { m: refM, t: sec('ref') } : null;
+    const nT = { ...T, mode:'run', dist, goal: sec('goal'), ref, runThr: parsePace(E.runThr.value, T.runThr),
+      race: { name: E.name.value.trim(), date: E.date.value, run: Math.round(D.km*10)/10, runDp: +E.runDp.value || 0, swim:0, bike:0, bikeDp:0 } };
+    if (ref) nT.runThr = Math.round(vdotTime(vdotOf(ref.m, ref.t), 10000)/10 + 8); // seuil cohérent avec le chrono
+    return nT; };
+  const info = () => { const nT = read(); if (!nT.race.date) return; const D = RUN_D[dist], v0 = runVdot(nT), F = runFeas(nT, v0);
+    $('#runInfo').className = 'note ' + (F.cls || '');
+    $('#runInfo').innerHTML = `<b>${D.l} : prédiction ${fmtHMS(runPredict(nT, v0))}</b> (VDOT ${v0.toFixed(1).replace('.', ',')})${F.vg ? ` · objectif VDOT ${F.vg.toFixed(1).replace('.', ',')}` : ''}<br>${F.txt}${F.short ? `<br>⚠️ ${F.n} semaines seulement : en dessous de ${D.min} semaines le plan est compressé (conseillé : ${D.weeks}).` : ''}<div class="tiny" style="margin-top:4px">${runPacesLine(v0, nT)}</div>`; };
+  f.querySelectorAll('[data-rdist] button').forEach(b => b.onclick = () => { dist = +b.dataset.v; f.querySelectorAll('[data-rdist] button').forEach(x => x.classList.toggle('on', x === b)); if (!dateTouched) E.date.value = runDefaultDate(dist); info(); });
+  E.date.oninput = () => { dateTouched = true; };
+  E.refM.onchange = () => { $('#refBox').hidden = !E.refM.value; info(); };
+  f.addEventListener('input', info); f.addEventListener('change', info); info();
+  $('#runGo').onclick = () => {
+    const nT = read(), race = nT.race;
+    const msg = !race.date || race.date < addDays(todayISO(), 21) ? 'Choisis une date au moins 3 semaines plus tard.' : !wm.bike.length ? 'Coche au moins un jour de vélo.' : wm.run.length < 2 ? 'Coche au moins 2 jours de course.' : '';
+    if (msg) { $('#runMsg').textContent = msg; $('#runMsg').style.color = 'var(--bad)'; return; }
+    if (!race.name) race.name = `Objectif ${RUN_D[dist].l.toLowerCase()}`;
+    nT.runDays = wm.run; nT.runPerWeek = wm.run.length; nT.enabled = true;
+    nT.start = cur?.enabled && cur.start && cur.race.date === race.date && cur.dist === dist ? cur.start : todayISO();
+    for (let d = 0; d < 7; d++) S.profile.days[d].avail = wm.bike.includes(d);
+    applyTri(nT); closeDlg(); TAB = 'cal'; render(); toast(`Plan ${RUN_D[dist].l.toLowerCase()} créé : ${S.triPlan.filter(x => x.date >= todayISO() && x.sport === 'run').length} séances jusqu'au ${fmtDate(race.date)}`);
+  };
+  if ($('#runOff')) $('#runOff').onclick = () => { S.tri.enabled = false; S.triPlan = (S.triPlan || []).filter(x => x.date < todayISO()); save(); closeDlg(); render(); toast('Plan course désactivé : les séances de course à venir sont retirées'); };
+}
+function runBannerHTML(){
+  const T = tri(), D = RUN_D[T.dist], d = diffDays(todayISO(), T.race.date), v0 = runVdot(T), F = runFeas(T, v0), pr = runPredict(T, v0);
+  const next = (S.triPlan || []).filter(x => x.date >= todayISO() && x.sport === 'run' && triStatus(x) === 'planned').length;
+  const dl = (a, b) => `<span class="${a <= b ? 'ok' : 'bad'}">${a <= b ? '−' : '+'}${fmtHMS(Math.abs(a - b))}</span>`;
+  const eq = vd => RUN_REF.map(([m]) => vdotTime(vd, m));
+  return `<div class="card tri-banner"><div class="row between"><h2 style="margin:0">🏃 ${esc(T.race.name || D.l)}</h2><span class="num" style="font-size:22px;font-weight:700">J-${d}</span></div>
+    <p class="tiny muted" style="margin:4px 0 0">${fmtDate(T.race.date)} · ${esc(T_raceLine())} · ${next} séances de course à venir</p>
+    <table class="tgoal"><thead><tr><th></th><th>Objectif</th><th>Prédiction</th></tr></thead><tbody>
+      <tr><th>${D.l}</th>${T.goal ? `<td class="num">${fmtHMS(T.goal)}</td>` : '<td class="num muted">—</td>'}<td class="num">${fmtHMS(pr)} ${T.goal ? dl(pr, T.goal) : ''}</td></tr>
+      <tr><th>Allure</th>${T.goal ? `<td class="num">${fmtPace(T.goal/D.km)}</td>` : '<td class="num muted">—</td>'}<td class="num">${fmtPace(pr/D.km)}</td></tr>
+      <tr><th>VDOT</th>${F.vg ? `<td class="num">${F.vg.toFixed(1).replace('.', ',')}</td>` : '<td class="num muted">—</td>'}<td class="num">${v0.toFixed(1).replace('.', ',')}</td></tr></tbody></table>
+    <div class="note ${F.cls}" style="margin-top:8px">${F.txt}</div>
+    <details class="tbench"><summary>Allures et repères par distance</summary>
+      <p class="tiny" style="margin:6px 0">${runPacesLine(v0, T)}</p>
+      <table class="tgoal"><thead><tr><th></th><th>Actuel</th><th>Avec l'objectif</th></tr></thead><tbody>${RUN_REF.map(([m, l], i) => `<tr><th>${l}</th><td class="num">${fmtHMS(eq(v0)[i])}</td><td class="num ${F.vg ? '' : 'muted'}">${F.vg ? fmtHMS(eq(F.vg)[i]) : '—'}</td></tr>`).join('')}</tbody></table>
+      <p class="tiny muted" style="margin:4px 0 0">Équivalences de Daniels (VDOT) sur parcours plat. Niveau actuel : ${T.ref ? `ton chrono ${RUN_REF.find(r => r[0] === T.ref.m)?.[1] || ''} en ${fmtHMS(T.ref.t)}` : `ton seuil ${fmtPace(T.runThr)} /km`}. Refais un chrono ou mets à jour ton seuil dans les réglages pour recaler les allures.</p></details>
+    <div class="row" style="margin-top:10px"><button class="btn sm" data-runsetup="1">Réglages du plan course</button></div></div>`;
+}
 function applyTri(T){
   const p = S.profile, t = todayISO();
   S.tri = T;
+  if (T.mode === 'run') { // course à pied : le plan vélo garde ses dates, seules les séances à venir suivent les jours cochés
+    regenerateFuture(); S.triPlan = [...(S.triPlan || []).filter(x => x.date < t), ...generateRun(T, t)]; save(); return; }
   // le vélo suit la course : fin du plan = jour de course, semaine de course = dernière semaine
   p.endDate = T.race.date; p.goalDate = T.race.date;
   const wk = [5, 6].find(d => p.days[d]?.avail); if (wk != null) p.days[wk].max = Math.max(p.days[wk].max || 0, T.longRide || 180);
@@ -802,7 +887,7 @@ function triRowHTML(x){
     <div class="m"><b>${TRI_IC[x.sport]} ${esc(W.name)}</b><span class="tiny muted">${meta}</span></div>
     <div class="st">${stt === 'done' ? '✅' : stt === 'skipped' ? '⏭️' : stt === 'missed' ? '😞' : x.sport === 'race' ? '🏁' : ''}</div></div>`;
 }
-const T_raceLine = () => { const r = tri().race; return `${r.swim} m · ${r.bike} km (${r.bikeDp} m D+) · ${r.run} km (${r.runDp} m D+)`; };
+const T_raceLine = () => { const r = tri().race; if (runOn()) return `${RUN_D[tri().dist].l}${r.runDp ? ` · ${r.runDp} m D+` : ''}${tri().goal ? ` · objectif ${fmtHMS(tri().goal)}` : ''}`; return `${r.swim} m · ${r.bike} km (${r.bikeDp} m D+) · ${r.run} km (${r.runDp} m D+)`; };
 /* ----- Course A : objectifs et prédiction par discipline ----- */
 // vélo : modèle physique (puissance = gravité + roulement + aéro), parcours découpé en montées à 5 %, descentes et plat
 function bikeSpeed(P, grade, m, cda = 0.32, crr = 0.005, rho = 1.15, eta = 0.975){
@@ -902,8 +987,8 @@ document.addEventListener('click', e => { const g = e.target.closest('[data-trig
 function triStepsHTML(x, W){
   if (x.sport === 'race') return '';
   return `<div class="tsteps">${W.steps.map(s => {
-    const z = x.sport === 'swim' ? SW_Z[s.z] : RN_Z[s.z];
-    const pace = x.sport === 'swim' ? `${fmtPace(swPace(s.z))} /100 m` : rnPace(s.z) ? `${fmtPace(rnPace(s.z))} /km` : 'effort seuil (FC)';
+    const z = x.sport === 'swim' ? SW_Z[s.z] : rnZ(s.z, x), rp = x.sport === 'swim' ? null : rnPace(s.z, x);
+    const pace = x.sport === 'swim' ? `${fmtPace(swPace(s.z))} /100 m` : rp ? `${fmtPace(rp)} /km` : 'effort seuil (FC)';
     const qty = x.sport === 'swim' ? `${s.n > 1 ? s.n + ' × ' : ''}${s.d} m` : `${s.n > 1 ? s.n + ' × ' : ''}${s.d >= 60 ? fmtDur(s.d) : s.d + ' s'}`;
     return `<div class="tstep z-${s.z}"><div style="flex:1;min-width:0"><b class="num">${qty}</b> ${esc(s.l)}${s.r ? ` <span class="tiny muted">· récup ${s.r >= 60 ? fmtDur(s.r) : s.r + "''"}</span>` : ''}</div><span class="tiny num" style="white-space:nowrap">${esc(z.l)} · ${pace}</span></div>`; }).join('')}</div>`;
 }
@@ -914,7 +999,7 @@ function triDlg(id){
   openDlg(`<span class="muted small">${fmtDate(x.date)} · Sem. ${x.week + 1} · ${esc(x.block)}${x.kind === 'optional' ? ' · optionnelle' : ''}</span>
     <h2 style="margin:6px 0">${TRI_IC[x.sport]} ${esc(W.name)}</h2><p class="muted small">${esc(W.goal)}</p>
     ${x.sport === 'race' ? `<div class="note ok">${daysLeft > 0 ? `J-${daysLeft}` : daysLeft === 0 ? "C'est aujourd'hui !" : 'Course passée'} · ${esc(T_raceLine())}</div>`
-      : `<div class="grid3" style="margin:8px 0"><div class="kpi"><div class="v num" style="font-size:22px">${fmtDur(E.sec)}</div><div class="l">Durée estimée</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? E.m + ' m' : '~' + (E.m/1000).toFixed(1).replace('.', ',') + ' km'}</div><div class="l">Distance</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? fmtPace(tri().css) : fmtPace(tri().runThr)}</div><div class="l">${x.sport === 'swim' ? 'CSS /100 m' : 'Seuil /km'}</div></div></div>`}
+      : `<div class="grid3" style="margin:8px 0"><div class="kpi"><div class="v num" style="font-size:22px">${fmtDur(E.sec)}</div><div class="l">Durée estimée</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? E.m + ' m' : '~' + (E.m/1000).toFixed(1).replace('.', ',') + ' km'}</div><div class="l">Distance</div></div><div class="kpi"><div class="v num" style="font-size:22px">${x.sport === 'swim' ? fmtPace(tri().css) : fmtPace(runOn() ? rnPace('t', x) : tri().runThr)}</div><div class="l">${x.sport === 'swim' ? 'CSS /100 m' : 'Seuil /km'}</div></div></div>`}
     ${adaptHTML('t', x)}
     ${triStepsHTML(x, W)}
     ${stt === 'done' ? `<div class="note ok" style="margin-top:10px">✅ Faite : ${esc(done.w.type)} · ${fmtDur(done.w.duration_min*60)}${done.w.distance_km ? ` · ${x.sport === 'swim' ? Math.round(done.w.distance_km*1000) + ' m' : (+done.w.distance_km).toFixed(1).replace('.', ',') + ' km'}` : ''}</div>` : stt === 'missed' ? `<div class="note warn" style="margin-top:10px">Pas de séance de ${x.sport === 'swim' ? 'nat' : 'course'} trouvée ce jour-là.</div>` : ''}
@@ -923,12 +1008,12 @@ function triDlg(id){
       ${done ? `<button class="btn" data-ssess="w:${esc(done.w.start_at)}">Voir la séance faite</button>` : ''}
       <label class="small" style="display:flex;gap:6px;align-items:center">Déplacer au <input type="date" id="triMove" value="${x.date}" style="width:auto"></label>
       ${x.swap ? '' : `<button class="btn ghost sm" id="triSkip">${x.status === 'skipped' ? 'Rétablir' : 'Sauter'}</button>`}</div>` : ''}
-    <p class="tiny muted" style="margin-top:10px">Allures calculées sur ta CSS (${fmtPace(tri().css)} /100 m) et ton seuil course (${fmtPace(tri().runThr)} /km) · <a href="#" id="triEdit">modifier</a></p>`);
-  $('#triEdit').onclick = e => { e.preventDefault(); triSetupDlg(); };
+    <p class="tiny muted" style="margin-top:10px">${runOn() ? `Allures de Daniels pour un VDOT de ${(x.vd ?? runVdot()).toFixed(1).replace('.', ',')}${x.vd > runVdot() + 0.05 ? ' (ton niveau actuel + la progression prévue à cette semaine)' : ' (ton niveau actuel)'} · allure course ${fmtPace(rnPace('rp', x))} /km` : `Allures calculées sur ta CSS (${fmtPace(tri().css)} /100 m) et ton seuil course (${fmtPace(tri().runThr)} /km)`} · <a href="#" id="triEdit">modifier</a></p>`);
+  $('#triEdit').onclick = e => { e.preventDefault(); runOn() ? runSetupDlg() : triSetupDlg(); };
   if ($('#triSkip')) $('#triSkip').onclick = () => { x.status = x.status === 'skipped' ? 'planned' : 'skipped'; save(); render(); triDlg(id); };
   if ($('#triMove')) $('#triMove').onchange = e => { const d = e.target.value; if (!d) return; x.date = d; S.triPlan.sort((a, b) => a.date.localeCompare(b.date)); save(); render(); toast(`Séance déplacée au ${fmtDate(d)}`); triDlg(id); };
 }
-document.addEventListener('click', e => { const r = e.target.closest('[data-tri]'); if (r) triDlg(r.dataset.tri); const s = e.target.closest('[data-trisetup]'); if (s) triSetupDlg(); });
+document.addEventListener('click', e => { const r = e.target.closest('[data-tri]'); if (r) triDlg(r.dataset.tri); const s = e.target.closest('[data-trisetup]'); if (s) triSetupDlg(); const rs = e.target.closest('[data-runsetup]'); if (rs) runSetupDlg(); });
 /* ===== ADAPTATION : « j'ai fait autre chose », recaser, alléger (v0.23) ===== */
 // une séance prévue (vélo 'b' ou nat/course 't') peut être remplacée par ce qui a vraiment été fait (ou sera fait) :
 // x.swap = { sp, min, rpe, tss, l, ref, note } ; la séance prévue passe en 'skipped' sauf si l'activité choisie lui est déjà rattachée
@@ -1106,7 +1191,7 @@ function phaseOf(k, prev){
   if (k.kind === 'taper') return 'taper';
   if (k.kind === 'final') return 'final';
   if (k.kind === 'bonus') return 'bonus';
-  if (k.kind === 'load') return [ 'base', 'build1', 'build2', triOn() ? 'spec' : 'peak' ][k.bi ?? 0];
+  if (k.kind === 'load') return [ 'base', 'build1', 'build2', triFull() ? 'spec' : 'peak' ][k.bi ?? 0];
   return prev || 'base'; // semaine allégée / fêtes : dans le bloc en cours
 }
 function phases(){
@@ -1255,12 +1340,14 @@ document.addEventListener('click', e => {
 document.addEventListener('keydown', e => { if (!STORY) return; if (e.key === 'Escape') closeStory(); if (e.key === 'ArrowRight') showSlide(STORY.i + 1); if (e.key === 'ArrowLeft') showSlide(STORY.i - 1); });
 /* ===== /PHASES + BILAN ===== */
 function triBannerHTML(){
+  if (runOn()) return runBannerHTML();
   if (triOn()) { const T = tri(), d = diffDays(todayISO(), T.race.date), next = (S.triPlan || []).filter(x => x.date >= todayISO() && triStatus(x) === 'planned');
     return `<div class="card tri-banner"><div class="row between"><h2 style="margin:0">🏁 ${esc(T.race.name)}</h2><span class="num" style="font-size:22px;font-weight:700">J-${d}</span></div>
       <p class="tiny muted" style="margin:4px 0 0">${fmtDate(T.race.date)} · ${esc(T_raceLine())} · ${next.length} séances nat / course à venir</p>
       ${triGoalTableHTML()}
       <div class="row" style="margin-top:10px"><button class="btn sm" data-trisetup="1">Réglages du plan tri</button></div></div>`; }
-  return `<div class="card tri-banner"><h2 style="margin:0 0 4px">🏁 Passer en plan triathlon</h2><p class="small muted" style="margin:0 0 8px">Un seul plan vélo + nat + course construit autour de ta course A (AlpsMan Half, début juin).</p><button class="btn primary sm" data-trisetup="1">Configurer</button></div>`;
+  return `<div class="card tri-banner"><h2 style="margin:0 0 4px">🏁 Préparer une course</h2><p class="small muted" style="margin:0 0 8px">Triathlon : un seul plan vélo + nat + course construit autour de ta course A. Course à pied : 10 km, semi ou marathon, séances calées sur ton niveau et ton objectif de temps.</p>
+    <div class="row" style="flex-wrap:wrap;gap:8px"><button class="btn primary sm" data-trisetup="1">🏁 Triathlon</button><button class="btn primary sm" data-runsetup="1">🏃 10 km · semi · marathon</button></div></div>`;
 }
 
 /* ----- Carrousel d'arches (programme) ----- */
@@ -1379,7 +1466,7 @@ function defaultProfile(){
 }
 function qHTML(p, onboarding){
   const T0 = triOn() ? tri() : null, tsw = T0 ? T0.swimDays.slice(0, T0.swimPerWeek) : [], trn = T0 ? T0.runDays.slice(0, T0.runPerWeek) : [];
-  const dayCells = [0,1,2,3,4,5,6].map(d => `<div class="day ${p.days[d].avail?'on':''}" data-day="${d}"><button type="button">${DOW[d]}</button><input type="number" min="30" max="300" step="15" value="${p.days[d].max}" ${p.days[d].avail?'':'disabled'} aria-label="Durée max vélo ${DOW[d]}"><div class="tiny muted">min 🚴</div>${T0 ? `<div class="dsp"><span class="sp ${tsw.includes(d)?'on':''}" data-sp="swim" data-v="${d}" role="button" aria-pressed="${tsw.includes(d)}" aria-label="Nat ${DOW[d]}">🏊</span><span class="sp ${trn.includes(d)?'on':''}" data-sp="run" data-v="${d}" role="button" aria-pressed="${trn.includes(d)}" aria-label="Course ${DOW[d]}">🏃</span></div>` : ''}</div>`).join('');
+  const dayCells = [0,1,2,3,4,5,6].map(d => `<div class="day ${p.days[d].avail?'on':''}" data-day="${d}"><button type="button">${DOW[d]}</button><input type="number" min="30" max="300" step="15" value="${p.days[d].max}" ${p.days[d].avail?'':'disabled'} aria-label="Durée max vélo ${DOW[d]}"><div class="tiny muted">min 🚴</div>${T0 ? `<div class="dsp">${T0.mode === 'run' ? '' : `<span class="sp ${tsw.includes(d)?'on':''}" data-sp="swim" data-v="${d}" role="button" aria-pressed="${tsw.includes(d)}" aria-label="Nat ${DOW[d]}">🏊</span>`}<span class="sp ${trn.includes(d)?'on':''}" data-sp="run" data-v="${d}" role="button" aria-pressed="${trn.includes(d)}" aria-label="Course ${DOW[d]}">🏃</span></div>` : ''}</div>`).join('');
   return `<form id="qform" autocomplete="off">
   <div class="card"><div class="row between"><h2>Toi</h2><button type="button" class="btn sm" id="prefill">Pré-remplir depuis un .fit Garmin</button></div>
     <div class="grid2">
@@ -1404,7 +1491,7 @@ function qHTML(p, onboarding){
     <div id="goalCheck" class="small" style="margin-top:10px"></div>
   </div>
   <div class="card"><h2>Ma semaine</h2>
-    <p class="muted small" style="margin-top:0">${triOn() ? 'Vélo : touche un jour pour l\'activer, puis règle sa durée max. Nat et course : touche 🏊 ou 🏃 sous le jour.' : 'Touche un jour pour l\'activer ou le retirer, puis ajuste sa durée max en minutes.'}</p>
+    <p class="muted small" style="margin-top:0">${runOn() ? 'Vélo : touche un jour pour l\'activer, puis règle sa durée max. Course à pied : touche 🏃 sous le jour.' : triOn() ? 'Vélo : touche un jour pour l\'activer, puis règle sa durée max. Nat et course : touche 🏊 ou 🏃 sous le jour.' : 'Touche un jour pour l\'activer ou le retirer, puis ajuste sa durée max en minutes.'}</p>
     <div class="days">${dayCells}</div>
     <div class="grid2" style="margin-top:6px">
       <div><label class="f">Séances clés / semaine (home trainer)</label><div class="seg" data-seg="keyPerWeek">${[1,2,3].map(n=>`<button type="button" class="${p.keyPerWeek===n?'on':''}" data-v="${n}">${n}</button>`).join('')}</div></div>
@@ -1487,6 +1574,7 @@ function bindQuestionnaire(onboarding){
       p.ftp = S.profile.ftp; // la FTP ne change que via un test ou l'édition explicite
       const newF = +f.elements.ftp.value; if (newF && newF !== S.profile.ftp) { p.ftp = newF; S.ftpHistory.push({ date: todayISO(), ftp: newF, source:'manual' }); }
       S.profile = p;
+      if (runOn() && triDays.run.length >= 2) { applyTri({ ...tri(), runDays: triDays.run, runPerWeek: triDays.run.length }); render(); toast('Ma semaine enregistrée : vélo et course à venir régénérés'); return; }
       if (triDays && triDays.swim.length && triDays.run.length) { applyTri({ ...tri(), swimDays: triDays.swim, runDays: triDays.run, swimPerWeek: Math.min(3, triDays.swim.length), runPerWeek: Math.min(3, triDays.run.length) }); render(); toast('Ma semaine enregistrée : vélo, nat et course à venir régénérés'); return; }
       regenerateFuture(); save(); render(); toast('Profil enregistré, séances à venir régénérées');
     }

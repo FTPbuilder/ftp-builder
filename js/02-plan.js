@@ -73,7 +73,7 @@ function weekKinds(p){
     else { k.kind = 'load'; k.bi = b; k.pos = pos; k.block = BLOCKS[b].name; }
     load++;
   }
-  if (triOn()) { // tri : 8 dernières semaines de charge en spécifique montagne, sinon base → seuil → VO2 ; semaine de course
+  if (triFull()) { // tri : 8 dernières semaines de charge en spécifique montagne, sinon base → seuil → VO2 ; semaine de course
     const loads = kinds.filter(k => k.kind === 'load');
     loads.forEach((k, j) => { k.bi = j >= loads.length - 8 ? 3 : Math.min(Math.floor(j/4), 2); k.block = k.bi === 3 ? TRI_SPEC.name : BLOCKS[k.bi].name; });
     for (const k of kinds) { if (k.kind === 'final') k.block = 'Semaine de course'; if (k.kind === 'recovery' && k.test && kinds.length - k.i <= 6) { k.test = false; k.block = 'Semaine allégée'; } }
@@ -114,12 +114,12 @@ function generatePlan(p, keepFrom){
         avail.filter(d => d >= td + 2).slice(0, 1 + p.optionalPerWeek).forEach(d => add(k.ws, d, p.days[d].max >= 90 ? 'end_90' : 'end_60', 'optional', k));
         break; }
       case 'load': {
-        const blk = triOn() && k.bi === 3 ? TRI_SPEC : BLOCKS[k.bi];
+        const blk = triFull() && k.bi === 3 ? TRI_SPEC : BLOCKS[k.bi];
         // tri : à partir du bloc VO2, la séance clé du week-end devient la sortie longue (cols au tempo)
-        K.forEach((d, j) => add(k.ws, d, triOn() && k.bi >= 2 && (d === 5 || d === 6) ? (k.bi === 3 && k.pos !== 0 ? 'end_180' : 'end_150') : blk.k[j % blk.k.length][k.pos], 'key', k));
-        O.forEach((d, j) => { const opts = triOn() && p.days[d].max >= 150 && k.bi >= 2 ? (k.bi === 3 ? ['end_180','end_150','end_180'] : ['end_150','end_120','end_150']) : p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','end_60']; add(k.ws, d, opts[(k.i + j) % 3], 'optional', k); }); break; }
+        K.forEach((d, j) => add(k.ws, d, triFull() && k.bi >= 2 && (d === 5 || d === 6) ? (k.bi === 3 && k.pos !== 0 ? 'end_180' : 'end_150') : blk.k[j % blk.k.length][k.pos], 'key', k));
+        O.forEach((d, j) => { const opts = triFull() && p.days[d].max >= 150 && k.bi >= 2 ? (k.bi === 3 ? ['end_180','end_150','end_180'] : ['end_150','end_120','end_150']) : p.days[d].max >= 90 ? ['end_90','tempo_end','end_neuro'] : ['end_60','end_neuro','end_60']; add(k.ws, d, opts[(k.i + j) % 3], 'optional', k); }); break; }
       case 'recovery': case 'taper': case 'final': {
-        if (k.kind === 'final' && triOn()) { // semaine de course : un rappel en début de semaine, puis la course
+        if (k.kind === 'final' && triFull()) { // semaine de course : un rappel en début de semaine, puis la course
           const rd = dowMon(p.endDate); if (rd >= 2) add(k.ws, Math.min(K[0], rd - 2), 'openers', 'recovery', k); break; }
         const testNow = k.test || k.kind === 'final';
         if (testNow) {
@@ -161,7 +161,9 @@ const SW_Z = { z1:{ l:'souple', k:15, pct:87 }, z2:{ l:'aérobie', k:7, pct:94 }
 const RN_Z = { e:{ l:'footing', f:1.28, pct:78 }, m:{ l:'allure 70.3', f:1.10, pct:91 }, t:{ l:'seuil', f:1.0, pct:100 }, i:{ l:'VO2max', f:0.93, pct:107 }, r:{ l:'lignes droites', f:0.88, pct:113 }, hill:{ l:'côte · effort seuil', f:null, pct:null }, rec:{ l:'récup trot', f:1.4, pct:71 } };
 const fmtPace = s => `${Math.floor(s/60)}'${String(Math.round(s % 60) % 60).padStart(2, '0')}`;
 const swPace = z => (tri()?.css || 105) + SW_Z[z].k;
-const rnPace = z => RN_Z[z].f ? (tri()?.runThr || 270)*RN_Z[z].f : null;
+const rnPace = (z, x) => runOn() ? runPaces(x?.vd ?? runVdot())[z] ?? null : RN_Z[z]?.f ? (tri()?.runThr || 270)*RN_Z[z].f : null;
+// zone course : libellé et % de l'allure seuil (format Intervals.icu)
+const rnZ = (z, x) => { if (!runOn()) return RN_Z[z]; const P = runPaces(x?.vd ?? runVdot()); return { l: RUN_ZL(z), pct: P[z] ? Math.round(P.t/P[z]*100) : null }; };
 // étape : { n: répétitions, d: mètres (nat) ou secondes (course), z: zone, l: libellé, r: récup (s) }
 const st = (n, d, z, l = '', r = 0) => ({ n, d, z, l, r });
 
@@ -218,6 +220,7 @@ const RACE_W = r => ({ name:`🏁 ${r.name}`, goal:`${(r.swim/1000).toString().r
 
 function triWorkout(x){
   const T = tri(); if (!T) return null;
+  if (T.mode === 'run') return runWorkout(x, T);
   if (x.sport === 'race') return RACE_W(T.race);
   if (x.sport === 'swim') return SWIM[x.wid](x.ph, x.v || 0, x.f || 1);
   if (x.wid === 'long') return RUN.long(x.ph, x.min, x.dp || 0);
@@ -230,7 +233,7 @@ function triEst(x, W = triWorkout(x)){
   let sec = 0, m = 0;
   for (const s of W.steps) {
     if (x.sport === 'swim') { m += s.n*s.d; sec += s.n*(s.d/100*swPace(s.z) + s.r); }
-    else { sec += s.n*(s.d + s.r); const p = rnPace(s.z) || rnPace('t')*1.15; m += s.n*(s.d/p*1000 + (s.r ? s.r/(rnPace('rec'))*1000 : 0)); }
+    else { sec += s.n*(s.d + s.r); const p = rnPace(s.z, x) || rnPace('t', x)*1.15; m += s.n*(s.d/p*1000 + (s.r ? s.r/(rnPace('rec', x))*1000 : 0)); }
   }
   return { sec: Math.round(sec), m: Math.round(m/(x.sport === 'swim' ? 1 : 10))*(x.sport === 'swim' ? 1 : 10) };
 }
@@ -238,7 +241,7 @@ function triEst(x, W = triWorkout(x)){
 function triIcuText(x, W = triWorkout(x)){
   const rest = r => r ? `\n- ${r}s ${x.sport === 'swim' ? '' : '60% Pace '}récup` : '';
   return W.steps.map(s => {
-    const z = x.sport === 'swim' ? SW_Z[s.z] : RN_Z[s.z];
+    const z = x.sport === 'swim' ? SW_Z[s.z] : rnZ(s.z, x);
     const target = x.sport === 'swim' ? `${s.d}mtr ${z.pct}% Pace` : `${s.d >= 60 ? Math.round(s.d/60) + 'm' : s.d + 's'} ${z.pct ? z.pct + '% Pace' : 'Z4 HR'}`;
     const line = `- ${s.l ? s.l + ' ' : ''}${target}`;
     return s.n > 1 ? `\n${s.n}x\n${line}${rest(s.r)}\n` : line;
@@ -295,6 +298,177 @@ function triDone(x){
   return ws[0] || null;
 }
 function triStatus(x){ if (x.swap) return 'swapped'; if (x.status === 'skipped') return 'skipped'; if (triDone(x)) return 'done'; return x.date < todayISO() && x.sport !== 'race' ? 'missed' : 'planned'; }
+/* ============ COURSE À PIED : 10 km, semi, marathon (mode « run » du plan) ============ */
+// Même rails que le plan tri (S.tri / S.triPlan : calendrier, accueil, Intervals.icu), avec S.tri.mode = 'run' :
+// pas de nat, le plan vélo n'est pas modifié. Allures de Jack Daniels : un niveau (seuil ou chrono) → VDOT → allures E / M / T / I / R ;
+// l'allure spécifique = l'objectif de temps (sinon la prédiction). Périodisation construite en arrière depuis la course.
+const triMode = () => tri()?.mode === 'run' ? 'run' : 'tri';
+const runOn = () => triOn() && triMode() === 'run';
+const triFull = () => triOn() && triMode() !== 'run';
+// weeks : durée conseillée ; min : en dessous, plan compressé ; taper : semaines d'affûtage avant la semaine de course
+// long / easy : durées (min) de la sortie longue et des footings, du début au pic ; ph : part des semaines de charge par phase
+const RUN_D = {
+  10:{ l:'10 km', km:10, weeks:10, min:6, taper:1, long:[50, 80], easy:[35, 45], ph:[0.2, 0.25, 0.3, 0.25], b2:'VO2max' },
+  21:{ l:'Semi-marathon', km:21.0975, weeks:12, min:8, taper:1, long:[60, 105], easy:[40, 50], ph:[0.25, 0.25, 0.15, 0.35], b2:'Seuil + VO2max' },
+  42:{ l:'Marathon', km:42.195, weeks:16, min:10, taper:2, long:[75, 150], easy:[45, 60], ph:[0.25, 0.25, 0.1, 0.4], b2:'Seuil + allure marathon' } };
+// Daniels & Gilbert (1979) : VO2 de la vitesse (m/min) et part de VO2max tenable sur la durée (min)
+const vdotOf = (m, sec) => { const t = sec/60, v = m/t; return (-4.6 + 0.182258*v + 0.000104*v*v)/(0.8 + 0.1894393*Math.exp(-0.012778*t) + 0.2989558*Math.exp(-0.1932605*t)); };
+const vdotSpeed = vo2 => (-0.182258 + Math.sqrt(0.182258**2 + 4*0.000104*(vo2 + 4.6)))/(2*0.000104);
+const vdotPace = (vd, pct) => 60000/vdotSpeed(vd*pct); // s/km
+const vdotTime = (vd, m) => { let lo = 60, hi = 36000; for (let k = 0; k < 50; k++) { const t = (lo + hi)/2; vdotOf(m, t) > vd ? lo = t : hi = t; } return (lo + hi)/2; };
+// niveau actuel : chrono de référence si renseigné, sinon allure seuil (≈ allure 10 km + 8 s)
+const runVdot = (T = tri()) => T?.ref?.t ? vdotOf(T.ref.m, T.ref.t) : vdotOf(10000, ((T?.runThr || 270) - 8)*10);
+// relief : facteur de temps moitié montée, moitié descente (Minetti), 1 sur le plat
+const runHill = r => { const km = +r?.run || 10, dp = +r?.runDp || 0; if (dp < 50 || typeof minetti !== 'function') return 1; const g = dp/(km*500); return (minetti(g) + minetti(-g))/2; };
+const runPredict = (T = tri(), vd = runVdot(T)) => vdotTime(vd, RUN_D[T.dist].km*1000)*runHill(T.race);
+// VDOT de l'objectif (ramené au plat)
+const runGoalVdot = (T = tri()) => T?.goal ? vdotOf(RUN_D[T.dist].km*1000, T.goal/runHill(T.race)) : null;
+const RUN_PC = new Map();
+function runPaces(vd, T = tri()){
+  const key = vd.toFixed(2) + '|' + (T?.dist || 10) + '|' + (T?.goal || 0) + '|' + (T?.race?.runDp || 0) + '|' + (T?.ref?.t || T?.runThr);
+  if (RUN_PC.has(key)) return RUN_PC.get(key);
+  const D = RUN_D[T?.dist] || RUN_D[10], m = D.km*1000;
+  const P = { e: vdotPace(vd, 0.67), rec: vdotPace(vd, 0.58), m: vdotTime(vd, 42195)/42.195, t: vdotPace(vd, 0.88), i: vdotPace(vd, 0.975), r: vdotPace(vd, 1.05), hill: null };
+  P.rp = T?.goal ? T.goal/runHill(T.race)/D.km : vdotTime(runVdot(T), m)/D.km; // allure course visée (équivalent plat)
+  if (RUN_PC.size > 200) RUN_PC.clear(); RUN_PC.set(key, P); return P;
+}
+const RUN_ZL = z => ({ e:'footing (E)', rec:'récup trot', m:'allure marathon', t:'seuil (T)', i:'VO2max (I)', r:'vitesse (R)', hill:'côte · effort seuil', rp:`allure ${RUN_D[tri()?.dist]?.l.toLowerCase() || 'course'}` })[z] || z;
+const RUN_DEF = () => ({ mode:'run', enabled:false, dist:10, race:{ name:'', date:'', run:10, runDp:0, swim:0, bike:0, bikeDp:0 }, goal:null, ref:null,
+  runPerWeek:4, runDays:[1, 3, 5, 6], swimPerWeek:0, swimDays:[], doubles:false, css:105, runThr:270 });
+// date conseillée quand aucune course n'est renseignée : dimanche après la durée conseillée
+// le plan commence la semaine en cours (ou la suivante si on est dimanche)
+const runW0 = from => monday(addDays(from, 1));
+const runDefaultDate = (dist, from = todayISO()) => addDays(runW0(from), (RUN_D[dist].weeks - 1)*7 + 6);
+// semaines du plan : entretien (course lointaine) → base → seuil → VO2 / allure → spécifique → affûtage → course ; 3 semaines de charge + 1 allégée
+function runWeeks(T){
+  const D = RUN_D[T.dist], w0 = runW0(T.start || todayISO()), wr = monday(T.race.date), n = Math.max(1, diffDays(w0, wr)/7 + 1);
+  const tap = Math.min(D.taper, Math.max(0, n - 3)), pre = n - 1 - tap, ent = Math.max(0, pre - (D.weeks - 1 - D.taper));
+  const W = [];
+  for (let i = 0; i < n; i++) {
+    const ws = addDays(w0, i*7);
+    if (i === n - 1) { W.push({ i, ws, ph:'race', block:'Semaine de course' }); continue; }
+    if (i >= pre) { W.push({ i, ws, ph:'taper', block:'Affûtage' }); continue; }
+    const rec = (pre - 1 - i) % 4 === 3 && i >= 2; // jamais d'allégée avant 2 semaines de charge
+    W.push({ i, ws, ph: rec ? 'recov' : 'load', ent: i < ent, block: rec ? 'Semaine allégée' : '' });
+  }
+  const main = W.filter(w => w.ph === 'load' && !w.ent), cum = D.ph.reduce((a, x) => [...a, (a.at(-1) || 0) + x], []);
+  main.forEach((w, j) => { const f = (j + 0.5)/main.length, b = cum.findIndex(c => f <= c + 1e-9);
+    w.ph = ['base', 'build', 'build2', 'spec'][b < 0 ? 3 : b]; w.p = main.length > 1 ? j/(main.length - 1) : 1; w.li = j;
+    w.block = { base:'Base · Endurance', build:'Seuil', build2: D.b2, spec:`Spécifique ${D.l.toLowerCase()}` }[w.ph]; });
+  for (const w of W) if (w.ent && w.ph === 'load') { w.ph = 'base'; w.p = 0; w.li = 0; w.block = 'Base · Entretien'; }
+  // allégées et affûtage : progression de la semaine de charge précédente
+  let last = { p:0, li:0 }; for (const w of W) { if (w.ph === 'recov' || w.ph === 'taper' || w.ph === 'race') { w.p ??= last.p; w.li ??= last.li; } else last = w; }
+  return W;
+}
+// jours : la sortie longue le dernier jour coché ; les séances de qualité les plus espacées entre elles et de la longue
+// bike : séances clés vélo de la semaine, à éviter pour la qualité course (même jour)
+function runSlots(days, nQ, bike = []){
+  const d = [...new Set(days)].sort((a, b) => a - b), long = d.at(-1), rest = d.slice(0, -1);
+  const k = Math.min(nQ, rest.length); let best = null;
+  const gap = s => { const all = [...s, long].sort((a, b) => a - b); let g = 7; for (let i = 0; i < all.length; i++) g = Math.min(g, ((all[(i + 1) % all.length] - all[i]) + 7) % 7 || 7); return g; };
+  const combos = (st = 0, cur = []) => { if (cur.length === k) { const sc = gap(cur)*10 - (cur.includes((long + 6) % 7) ? 5 : 0) - cur.filter(d => bike.includes(d)).length*4; if (!best || sc > best.sc) best = { sc, c: cur.slice() }; return; }
+    for (let i = st; i < rest.length; i++) { cur.push(rest[i]); combos(i + 1, cur); cur.pop(); } };
+  combos();
+  const q = best ? best.c : [];
+  return { long, q, easy: rest.filter(x => !q.includes(x)) };
+}
+function generateRun(T, keepFrom){
+  const D = RUN_D[T.dist], race = T.race.date, W = runWeeks(T), t0 = keepFrom || todayISO(), out = [];
+  const v0 = runVdot(T), vg = runGoalVdot(T), gap = vg ? Math.max(0, vg - v0) : 0;
+  const N = T.runDays.length, S0 = runSlots(T.runDays, N >= 4 ? 2 : N >= 2 ? 1 : 0, (() => { try { return S.profile ? pickDays(S.profile).key : []; } catch { return []; } })());
+  const add = (w, dow, o) => { const date = addDays(w.ws, dow); if (date < t0 || date >= race || (S.profile?.absences || []).some(a => date >= a.from && date <= a.to)) return;
+    out.push({ id: uid(), date, week: w.i, block: w.block, status:'planned', sport:'run', ph: w.ph, v: w.i, p: Math.round(w.p*100)/100,
+      vd: Math.round((v0 + Math.min(gap, 0.25*(w.li || 0), 3))*10)/10, ...o }); };
+  const r5 = x => Math.round(x/5)*5;
+  for (const w of W) {
+    if (w.ph === 'race') {
+      const rd = dowMon(race), rem = rd >= 3 ? rd - 3 : null;
+      if (rem != null) add(w, rem, { wid:'qual', j:0, kind:'key' });
+      if (N >= 4 && rd >= 2) add(w, rd - 1, { wid:'easy', min:20, kind:'optional', strides:true });
+      if (race >= t0) out.push({ id: uid(), date: race, week: w.i, block:'Course', status:'planned', sport:'race', kind:'race' });
+      continue;
+    }
+    const L = D.long, E = D.easy, f = w.ph === 'recov' ? 0.7 : 1;
+    let lmin = r5((L[0] + (L[1] - L[0])*w.p)*f);
+    if (w.ph === 'taper') { const left = diffDays(w.ws, monday(race))/7; lmin = r5(L[1]*(left >= 2 ? 0.7 : T.dist === 42 ? 0.5 : 0.6)); }
+    if (T.dist === 42) lmin = Math.min(lmin, r5(32*runPaces(v0).e/60)); // pas plus de ~32 km en sortie longue
+    add(w, S0.long, { wid:'long', min: lmin, dp: w.ph === 'spec' && (+T.race.runDp || 0) >= 200 ? r5(Math.min(+T.race.runDp, 150 + w.p*(+T.race.runDp))/10)*10 : 0, kind:'key' });
+    S0.q.forEach((d, j) => { if (w.ph === 'recov' || w.ph === 'taper') { if (j === 0) add(w, d, { wid:'qual', j:0, kind:'key' }); else add(w, d, { wid:'easy', min: r5(E[0]*0.8), strides:true, kind:'key' }); }
+      else add(w, d, { wid:'qual', j, kind:'key' }); });
+    S0.easy.forEach((d, j) => add(w, d, { wid:'easy', min: r5((E[0] + (E[1] - E[0])*w.p)*(w.ph === 'recov' || w.ph === 'taper' ? 0.8 : 1)), strides: j === 0 && S0.q.length < 2, kind: j < 2 ? 'key' : 'optional' }));
+  }
+  return out.sort((a, b) => a.date.localeCompare(b.date));
+}
+// bibliothèque de séances : [phase][créneau] → variantes ; p = progression 0 → 1 dans la prépa
+const runQ = (dist, ph, j, v, p) => {
+  const wu = st(1, 900, 'e', 'Échauffement footing'), cd = st(1, 600, 'e', 'Retour au calme'), D = RUN_D[dist], rpl = `Allure ${D.l.toLowerCase()}`;
+  const S_ = (name, goal, ...s) => ({ name, goal, s:[wu, ...s, cd] });
+  const base = [[S_('Fartlek 8 × 1 min', "Réveiller la vitesse sans entamer la base : 1 min vite, 1 min trot. Aisance avant tout.", st(8, 60, 'i', 'Vite', 60)),
+      S_('Côtes courtes 10 × 20 s', "Force et foulée : 20 s en côte raide, fort mais relâché, retour en marchant. Le meilleur exercice anti-blessure.", st(10, 20, 'hill', 'Côte raide', 70), st(1, 600, 'e', 'Footing')),
+      S_('Fartlek 10 × 1 min', "Un cran de plus que la semaine passée : régulier du 1er au dernier.", st(10, 60, 'i', 'Vite', 60))],
+    [S_('Footing + 8 lignes droites', "Aérobie facile, puis 8 accélérations progressives de 20 s : foulée tonique sans fatigue.", st(1, 1200, 'e', 'Footing'), st(8, 20, 'r', 'Ligne droite', 60)),
+      S_('Tempo 20 min', "Premier contact avec le seuil : « confortablement dur », tu peux dire quelques mots.", st(1, 1200, 't', 'Seuil continu')),
+      S_('Côtes 8 × 45 s', "Côte régulière (5-8 %), effort soutenu, retour en trottinant.", st(8, 45, 'hill', 'Côte 5-8 %', 90))]];
+  const recov = [S_('Footing + lignes droites', "Semaine allégée : faire tourner, rester frais, 6 accélérations sans forcer.", st(1, 1200, 'e', 'Footing'), st(6, 20, 'r', 'Ligne droite', 60))];
+  const thr = [S_('Seuil 3 × 10 min', "Le levier n°1 de l'endurance : allure seuil régulière, récup courte.", st(3, 600, 't', 'Seuil', 120)),
+    S_('Seuil 5 × 6 min', "Seuil fractionné, récup courte : la régularité avant tout.", st(5, 360, 't', 'Seuil', 90)),
+    S_('Seuil 4 × 8 min', "Un cran plus long : si le dernier est aussi rapide que le premier, c'est réussi.", st(4, 480, 't', 'Seuil', 120)),
+    S_('Seuil 2 × 15 min', "Deux longs blocs au seuil : tenir sans accélérer à la fin.", st(2, 900, 't', 'Seuil', 180))];
+  const vo2 = [S_('VO2max 5 × 3 min', "Relever le plafond : allure 3-5 km, récup en trottinant aussi longue que l'effort.", st(5, 180, 'i', 'VO2max', 150)),
+    S_('VO2max 6 × 3 min', "Une répétition de plus, même allure : pas plus vite que prévu.", st(6, 180, 'i', 'VO2max', 150)),
+    S_('VO2max 5 × 4 min', "Blocs plus longs à l'allure VO2max : c'est là que le 10 km se gagne.", st(5, 240, 'i', 'VO2max', 180)),
+    S_('Vitesse 12 × 30 s', "Économie de course : rapide et relâché, récup complète entre chaque.", st(12, 30, 'r', 'Vite relâché', 90))];
+  const hills = [S_('Côtes 8 × 1 min 30', "Côte régulière (5-8 %) à effort seuil, retour en trottinant : de la force sans choc.", st(8, 90, 'hill', 'Côte 5-8 %', 120))];
+  const pick = (L, k = v) => L[((k % L.length) + L.length) % L.length];
+  const m = x => Math.round(x/300)*300; // multiples de 5 min
+  const spec = {
+    10:[[S_(`${rpl} 5 × 5 min`, "Apprendre l'allure de course : régulier, récup courte en trottinant.", st(5, 300, 'rp', rpl, 90)),
+         S_(`${rpl} 3 × 8 min`, "Blocs longs à l'allure course : le cœur du spécifique 10 km.", st(3, 480, 'rp', rpl, 120)),
+         S_(`${rpl} 6 × 4 min`, "Allure course, récup 1 min : la fatigue des 3 derniers km.", st(6, 240, 'rp', rpl, 60)),
+         S_(`${rpl} 2 × 15 min`, "Deux moitiés de course : si tu tiens, l'objectif est là.", st(2, 900, 'rp', rpl, 180))],
+        [pick(vo2, v + 1), thr[0], pick(vo2, v + 2), thr[1]]],
+    21:[[S_(`${rpl} 3 × 15 min`, "Le cœur du spécifique : allure semi régulière, relâchée, récup 2 min.", st(3, 900, 'rp', rpl, 120)),
+         S_(`${rpl} 2 × 20 min`, "Deux longs blocs à l'allure du jour J.", st(2, 1200, 'rp', rpl, 180)),
+         S_(`${rpl} 4 × 10 min`, "Allure semi, récup courte : la fin de course se prépare ici.", st(4, 600, 'rp', rpl, 90)),
+         S_(`${rpl} ${m(1500 + p*900)/60} min continu`, "Bloc continu à l'allure semi : la meilleure répétition générale.", st(1, m(1500 + p*900), 'rp', rpl))],
+        [thr[2], pick(vo2, v), thr[3], hills[0]]],
+    42:[[S_(`Allure marathon ${m(1800 + p*1800)/60} min`, "Bloc continu à l'allure marathon : régulier, relâché, et bois comme le jour J.", st(1, m(1800 + p*1800), 'rp', 'Allure marathon')),
+         S_(`Allure marathon 3 × ${m(900 + p*600)/60} min`, "Allure marathon par blocs, récup 3 min au footing.", st(3, m(900 + p*600), 'rp', 'Allure marathon', 180)),
+         S_(`Allure marathon 2 × ${m(1200 + p*900)/60} min`, "Deux grands blocs : l'allure doit sembler facile, c'est le but.", st(2, m(1200 + p*900), 'rp', 'Allure marathon', 240))],
+        [thr[0], thr[2], thr[1], hills[0]]] };
+  const T = {
+    base, recov,
+    build:[thr, dist === 10 ? vo2 : [...hills, vo2[0]]],
+    build2: dist === 10 ? [vo2, thr] : dist === 21 ? [thr.slice(2).concat([S_('Tempo 25 min', "Seuil continu : la base de l'allure semi.", st(1, 1500, 't', 'Seuil continu'))]), vo2]
+      : [[thr[3], S_('Seuil 3 × 12 min', "Seuil long, récup 2 min : l'endurance qui portera l'allure marathon.", st(3, 720, 't', 'Seuil', 120))], [S_('Allure marathon 3 × 15 min', "Premier contact avec l'allure marathon : elle doit sembler facile.", st(3, 900, 'm', 'Allure marathon', 180))]],
+    spec: spec[dist],
+    taper:[[dist === 42 ? S_('Allure marathon 2 × 10 min', "Affûtage : garder la sensation de l'allure sans fatigue.", st(2, 600, 'rp', 'Allure marathon', 180), st(4, 20, 'r', 'Ligne droite', 60))
+      : S_(`${rpl} 4 × 3 min`, "Affûtage : du tonus sans fatigue, 4 lignes droites pour finir.", st(4, 180, 'rp', rpl, 120), st(4, 20, 'r', 'Ligne droite', 60))]],
+    race:[[dist === 42 ? { name:'Rappel allure marathon', goal:"3 jours avant : 3 × 5 min à l'allure du jour J pour régler le pas, rien de plus.", s:[st(1, 900, 'e', 'Footing'), st(3, 300, 'rp', 'Allure marathon', 120), st(1, 600, 'e', 'Footing')] }
+      : { name:`Rappel ${rpl.toLowerCase()}`, goal:"3 jours avant : quelques minutes à l'allure du jour J et des lignes droites, rien de plus.", s:[st(1, 900, 'e', 'Footing'), st(3, dist === 10 ? 120 : 300, 'rp', rpl, 120), st(4, 20, 'r', 'Ligne droite', 60), st(1, 600, 'e', 'Footing')] }]] };
+  const P = T[ph] || T.base, L = P[Math.min(j, P.length - 1)];
+  const o = Array.isArray(L) ? pick(L, v + j) : L; return { name:o.name, goal:o.goal, steps:o.s };
+};
+function runWorkout(x, T){
+  const D = RUN_D[T.dist] || RUN_D[10];
+  if (x.sport === 'race') { const pr = runPredict(T), g = T.goal, tgt = g || pr;
+    const tip = { 10:"Pars à ton allure, pas plus vite : les 2 premiers km trop rapides se paient au 7e.", 21:"Les 5 premiers km à l'allure prévue (ou 2-3 s plus lent), accélère après le 15e si tu te sens bien.", 42:"Allure régulière jusqu'au 30e, bois et mange dès le début (un gel toutes les 30-40 min). Le marathon commence au 30e." }[T.dist];
+    return { name:`🏁 ${T.race.name || D.l}`, goal:`${D.l}${T.race.runDp ? ` · ${T.race.runDp} m D+` : ''} · ${g ? 'objectif' : 'prédiction'} ${fmtHMS(tgt)} (${fmtPace(tgt/D.km)} /km). ${tip}`, steps:[] }; }
+  if (x.wid === 'long') { const P = runPaces(x.vd ?? runVdot(T)), sp = x.ph === 'spec' && T.dist >= 21 && x.v % 2 === 0, b2 = x.ph === 'build2' && T.dist >= 21 && x.v % 2 === 0;
+    const rpMin = sp ? Math.round((T.dist === 42 ? 30 + x.p*30 : 20 + x.p*15)/5)*5 : b2 ? 15 : 0, tot = x.min*60, z = b2 ? 'm' : 'rp';
+    const lab = T.dist === 42 ? 'Allure marathon' : `Allure ${D.l.toLowerCase()}`;
+    if (x.ph === 'spec' && T.dist === 42 && !sp) { const bl = Math.round((15 + x.p*10)/5)*5; // marathon : une longue sur deux avec 2 blocs à l'allure marathon au milieu
+      return { name:`Sortie longue ${fmtDur(tot)} dont 2 × ${bl} min allure marathon`, goal:"Footing facile, 2 blocs à l'allure marathon au milieu (5 min de footing entre les deux), puis retour facile : régler l'allure et les ravitaillements.",
+        steps:[st(1, 1800, 'e', 'Footing facile'), st(2, bl*60, 'rp', 'Allure marathon', 300), st(1, Math.max(600, tot - 1800 - bl*120 - 300), 'e', 'Footing facile')] }; }
+    return { name:`Sortie longue ${fmtDur(tot)}${rpMin ? ` dont ${rpMin} min ${b2 ? 'allure marathon' : 'allure course'}` : ''}${x.dp ? ` · ${x.dp} m D+` : ''}`,
+      goal: rpMin ? `Footing facile, puis ${rpMin} min ${b2 ? "à l'allure marathon" : "à l'allure objectif"} sur la fin : apprendre à tenir l'allure sur jambes fatiguées. Bois et mange comme le jour J.`
+        : x.dp ? `Endurance en terrain vallonné : monte en marchant vite si ça dépasse le seuil, travaille les descentes. Objectif ${x.dp} m D+.` : "Endurance fondamentale : facile, tu dois pouvoir parler. C'est elle qui construit le moteur.",
+      steps: rpMin ? [st(1, tot - rpMin*60, 'e', 'Footing facile'), st(1, rpMin*60, z, b2 ? 'Allure marathon' : lab)] : [st(1, tot, 'e', x.dp ? `Footing vallonné · ${x.dp} m D+` : 'Footing facile')] }; }
+  if (x.wid === 'easy') return { name:`Footing ${x.min} min${x.strides ? ' + lignes droites' : ''}`, goal: x.strides ? "Footing facile, aisance respiratoire totale, puis 6 accélérations progressives de 20 s." : "Footing facile : récupérer en faisant tourner les jambes.",
+    steps: x.strides ? [st(1, (x.min - 4)*60, 'e', 'Footing facile'), st(6, 20, 'r', 'Ligne droite', 30)] : [st(1, x.min*60, 'e', 'Footing facile')] };
+  return runQ(T.dist, x.ph, x.j || 0, x.v || 0, x.p || 0);
+}
+/* ===== /COURSE À PIED ===== */
 const TRI_IC = { swim:'🏊', run:'🏃', race:'🏁' };
 /* ===== /TRIATHLON ===== */
 

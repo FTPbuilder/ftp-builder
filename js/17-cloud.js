@@ -86,14 +86,14 @@ const Cloud = (() => {
     const t = todayISO(), until = addDays(t, 28);
     const items = S.plan.filter(s => s.status === 'planned' && s.date >= t && s.date <= until);
     const titems = triOn() ? (S.triPlan || []).filter(x => x.sport !== 'race' && x.status !== 'skipped' && x.date >= t && x.date <= until && !triDone(x)) : [];
-    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId, s.adj || 1]), titems.map(x => [x.id, x.date, x.wid, x.ph]), tri()?.css, tri()?.runThr]);
+    const sig = JSON.stringify([ftp(), adj(), items.map(s => [s.id, s.date, s.workoutId, s.adj || 1]), titems.map(x => [x.id, x.date, x.wid, x.ph]), tri()?.css, tri()?.runThr, tri()?.goal, tri()?.ref?.t, titems.map(x => x.vd)]);
     if (!force && sig === S.icuPushSig) return 0;
     const events = items.map(s => { const W = WORKOUTS[s.workoutId]; return { date: s.date, name: `${W.name}${s.kind==='optional'?' (optionnelle)':''}`, external_id: 'ftpb-' + s.id, moving_time: wDur(s.workoutId),
       description: `${W.goal}\n\nFTP ${ftp()} W · créé par FTP Builder\n\n${icuText(s.workoutId)}`, fit_base64: b64(encodeWorkout(s.workoutId, ftp() * sAdj(s))) }; });
     // nat / course : séance texte au format Intervals (allures en % du seuil)
     for (const x of titems) { const W = triWorkout(x), E = triEst(x, W);
       events.push({ date: x.date, type: x.sport === 'swim' ? 'Swim' : 'Run', name: `${W.name}${x.kind === 'optional' ? ' (optionnelle)' : ''}`, external_id: 'ftpb-t-' + x.id, moving_time: E.sec,
-        description: `${W.goal}\n\n${x.sport === 'swim' ? `CSS ${fmtPace(tri().css)} /100 m` : `Seuil ${fmtPace(tri().runThr)} /km`} · créé par FTP Builder\n\n${triIcuText(x, W)}` }); }
+        description: `${W.goal}\n\n${x.sport === 'swim' ? `CSS ${fmtPace(tri().css)} /100 m` : runOn() ? `Seuil (T) ${fmtPace(rnPace('t', x))} /km · allure course ${fmtPace(rnPace('rp', x))} /km · VDOT ${x.vd}` : `Seuil ${fmtPace(tri().runThr)} /km`} · créé par FTP Builder\n\n${triIcuText(x, W)}` }); }
     const prev = S.icuPushed || {};
     const ids = new Set([...items.map(s => s.id), ...titems.map(x => 't-' + x.id)]);
     const remove = Object.keys(prev).filter(id => !ids.has(id) && prev[id] >= t).map(id => 'ftpb-' + id);
