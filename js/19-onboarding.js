@@ -247,7 +247,7 @@ const Onboard = (() => {
           ${fld('Nom de la course', `<input type="text" name="rname" value="${esc(r.name || '')}" placeholder="${k === 'tri' ? 'ex. Triathlon de Paris' : 'ex. Semi de Paris'}">`, true)}
           ${fld('Date', `<input type="date" name="rdate" value="${r.date || (run ? runDefaultDate(+k) : addDays(todayISO(), 7*20))}" min="${addDays(todayISO(), 21)}">`, true)}
           ${k === 'tri' ? fld('Format', seg('fmt', Object.entries(TRI_FMT).map(([x, f]) => [x, f.l]), r.fmt), true)
-            + fld('Ton allure en nat /100 m <span class="tiny muted">facultatif</span>', `<input type="text" name="css" inputmode="numeric" value="${r.css ? fmtPace(r.css) : ''}" placeholder="ex. 1'50">`, true) : ''}
+            + fld('Ton allure en nat /100 m <span class="tiny muted">facultatif</span>', paceIn('css', r.css, "1'50"), true) : ''}
           ${run ? fld('Objectif de temps <span class="tiny muted">facultatif</span>', hms('goal', r.goal), true) : ''}
           ${fld('Ton dernier chrono sur 10 km <span class="tiny muted">facultatif</span>', hms('ref', r.ref10), true)}
         </div><p class="tiny muted" style="margin:0">${run ? `${D0.l} : le plan course à pied s'ajoute à ton plan vélo (conseillé : ${D0.weeks} semaines).` : 'Le plan vélo, natation et course se construit jusqu’au jour J. Tu affineras distances, D+ et GPX dans le Calendrier.'}</p>`}
@@ -273,7 +273,7 @@ const Onboard = (() => {
     f.querySelectorAll('.day').forEach(el => { const d = +el.dataset.day; p.days[d].max = +el.querySelector('input').value || 60; });
     const sec = pre => E[pre + '_h'] ? ((+E[pre + '_h'].value || 0)*3600 + (+E[pre + '_min'].value || 0)*60 + (+E[pre + '_s'].value || 0)) || null : undefined;
     if (v('rname') !== undefined) p.race.name = v('rname').trim(); if (v('rdate') !== undefined) p.race.date = v('rdate');
-    if (v('css') !== undefined) p.race.css = v('css') ? parsePace(v('css'), null) : null;
+    if (E.css_min) p.race.css = paceRead(E, 'css', null);
     const g = sec('goal'), rf = sec('ref'); if (g !== undefined) p.race.goal = g; if (rf !== undefined) p.race.ref10 = rf;
     if (p.birthDate) p.age = ageFrom(p.birthDate);
     if (p.ftpKnown === false) p.ftp = ftpGuess(p);
