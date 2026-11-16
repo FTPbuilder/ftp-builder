@@ -195,7 +195,7 @@ const Onboard = (() => {
   const fld = (l, h, full) => `<div${full ? ' style="grid-column:1/-1"' : ''}><label class="f">${l}</label>${h}</div>`;
   const hms = (pre, v) => `<div class="tgin"><div class="tgrow"><span class="tgl"></span>${[['h', Math.floor((v || 0)/3600), 9], ['min', Math.floor((v || 0) % 3600/60), 59], ['s', Math.round((v || 0) % 60), 59]].map(([u, x, mx]) => `<label><input type="number" inputmode="numeric" min="0" max="${mx}" name="${pre}_${u}" value="${v ? x : ''}"><span>${u}</span></label>`).join('')}</div></div>`;
   const ftpGuess = p => { const lv = { 20:2.0, 40:2.6, 60:3.1, 80:3.5 }[p.ctl0] || 2.6; return Math.round((+p.weightKg || 75)*lv*(p.sex === 'F' ? 0.88 : 1)/5)*5; };
-  const RK = [['none', 'Aucune'], ['tri', 'Triathlon'], ['10', '10 km'], ['21', 'Semi'], ['42', 'Marathon']];
+  const RK = [['tri', 'Triathlon'], ['10', '10 km'], ['21', 'Semi'], ['42', 'Marathon']];
   function body(){
     const p = draft(), r = p.race, s = STEPS[step];
     if (s === 'intro') return `<div class="tr-txt"><span class="tr-kick">Bienvenue${p.name ? ' ' + esc(p.name) : ''}</span><h1>Construisons ton plan</h1>
@@ -243,7 +243,7 @@ const Onboard = (() => {
     if (s === 'courses') { const k = r.kind, run = ['10', '21', '42'].includes(k), D0 = run ? RUN_D[+k] : null;
       return `<div class="tr-txt"><span class="tr-kick">Étape 5 sur 5</span><h1>Tes courses</h1><p class="tr-small">Tu prépares une course ? Ton plan se construit autour d'elle, avec un prédicteur de temps et des séances à ton allure objectif.</p></div>
       <div class="tr-card">${seg('kind', RK, k)}
-        ${k === 'none' ? '<p class="tiny muted" style="margin:0">Tu pourras en ajouter une à tout moment depuis le Calendrier.</p>' : `<div class="grid2">
+        ${k === 'none' ? '<p class="tiny muted" style="margin:0">Choisis le type de course que tu prépares.</p>' : `<div class="grid2">
           ${fld('Nom de la course', `<input type="text" name="rname" value="${esc(r.name || '')}" placeholder="${k === 'tri' ? 'ex. Triathlon de Paris' : 'ex. Semi de Paris'}">`, true)}
           ${fld('Date', `<input type="date" name="rdate" value="${r.date || (run ? runDefaultDate(+k) : addDays(todayISO(), 7*20))}" min="${addDays(todayISO(), 21)}">`, true)}
           ${k === 'tri' ? fld('Format', seg('fmt', Object.entries(TRI_FMT).map(([x, f]) => [x, f.l]), r.fmt), true)
@@ -251,7 +251,9 @@ const Onboard = (() => {
           ${run ? fld('Objectif de temps <span class="tiny muted">facultatif</span>', hms('goal', r.goal), true) : ''}
           ${fld('Ton dernier chrono sur 10 km <span class="tiny muted">facultatif</span>', hms('ref', r.ref10), true)}
         </div><p class="tiny muted" style="margin:0">${run ? `${D0.l} : le plan course à pied s'ajoute à ton plan vélo (conseillé : ${D0.weeks} semaines).` : 'Le plan vélo, natation et course se construit jusqu’au jour J. Tu affineras distances, D+ et GPX dans le Calendrier.'}</p>`}
-      </div>`; }
+      </div>
+      <button type="button" class="btn ghost" data-wz="norace" style="width:100%">Pas de course prévue pour le moment</button>
+      <p class="tiny muted" style="margin:-4px 0 0;text-align:center">Ton plan vélo est créé tout de suite ; tu pourras ajouter une course à tout moment depuis le Calendrier.</p>`; }
     return '';
   }
   function wizHTML(){
@@ -261,7 +263,7 @@ const Onboard = (() => {
       <div class="tr-prog"><i style="width:${step/(STEPS.length - 1)*100}%"></i></div>
       <div class="tr-body">${body()}</div>
       <p id="wzMsg" class="small" style="margin:0;color:var(--bad);min-height:1em"></p>
-      <div class="tr-nav"><button class="btn primary" type="submit" id="wzNext">${step === 0 ? "C'est parti" : last ? 'Créer mon plan' : 'Continuer'}</button></div>
+      <div class="tr-nav"${last && draft().race.kind === 'none' ? ' style="display:none"' : ''}><button class="btn primary" type="submit" id="wzNext">${step === 0 ? "C'est parti" : last ? 'Créer mon plan' : 'Continuer'}</button></div>
     </form></div></div>`;
   }
   // lecture des champs de l'étape affichée
@@ -304,6 +306,7 @@ const Onboard = (() => {
     f.querySelectorAll('.day').forEach(el => el.addEventListener('click', e => { const inp = el.querySelector('input'); if (e.target === inp && !inp.disabled) return; e.preventDefault();
       const d = +el.dataset.day; p.days[d].avail = !p.days[d].avail; el.classList.toggle('on', p.days[d].avail); inp.disabled = !p.days[d].avail; read(); }));
     app.querySelector('[data-wz=prev]')?.addEventListener('click', () => { read(); step--; keep(); paint(app); });
+    app.querySelector('[data-wz=norace]')?.addEventListener('click', () => { read(); p.race = { ...p.race, kind:'none' }; keep(); finish(draft()); });
     const pf = $('#prefill'); if (pf) pf.onclick = () => pickFile(async file => { try {
       const fit = await FIT.readFile(file); const u = fit.user, z = fit.zones, s0 = fit.sessions[0] || {};
       if (u.age && !p.birthDate) p.age = u.age; if (u.weightKg) p.weightKg = u.weightKg; if (u.heightCm) p.heightCm = u.heightCm; if (u.sex) p.sex = u.sex;

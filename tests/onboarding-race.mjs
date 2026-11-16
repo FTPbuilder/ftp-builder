@@ -25,7 +25,7 @@ await scenario('frappe pendant le chargement', 400, async pg => {
   const v = await pg.evaluate(() => ({ w: document.querySelector('[name=weightKg]').value, b: document.querySelector('[name=birthDate]').value, focus: document.activeElement?.name }));
   assert(v.w === '83' && v.b === '1998-05-14', `la saisie survit au chargement du compte (poids ${v.w}, naissance ${v.b})`);
   assert(v.focus === 'weightKg', `le champ en cours garde le focus (${v.focus})`);
-  await pg.click('#wzNext'); await pg.fill('[name=ftp]', '255'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('#wzNext');
+  await pg.click('#wzNext'); await pg.fill('[name=ftp]', '255'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('[data-wz=norace]');
   await pg.waitForSelector('[data-wz=connected]', { timeout: 10000 });
   assert(await pg.evaluate(() => S.profile?.ftp === 255 && S.profile.age >= 27 && S.plan.length >= 30), 'plan généré avec la FTP saisie');
 });
