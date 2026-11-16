@@ -19,7 +19,7 @@ await pg.click('#wzNext');
 await pg.fill('[name=ftp]', '255'); await pg.click('#wzNext');
 await pg.click('#wzNext');
 await pg.fill('[name=goalFtp]', '300'); await pg.click('#wzNext');
-await pg.click('#wzNext'); // Créer mon plan
+await pg.click('[data-wz=norace]'); // pas de course prévue → plan créé
 await pg.click('[data-wz=connected]'); await pg.evaluate(() => Tour.close());
 await pg.waitForSelector('#tabs:not(.hidden)');
 const st = await pg.evaluate(() => { const S = FTPB.S; return { n:S.plan.length, mand:S.plan.filter(s=>s.kind!=='optional').length, first:S.plan.slice(0,6).map(s=>s.date+' '+s.workoutId+' '+s.kind), tests:S.plan.filter(s=>s.kind==='test').map(s=>s.date), last:S.plan.slice(-3).map(s=>s.date+' '+s.workoutId), weeks:[...new Set(S.plan.map(s=>s.block))] }; });

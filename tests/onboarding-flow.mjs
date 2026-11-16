@@ -77,4 +77,13 @@ async function page(init){
   const r = await pg.evaluate(() => ({ mode: S.tri.mode, dist: S.tri.dist, goal: S.tri.goal, ref: S.tri.ref, n: S.triPlan.filter(x => x.sport === 'run').length, onb: S.settings.onbStep }));
   assert(r.mode === 'run' && r.dist === 21 && r.goal === 5400 && r.ref.t === 2520 && r.n > 30 && r.onb === 'connect', 'semi : plan course à pied avec objectif et chrono 10 km, puis branchements');
   assert(!errs.length, 'aucune erreur JS ' + errs.join(' | ')); await ctx.close(); }
+// 4 · pas de course prévue : bouton dédié à l'étape courses, plan vélo seul
+{ const { pg, errs, ctx } = await page(() => {});
+  await pg.click('#wzNext'); await pg.fill('[name=birthDate]', '1990-01-01'); await pg.fill('[name=weightKg]', '75'); await pg.click('#wzNext');
+  await pg.fill('[name=ftp]', '230'); await pg.click('#wzNext'); await pg.click('#wzNext'); await pg.click('#wzNext');
+  assert(await pg.locator('[data-k=kind] button.on').count() === 0 && await pg.locator('[data-wz=norace]').isVisible(), 'courses : aucun type choisi, bouton « Pas de course prévue pour le moment »');
+  await pg.click('[data-k=kind] [data-v="21"]'); await pg.click('[data-wz=norace]');
+  await pg.waitForSelector('[data-wz=connected]');
+  assert(await pg.evaluate(() => S.profile.ftp === 230 && !S.tri?.enabled && S.plan.length > 20), 'pas de course : plan vélo seul, même après avoir touché « Semi »');
+  assert(!errs.length, 'aucune erreur JS ' + errs.join(' | ')); await ctx.close(); }
 console.log(ok ? 'OK' : 'ÉCHEC'); await b.close(); process.exit(ok ? 0 : 1);
