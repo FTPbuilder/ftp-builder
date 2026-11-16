@@ -618,13 +618,18 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 .gx-row button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .gx-n{opacity:.7;font-size:11px;margin-left:2px}
 .gxc-z{margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.gx-lmap{height:240px;border-radius:12px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)}
+.gx-map3{position:relative;margin-bottom:8px}
+.gx-mtools{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px}
+.gx-mtools .chip{cursor:pointer;border:1px solid var(--line);background:var(--bg2);color:var(--text);padding:6px 12px;border-radius:999px;font-size:13px}
+.gx-mtools .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.gx-mtools [data-d3]{margin-left:auto;font-weight:700}
+.gx-lmap{height:min(56vh,380px);border-radius:12px;overflow:hidden;background:var(--bg2);border:1px solid var(--line)}
 .gx-lmap.off{height:auto}
-.gx-lmap .leaflet-control-attribution{font-size:9px;background:color-mix(in srgb,var(--card) 80%,transparent);color:var(--muted)}
-.gx-lmap .leaflet-control-attribution a{color:var(--muted)}
-.gx-lmap .leaflet-bar a{background:var(--card);color:var(--text);border-color:var(--line)}
-.leaflet-tooltip{background:var(--card);color:var(--text);border:1px solid var(--line);box-shadow:none}
-.leaflet-tooltip-top:before,.leaflet-tooltip-bottom:before,.leaflet-tooltip-left:before,.leaflet-tooltip-right:before{display:none}
+.gx-lmap .maplibregl-ctrl-attrib{font-size:10px}
+.gx-lmap .maplibregl-ctrl-attrib a{color:#555}
+.gx-dot{width:14px;height:14px;border-radius:50%;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.45)}
+.gx-dot.start{background:#22a06b}.gx-dot.end{background:#d9363e}.gx-dot.cur{background:#ff6a1a;width:18px;height:18px}
+.bk-sug{width:16px;height:16px;border-radius:50%;border:2px solid #ffb02e;background:rgba(255,176,46,.3)}
 .bk-ic{font-size:24px;line-height:30px;text-align:center;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))}
 .bk-row{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line)}
 .bk-row:last-child{border-bottom:0}
@@ -689,32 +694,32 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.47.2';</script>
-<script src="js/00-schema.js?v=0.47.2"></script>
-<script src="js/01-core.js?v=0.47.2"></script>
-<script src="js/02-plan.js?v=0.47.2"></script>
-<script src="js/03-fit-metrics.js?v=0.47.2"></script>
-<script src="js/04-fit-write-coach.js?v=0.47.2"></script>
-<script src="js/05-charts.js?v=0.47.2"></script>
-<script src="js/06-render.js?v=0.47.2"></script>
-<script src="js/07-health-import.js?v=0.47.2"></script>
-<script src="js/08-explain-challenges.js?v=0.47.2"></script>
-<script src="js/09-mobility.js?v=0.47.2"></script>
-<script src="js/10-test-absences.js?v=0.47.2"></script>
-<script src="js/11-session-chart.js?v=0.47.2"></script>
-<script src="js/12-tracks.js?v=0.47.2"></script>
-<script src="js/13-climbs.js?v=0.47.2"></script>
-<script src="js/14-adjust.js?v=0.47.2"></script>
-<script src="js/15-dialogs.js?v=0.47.2"></script>
-<script src="js/16-clicks.js?v=0.47.2"></script>
-<script src="js/17-cloud.js?v=0.47.2"></script>
-<script src="js/18-social.js?v=0.47.2"></script>
-<script src="js/19-onboarding.js?v=0.47.2"></script>
-<script src="js/20-health-shortcut.js?v=0.47.2"></script>
-<script src="js/21-library.js?v=0.47.2"></script>
-<script src="js/22-bike3d.js?v=0.47.2"></script>
-<script src="js/23-garage-catalog.js?v=0.47.2"></script>
-<script src="js/23-garage.js?v=0.47.2"></script>
-<script src="js/24-boot.js?v=0.47.2"></script>
+<script>"use strict"; const APP_VERSION = '0.48.0';</script>
+<script src="js/00-schema.js?v=0.48.0"></script>
+<script src="js/01-core.js?v=0.48.0"></script>
+<script src="js/02-plan.js?v=0.48.0"></script>
+<script src="js/03-fit-metrics.js?v=0.48.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.48.0"></script>
+<script src="js/05-charts.js?v=0.48.0"></script>
+<script src="js/06-render.js?v=0.48.0"></script>
+<script src="js/07-health-import.js?v=0.48.0"></script>
+<script src="js/08-explain-challenges.js?v=0.48.0"></script>
+<script src="js/09-mobility.js?v=0.48.0"></script>
+<script src="js/10-test-absences.js?v=0.48.0"></script>
+<script src="js/11-session-chart.js?v=0.48.0"></script>
+<script src="js/12-tracks.js?v=0.48.0"></script>
+<script src="js/13-climbs.js?v=0.48.0"></script>
+<script src="js/14-adjust.js?v=0.48.0"></script>
+<script src="js/15-dialogs.js?v=0.48.0"></script>
+<script src="js/16-clicks.js?v=0.48.0"></script>
+<script src="js/17-cloud.js?v=0.48.0"></script>
+<script src="js/18-social.js?v=0.48.0"></script>
+<script src="js/19-onboarding.js?v=0.48.0"></script>
+<script src="js/20-health-shortcut.js?v=0.48.0"></script>
+<script src="js/21-library.js?v=0.48.0"></script>
+<script src="js/22-bike3d.js?v=0.48.0"></script>
+<script src="js/23-garage-catalog.js?v=0.48.0"></script>
+<script src="js/23-garage.js?v=0.48.0"></script>
+<script src="js/24-boot.js?v=0.48.0"></script>
 </body>
 </html>

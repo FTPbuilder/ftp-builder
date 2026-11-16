@@ -213,11 +213,11 @@ const Library = (() => {
     const t = book().find(x => x.id === id); if (!t) return;
     openDlg(`<div class="row" style="gap:8px;margin:0 30px 8px 0"><input type="text" id="gxName" value="${esc(t.name)}" aria-label="Nom de la trace" style="flex:1;min-width:0"><button class="btn sm" id="gxRename">Renommer</button></div>
       <p class="muted small" style="margin:0 0 8px">${f1(t.km)} km · ${t.dp} m D+${isLoop(t) ? ' · boucle' : ''} · ajoutée le ${dateFR(t.added || todayISO())}</p>
-      <div class="gx-big">${mapSVG(t.pts, 640, 360, 'gpxmap big')}</div>${eleSVG(t.pts)}
+      ${mapShell('gxLmap')}${eleSVG(t.pts)}
       ${fresh ? '<div class="note" style="margin:8px 0">Note ta trace : touche les étoiles.</div>' : ''}
       <div class="gx-rate">${CRIT.map(([k, l, ic]) => `<div class="gx-rr"><span class="gx-rl"><span aria-hidden="true">${ic}</span> ${l}</span>${starsIn(k, t.notes?.[k] || 0, l)}</div>`).join('')}</div>
       <label class="f" for="gxCom">Mon commentaire</label><textarea id="gxCom" rows="2" maxlength="300" placeholder="La boulangerie de Dampierre, le revêtement refait après Senlisse…">${esc(t.comment || '')}</textarea>
-      <h3 style="margin:14px 0 6px">🥐 Mes boulangeries</h3><div class="gx-lmap" id="gxLmap" role="application" aria-label="Carte du parcours : touche pour placer une boulangerie"></div>
+      <h3 style="margin:14px 0 6px">🥐 Mes boulangeries</h3><p class="tiny muted" style="margin:0 0 4px">Touche la carte à l'endroit d'une boulangerie pour l'ajouter.</p>
       <div id="gxBk">${bkListHTML(t)}</div><button type="button" class="btn sm" id="gxBkFind" style="margin-top:8px">🔍 Chercher les boulangeries sur le parcours</button><div id="gxBkSug"></div>
       <div class="row between" style="margin-top:12px;gap:8px"><button class="btn primary" id="gxDl">Télécharger le GPX</button><button class="btn danger sm" id="gxDel">Supprimer</button></div>`);
     const commit = () => { save(); pushSoon(); render(); };
@@ -240,13 +240,13 @@ const Library = (() => {
     const box = $('#gxFr'); if (!box) return;
     if (!full?.pts) { box.innerHTML = '<p class="small muted">Trace indisponible (plus partagée ?).</p>'; return; }
     const t = { ...m, pts: full.pts };
-    box.innerHTML = `<div class="gx-big">${mapSVG(t.pts, 640, 360, 'gpxmap big')}</div>${eleSVG(t.pts)}
+    box.innerHTML = `${mapShell('gxFrMap', true)}${eleSVG(t.pts)}
       <div class="gx-rate">${CRIT.map(([k, l, ic]) => `<div class="gx-rr"><span class="gx-rl"><span aria-hidden="true">${ic}</span> ${l}</span>${starsRO(t.notes?.[k] || 0)}</div>`).join('')}</div>
       ${t.comment ? `<p class="small" style="margin:10px 0 0">« ${esc(t.comment)} »</p>` : ''}
-      <h3 style="margin:14px 0 6px">🥐 Ses boulangeries</h3><div class="gx-lmap" id="gxFrMap"></div><div>${bkListHTML(t, true)}</div>
+      <h3 style="margin:14px 0 6px">🥐 Ses boulangeries</h3><div>${bkListHTML(t, true)}</div>
       <div class="row" style="margin-top:12px;gap:8px"><button class="btn primary" id="gxFrDl">Télécharger le GPX</button><button class="btn" id="gxFrAdd">Copier dans mon livre</button></div>`;
     $('#gxFrDl').onclick = () => dlGPX(t);
-    bakeryMap($('#gxFrMap'), t, null);
+    trackMap($('#gxFrMap'), t, null).then(M => wireProfile(box.querySelector('.gpxele'), t, M));
     $('#gxFrAdd').onclick = () => { book().push({ id: rid(), name: t.name, km: t.km, dp: t.dp, pts: t.pts, bk: (t.bk || []).map(b => ({ id: rid(), ...b })), notes: { fun: 0, diff: 0, asph: 0, boul: 0 }, comment: '', added: todayISO() }); save(); pushSoon(); toast('Trace copiée dans ton livre : à toi de la noter'); };
   }
 
@@ -265,27 +265,82 @@ const Library = (() => {
     book().push(t); save(); pushSoon(); render(); toast('Ajoutée à Mes GPX : note-la !'); trackDlg(t.id, true);
   }
 
-  /* ---------- carte des boulangeries (Leaflet chargé à la demande, fond CARTO / OpenStreetMap) ---------- */
-  const LEAF = 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/';
-  let leafP = null;
-  const loadLeaflet = () => window.L?.map ? Promise.resolve(window.L) : leafP ||= new Promise((ok, ko) => {
-    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = LEAF + 'leaflet.css'; document.head.appendChild(l);
-    const s = document.createElement('script'); s.src = LEAF + 'leaflet.js'; s.onload = () => ok(window.L); s.onerror = () => { leafP = null; ko(new Error('carte indisponible')); }; document.head.appendChild(s); });
-  const darkMap = () => { const th = document.documentElement.getAttribute('data-theme'); return th ? th === 'dark' : !matchMedia('(prefers-color-scheme: light)').matches; };
-  async function bakeryMap(box, t, onAdd){
-    let L; try { L = await loadLeaflet(); } catch { box.classList.add('off'); box.innerHTML = '<p class="tiny muted" style="margin:0;padding:12px">Carte indisponible hors connexion.</p>'; return null; }
+  /* ---------- carte de la trace : MapLibre (WebGL), fonds OpenStreetMap, relief 3D ---------- */
+  // Plan : OpenFreeMap « Liberty » (vectoriel, commerces et bâtiments 3D) ; Vélo : CyclOSM ; Relief : OpenTopoMap.
+  // Relief 3D : altitudes ouvertes AWS (Terrarium). Secours : fond OpenStreetMap classique si OpenFreeMap ne répond pas,
+  // puis le dessin de la trace hors connexion.
+  const MLV = 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/';
+  let mlP = null;
+  const loadML = () => window.maplibregl?.Map ? Promise.resolve(window.maplibregl) : mlP ||= new Promise((ok, ko) => {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = MLV + 'maplibre-gl.css'; document.head.appendChild(l);
+    const s = document.createElement('script'); s.src = MLV + 'maplibre-gl.js'; s.onload = () => window.maplibregl ? ok(window.maplibregl) : ko(new Error('carte indisponible'));
+    s.onerror = () => { mlP = null; ko(new Error('carte indisponible')); }; document.head.appendChild(s); });
+  const raster = (tiles, attribution, maxzoom = 19) => ({ version: 8, sources: { bg: { type: 'raster', tiles, tileSize: 256, maxzoom, attribution } }, layers: [{ id: 'bg', type: 'raster', source: 'bg' }] });
+  const OSM_A = '© <a href="https://www.openstreetmap.org/copyright">les contributeurs OpenStreetMap</a>';
+  const FONDS = {
+    plan: { l: 'Plan', style: 'https://tiles.openfreemap.org/styles/liberty' },
+    velo: { l: 'Vélo', style: raster(['a', 'b', 'c'].map(s => `https://${s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png`), `${OSM_A} · <a href="https://www.cyclosm.org">CyclOSM</a>`, 20) },
+    relief: { l: 'Relief', style: raster(['a', 'b', 'c'].map(s => `https://${s}.tile.opentopomap.org/{z}/{x}/{y}.png`), `${OSM_A} · SRTM · <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)`, 17) },
+    osm: { l: 'Plan', style: raster(['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], OSM_A) } };
+  const DEM = { type: 'raster-dem', tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'], tileSize: 256, encoding: 'terrarium', maxzoom: 14, attribution: 'Relief : <a href="https://registry.opendata.aws/terrain-tiles/">Mapzen · AWS Terrain Tiles</a>' };
+  let fondPref = 'plan';
+  const mapShell = (id, ro) => `<div class="gx-map3"><div class="gx-mtools" role="group" aria-label="Fond de carte">${['plan', 'velo', 'relief'].map(k => `<button type="button" class="chip${k === fondPref ? ' on' : ''}" data-fond="${k}">${FONDS[k].l}</button>`).join('')}<button type="button" class="chip" data-d3="1" aria-pressed="false">3D</button></div>
+    <div class="gx-lmap" id="${id}" role="application" aria-label="${ro ? 'Carte du parcours' : 'Carte du parcours : touche pour placer une boulangerie'}"></div></div>`;
+  async function trackMap(box, t, onAdd){
+    const fallback = () => { box.classList.add('off'); box.closest('.gx-map3')?.querySelector('.gx-mtools')?.remove();
+      box.innerHTML = mapSVG(t.pts, 640, 360, 'gpxmap big') + '<p class="tiny muted" style="margin:0;padding:6px 10px">Carte indisponible (hors connexion) : tracé seul.</p>'; return null; };
+    let ML; try { ML = await loadML(); } catch { return fallback(); }
     if (!box.isConnected || !t.pts?.length) return null;
-    const m = L.map(box, { zoomControl: true, attributionControl: true });
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/${darkMap() ? 'dark_all' : 'light_all'}/{z}/{x}/{y}{r}.png`, { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO' }).addTo(m);
-    const line = L.polyline(t.pts.map(p => [p[0], p[1]]), { color: '#ff8a4c', weight: 4, opacity: 0.9 }).addTo(m);
-    m.fitBounds(line.getBounds(), { padding: [18, 18] });
-    const icon = () => L.divIcon({ className: 'bk-ic', html: '🥐', iconSize: [30, 30], iconAnchor: [15, 15] });
-    const layer = L.layerGroup().addTo(m), sug = L.layerGroup().addTo(m);
-    const draw = () => { layer.clearLayers(); for (const b of t.bk || []) L.marker([b.la, b.lo], { icon: icon(), title: b.n || 'Boulangerie', keyboard: false }).bindTooltip(esc(b.n || 'Boulangerie')).addTo(layer); };
+    const ll = t.pts.map(p => [p[1], p[0]]), bounds = ll.reduce((b, p) => b.extend(p), new ML.LngLatBounds(ll[0], ll[0]));
+    let fond = fondPref, d3 = false, loaded = false, m; const tools = box.closest('.gx-map3')?.querySelector('.gx-mtools');
+    try { m = new ML.Map({ container: box, style: FONDS[fond].style, bounds, fitBoundsOptions: { padding: 24 }, attributionControl: false, maxPitch: 75, dragRotate: true, pixelRatio: Math.min(devicePixelRatio || 1, 2), // net sur iPhone, 2× moins de pixels à dessiner qu'en ×3
+      cooperativeGestures: matchMedia('(pointer: coarse)').matches, // au doigt : la page défile à un doigt, la carte se manie à deux
+      locale: { 'CooperativeGesturesHandler.MobileHelpText': 'Deux doigts pour déplacer la carte', 'CooperativeGesturesHandler.WindowsHelpText': 'Ctrl + molette pour zoomer', 'CooperativeGesturesHandler.MacHelpText': '⌘ + molette pour zoomer',
+        'NavigationControl.ZoomIn': 'Zoomer', 'NavigationControl.ZoomOut': 'Dézoomer', 'NavigationControl.ResetBearing': 'Remettre le nord en haut', 'AttributionControl.ToggleAttribution': 'Crédits' } }); }
+    catch (e) { console.warn('carte', e); return fallback(); }
+    m.addControl(new ML.AttributionControl({ compact: true, customAttribution: DEM.attribution }), 'bottom-right');
+    m.addControl(new ML.NavigationControl({ visualizePitch: true, showCompass: true }), 'top-right');
+    const overlays = () => {
+      if (d3 && !m.getSource('dem')) m.addSource('dem', DEM); // altitudes chargées seulement en 3D
+      if (!m.getSource('trk')) m.addSource('trk', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'LineString', coordinates: ll } } });
+      if (!m.getLayer('trk-c')) m.addLayer({ id: 'trk-c', type: 'line', source: 'trk', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 7, 'line-opacity': 0.85 } });
+      if (!m.getLayer('trk')) m.addLayer({ id: 'trk', type: 'line', source: 'trk', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#ff6a1a', 'line-width': 4 } });
+      m.setTerrain(d3 ? { source: 'dem', exaggeration: 1.5 } : null); };
+    m.on('style.load', () => { try { overlays(); } catch (e) { console.warn('carte calques', e); } });
+    m.on('load', () => { loaded = true; box.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show'); }); // crédits repliés derrière le (i)
+    let bad = 0, okTiles = 0;
+    m.on('data', e => { if (e.dataType === 'source' && e.tile && e.sourceId === 'bg') okTiles++; });
+    m.on('error', e => { const msg = String(e?.error?.message || e?.error?.url || e?.source?.url || '');
+      // OpenFreeMap muet au démarrage : fond OpenStreetMap classique
+      if (!loaded && fond === 'plan' && /openfreemap|style/i.test(msg)) { fond = 'osm'; m.setStyle(FONDS.osm.style, { diff: false }); return; }
+      // fond Vélo / Relief qui ne répond pas : retour au Plan
+      if ((fond === 'velo' || fond === 'relief') && e.sourceId === 'bg' && ++bad >= 4 && !okTiles) { toast(`Fond ${FONDS[fond].l} indisponible pour l'instant : retour au Plan`); bad = 0;
+        fondPref = fond = 'plan'; tools?.querySelectorAll('[data-fond]').forEach(x => x.classList.toggle('on', x.dataset.fond === 'plan')); m.setStyle(FONDS.plan.style, { diff: false }); } });
+    // départ / arrivée, boulangeries, suggestions, curseur du profil : marqueurs HTML (gardés quand le fond change)
+    const mk = (html, cls, at) => { const el = document.createElement('div'); el.className = cls; el.innerHTML = html; return new ML.Marker({ element: el }).setLngLat(at).addTo(m); };
+    mk('', 'gx-dot start', ll[0]); if (!isLoop(t)) mk('', 'gx-dot end', ll[ll.length - 1]);
+    let bks = [], sugs = [], cur = null;
+    const draw = () => { bks.forEach(x => x.remove()); bks = (t.bk || []).map(b => { const x = mk('🥐', 'bk-ic', [b.lo, b.la]); x.getElement().title = b.n || 'Boulangerie'; return x; }); };
+    const setSug = L => { sugs.forEach(x => x.remove()); sugs = L.map(s => { const x = mk('', 'bk-sug', [s.lo, s.la]); x.getElement().title = s.n; return x; }); };
+    const cursor = i => { if (i == null) { cur?.remove(); cur = null; return; } const p = ll[Math.max(0, Math.min(ll.length - 1, i))]; cur ? cur.setLngLat(p) : cur = mk('', 'gx-dot cur', p); };
     draw();
-    if (onAdd) m.on('click', e => onAdd(+e.latlng.lat.toFixed(5), +e.latlng.lng.toFixed(5)));
-    setTimeout(() => m.invalidateSize(), 60);
-    return { m, L, draw, sug };
+    if (onAdd) m.on('click', e => { if (e.originalEvent?.target?.closest?.('.maplibregl-marker')) return; onAdd(+e.lngLat.lat.toFixed(5), +e.lngLat.lng.toFixed(5)); });
+    tools?.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return;
+      if (b.dataset.fond) { fondPref = fond = b.dataset.fond; bad = okTiles = 0; tools.querySelectorAll('[data-fond]').forEach(x => x.classList.toggle('on', x === b)); m.setStyle(FONDS[fond].style, { diff: false }); }
+      if (b.dataset.d3) { d3 = !d3; b.classList.toggle('on', d3); b.setAttribute('aria-pressed', d3);
+        if (m.isStyleLoaded() || m.getSource('trk')) { if (d3 && !m.getSource('dem')) m.addSource('dem', DEM); m.setTerrain(d3 ? { source: 'dem', exaggeration: 1.5 } : null); } // sinon posé au chargement du fond
+        m.easeTo({ pitch: d3 ? 62 : 0, bearing: d3 ? -20 : 0, duration: 900 }); } });
+    setTimeout(() => m.resize(), 60);
+    const gc = setInterval(() => { if (!box.isConnected) { clearInterval(gc); try { m.setTerrain(null); m.getCanvas().getContext('webgl2')?.getExtension('WEBGL_lose_context')?.loseContext(); } catch {} try { m.remove(); } catch {} } }, 500); // fiche fermée : on libère le WebGL
+    return { m, draw, setSug, cursor, get d3(){ return d3; } };
+  }
+  // glisser le doigt sur le profil d'altitude déplace un point sur la carte
+  function wireProfile(svg, t, M){
+    if (!svg || !M) return; const D = [0]; for (let i = 1; i < t.pts.length; i++) D.push(D[i-1] + dist(t.pts[i-1], t.pts[i]));
+    const L = D[D.length - 1] || 1, idx = x => { const r = svg.getBoundingClientRect(), d = Math.max(0, Math.min(1, (x - r.left)/r.width))*L; let lo = 0, hi = D.length - 1; while (lo < hi) { const mid = (lo + hi) >> 1; D[mid] < d ? lo = mid + 1 : hi = mid; } return lo; };
+    svg.style.touchAction = 'pan-y';
+    svg.addEventListener('pointermove', e => M.cursor(idx(e.clientX))); svg.addEventListener('pointerdown', e => M.cursor(idx(e.clientX)));
+    svg.addEventListener('pointerleave', () => M.cursor(null));
   }
   const bkListHTML = (t, ro) => (t.bk || []).length ? t.bk.map((b, i) => ro ? `<div class="bk-row"><span aria-hidden="true">🥐</span><span>${esc(b.n || 'Boulangerie')}</span></div>`
       : `<div class="bk-row"><span aria-hidden="true">🥐</span><input type="text" data-bkn="${i}" value="${esc(b.n || '')}" placeholder="Nom de la boulangerie" maxlength="60" aria-label="Nom de la boulangerie"><button type="button" class="btn sm ghost" data-bkdel="${i}" aria-label="Retirer cette boulangerie">×</button></div>`).join('')
@@ -305,11 +360,11 @@ const Library = (() => {
     const box = $('#gxLmap'), list = $('#gxBk'), sugBox = $('#gxBkSug'); let M = null, found = [];
     const refresh = () => { list.innerHTML = bkListHTML(t); M?.draw(); };
     const add = (la, lo, n = 'Boulangerie') => { (t.bk ||= []).push({ id: rid(), la, lo, n }); refresh(); commit(); };
-    bakeryMap(box, t, add).then(x => M = x);
+    trackMap(box, t, add).then(x => { M = x; wireProfile(dlgBody.querySelector('.gpxele'), t, M); });
     list.oninput = e => { const i = e.target.dataset?.bkn; if (i == null || !t.bk[i]) return; t.bk[i].n = e.target.value.slice(0, 60); };
     list.onchange = e => { if (e.target.dataset?.bkn != null) { M?.draw(); commit(); } };
     list.onclick = e => { const d = e.target.closest('[data-bkdel]'); if (!d) return; t.bk.splice(+d.dataset.bkdel, 1); refresh(); commit(); };
-    const drawSug = () => { if (M) { M.sug.clearLayers(); for (const s of found) M.L.circleMarker([s.la, s.lo], { radius: 7, color: '#ffb02e', weight: 2, fillOpacity: 0.25 }).bindTooltip(esc(s.n)).addTo(M.sug); }
+    const drawSug = () => { M?.setSug(found);
       sugBox.innerHTML = found.length ? `<p class="tiny muted" style="margin:8px 0 2px">Trouvées près du parcours (OpenStreetMap) :</p>${found.map((s, i) => `<div class="bk-row"><span aria-hidden="true">🥐</span><span style="flex:1;min-width:0">${esc(s.n)}${s.city ? ` <span class="tiny muted">· ${esc(s.city)}</span>` : ''}</span><button type="button" class="btn sm" data-bksug="${i}">+ Ajouter</button></div>`).join('')}` : ''; };
     sugBox.onclick = e => { const b = e.target.closest('[data-bksug]'); if (!b) return; const s = found.splice(+b.dataset.bksug, 1)[0]; if (s) { add(s.la, s.lo, s.n); drawSug(); } };
     const fb = $('#gxBkFind'); fb.onclick = async () => { fb.disabled = true;
