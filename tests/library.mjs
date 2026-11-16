@@ -12,13 +12,19 @@ fs.writeFileSync(f1, gpx('Boucle Chevreuse')); fs.writeFileSync(f2, gpx('Vexin &
 // photo de test : PNG de la fixture
 const photo = new URL('./fixtures/tile.png', import.meta.url).pathname;
 
-const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark', acceptDownloads: true, geolocation: { latitude: 48.72, longitude: 2.02 }, permissions: ['geolocation'] });
+const b = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], colorScheme: 'dark', acceptDownloads: true, geolocation: { latitude: 48.72, longitude: 2.02 }, permissions: ['geolocation'] });
 const pg = await ctx.newPage(); const errs = []; pg.on('pageerror', e => errs.push(e.message));
-// réseau simulé : Leaflet local, tuiles de carte, géocodeur Photon (ville de départ, boulangeries)
-const LEAF = path.join(out, 'node_modules/leaflet/dist');
-await pg.route('**/leaflet@1.9.4/dist/leaflet.js', r => r.fulfill({ path: LEAF + '/leaflet.js', contentType: 'application/javascript' }));
-await pg.route('**/leaflet@1.9.4/dist/leaflet.css', r => r.fulfill({ path: LEAF + '/leaflet.css', contentType: 'text/css' }));
-let tiles = 0; await pg.route('**/*.basemaps.cartocdn.com/**', r => { tiles++; return r.fulfill({ path: new URL('./fixtures/tile.png', import.meta.url).pathname, contentType: 'image/png' }); });
+// réseau simulé : MapLibre local, style OpenFreeMap et tuiles (plan, vélo, relief, altitudes), géocodeur Photon (ville de départ, boulangeries)
+const MLD = path.join(out, 'node_modules/maplibre-gl/dist'), TILE = new URL('./fixtures/tile.png', import.meta.url).pathname;
+await pg.route('**/maplibre-gl@4.7.1/dist/maplibre-gl.js', r => r.fulfill({ path: MLD + '/maplibre-gl.js', contentType: 'application/javascript' }));
+await pg.route('**/maplibre-gl@4.7.1/dist/maplibre-gl.css', r => r.fulfill({ path: MLD + '/maplibre-gl.css', contentType: 'text/css' }));
+const tiles = { plan: 0, velo: 0, relief: 0, dem: 0 };
+const until = async (f, ms = 15000) => { const t0 = Date.now(); while (!f() && Date.now() - t0 < ms) await new Promise(r => setTimeout(r, 100)); };
+await pg.route('**/tiles.openfreemap.org/styles/liberty', r => r.fulfill({ contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' },
+  body: JSON.stringify({ version: 8, sources: { p: { type: 'raster', tiles: ['https://tiles.openfreemap.org/test/{z}/{x}/{y}.png'], tileSize: 256, attribution: 'OpenFreeMap © OpenStreetMap' } }, layers: [{ id: 'bg', type: 'background', paint: { 'background-color': '#eee' } }, { id: 'p', type: 'raster', source: 'p' }] }) }));
+const tile = k => r => { tiles[k]++; return r.fulfill({ path: TILE, contentType: 'image/png', headers: { 'Access-Control-Allow-Origin': '*' } }); };
+await pg.route('**/tiles.openfreemap.org/test/**', tile('plan')); await pg.route('**/*.tile-cyclosm.openstreetmap.fr/**', tile('velo'));
+await pg.route('**/*.tile.opentopomap.org/**', tile('relief')); await pg.route('**/elevation-tiles-prod/terrarium/**', tile('dem'));
 const photon = { town: 0, bakery: 0 };
 await pg.route('**/photon.komoot.io/reverse**', r => { const u = new URL(r.request().url()), bak = u.searchParams.getAll('osm_tag').includes('shop:bakery');
   const lat = +u.searchParams.get('lat'), lon = +u.searchParams.get('lon'); bak ? photon.bakery++ : photon.town++;
@@ -136,8 +142,10 @@ assert(/à \d+(,\d)? km/.test(near), 'Autour de moi : distance affichée ' + nea
 await pg.screenshot({ path: out + '/library-filters.png', fullPage: true });
 await pg.tap('[data-gxzone=""]'); await pg.waitForTimeout(100);
 // carte des boulangeries : toucher la carte ajoute 🥐, recherche OpenStreetMap près du parcours
-await pg.locator('.gxc', { hasText: 'Boucle Chevreuse' }).tap(); await pg.waitForSelector('#gxLmap .leaflet-tile-pane', { state: 'attached', timeout: 8000 });
-await pg.waitForTimeout(300);
+await pg.locator('.gxc', { hasText: 'Boucle Chevreuse' }).tap(); await pg.waitForSelector('#gxLmap canvas.maplibregl-canvas', { state: 'attached', timeout: 15000 });
+await until(() => tiles.plan > 0); await pg.waitForSelector('#gxLmap .gx-dot.start', { state: 'attached' });
+assert(tiles.plan > 0 && await pg.locator('#gxLmap .gx-dot.start').count() === 1 && !await pg.locator('#dlg .gx-big').count(), `carte MapLibre en haut de la fiche (fond Plan, ${tiles.plan} tuiles), plus de dessin seul`);
+assert(/OpenStreetMap/.test(await pg.locator('#gxLmap .maplibregl-ctrl-attrib').innerHTML()) && /AWS/.test(await pg.locator('#gxLmap .maplibregl-ctrl-attrib').innerHTML()), 'crédits OpenStreetMap et relief AWS');
 await pg.locator('#gxLmap').scrollIntoViewIfNeeded(); await pg.waitForTimeout(300);
 const box = await pg.locator('#gxLmap').boundingBox(); await pg.touchscreen.tap(box.x + box.width*0.5, box.y + box.height*0.5); await pg.waitForTimeout(400);
 await pg.fill('#gxBk input[data-bkn="0"]', 'Chez Paul'); await pg.locator('#gxBk input[data-bkn="0"]').dispatchEvent('change');
@@ -146,8 +154,18 @@ const sug = await pg.$$eval('#gxBkSug .bk-row', x => x.map(e => e.textContent));
 assert(sug.length === 1 && sug[0].includes('Au Pain de Dampierre'), 'boulangerie trouvée près du parcours, celle trop loin écartée ' + JSON.stringify(sug));
 await pg.tap('[data-bksug="0"]'); await pg.waitForTimeout(200);
 const bk = await pg.evaluate(() => FTPB.S.gpxBook.find(t => t.name === 'Boucle Chevreuse').bk.map(b => b.n));
-assert(JSON.stringify(bk) === '["Chez Paul","Au Pain de Dampierre"]' && await pg.locator('#gxLmap .bk-ic').count() === 2 && tiles > 0, 'deux 🥐 sur la carte (placée à la main + trouvée) ' + JSON.stringify(bk));
+assert(JSON.stringify(bk) === '["Chez Paul","Au Pain de Dampierre"]' && await pg.locator('#gxLmap .bk-ic').count() === 2 && tiles.plan > 0, 'deux 🥐 sur la carte (placée à la main + trouvée) ' + JSON.stringify(bk));
 await pg.screenshot({ path: out + '/library-bakeries.png', fullPage: true });
+// fonds Vélo / Relief, relief 3D, profil relié à la carte
+await pg.tap('[data-fond="velo"]'); await until(() => tiles.velo > 0);
+assert(tiles.velo > 0 && await pg.locator('#gxLmap .bk-ic').count() === 2, 'fond Vélo (CyclOSM), les 🥐 restent');
+await pg.tap('[data-fond="relief"]'); await until(() => tiles.relief > 0); assert(tiles.relief > 0, 'fond Relief (OpenTopoMap)');
+await pg.tap('[data-d3]'); await until(() => tiles.dem > 0);
+assert(tiles.dem > 0 && await pg.getAttribute('[data-d3]', 'aria-pressed') === 'true', `3D : relief chargé (${tiles.dem} tuiles d'altitude)`);
+const ele = await pg.locator('#dlg .gpxele').boundingBox(); await pg.mouse.move(ele.x + ele.width*0.4, ele.y + ele.height/2); await pg.waitForTimeout(150);
+assert(await pg.locator('#gxLmap .gx-dot.cur').count() === 1, 'glisser sur le profil : point sur la carte');
+await pg.screenshot({ path: out + '/library-map3d.png' });
+await pg.tap('[data-d3]'); await pg.tap('[data-fond="plan"]'); await pg.waitForTimeout(300); // retour 2D avant de fermer : le relief 3D en rendu logiciel (SwiftShader) fige le navigateur de test
 await pg.tap('#gxBk [data-bkdel="0"]'); await pg.waitForTimeout(100);
 assert(await pg.evaluate(() => FTPB.S.gpxBook.find(t => t.name === 'Boucle Chevreuse').bk.length === 1), 'retirer une boulangerie');
 await pg.tap('#dlg [data-close]'); await pg.waitForTimeout(100);
