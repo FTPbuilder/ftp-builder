@@ -76,6 +76,11 @@ await ev(id => Atelier.debug.act(`range:${id}:11-34`), c1); await settle();
 await ev(([c, p]) => Atelier.debug.act(`cass:${c}:${p}`), [c1, p1]); await settle(); await pg.waitForTimeout(1200); await settle();
 w = await ev(([c, p]) => { const A = Atelier.debug.A, x = Atelier.debug.G().cass.find(y => y.id === c); return { name: x.name, range: x.range, loc: x.loc, parent: A.C[c].parent === A.W[p].rear }; }, [c1, p1]);
 assert(w.name === 'Cassette Alpes' && w.range === '11-34' && w.loc === p1 && w.parent, 'cassette « Cassette Alpes » 11-34 montée sur la roue AR de la nouvelle paire');
+await ev(c => Atelier.debug.act(`cassette:${c}`), c1); await settle();
+assert(await pg.locator('.at-sheet [data-at$=":10-33"]').count() === 1, 'étagements SRAM (10-xx) proposés');
+await pg.fill('#atRange', '10 - 44'); await pg.locator('.at-sheet [data-at^="rangeset:"]').click();
+assert(await until(c => Atelier.debug.G().cass.find(x => x.id === c).range === '10-44', c1), 'étagement libre saisi (10-44)');
+await ev(c => Atelier.debug.act(`range:${c}:11-34`), c1); await ev(() => Atelier.debug.act('close')); await settle();
 
 // entretien sur le pied d'atelier : points de contrôle, carnet du Garage
 await ev(() => Atelier.debug.act('close'));
