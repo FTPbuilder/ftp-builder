@@ -41,7 +41,8 @@ const Atelier = (() => {
   const SLOTS = [[-.55, 1.95], [.55, 1.95], [-.55, 1.13], [.55, 1.13]]; // mur des roues : z relatif, hauteur du centre
   const PEGS = [-.77, -.42, -.07, .28, .63], PEG_Y = 1.36; // crochets à cassettes du panneau (x relatif à l'établi)
   const PANEL = { w: 2.0, h: 2.45, z: .7, y: 1.325, hide: 4.1 };
-  const RANGES = ['11-25', '11-28', '11-30', '11-32', '11-34'], DEPTHS = [35, 45, 50, 62, 80];
+  const RANGES = { Shimano: ['11-25', '11-28', '11-30', '11-32', '11-34', '11-36'], SRAM: ['10-26', '10-28', '10-30', '10-33', '10-36'] }, DEPTHS = [35, 45, 50, 62, 80];
+  const rangeOk = v => { const m = String(v || '').trim().match(/^(9|1[0-4])\s*[-–/ ]\s*(2[0-9]|3[0-9]|4[0-9]|5[0-2])$/); return m ? `${m[1]}-${m[2]}` : null; }; // étagement libre (Campagnolo, Ekar…)
   const QUICK = ['Pneu', 'Chambre à air', 'Chaîne', 'Patins / plaquettes', 'Câble', 'Lubrifiant'];
 
   /* ---------- données (S.garage.atelier) ---------- */
@@ -599,7 +600,8 @@ const Atelier = (() => {
       `<p class="at-meta">${c.range} · ${c.speeds} vitesses</p>${wearHTML(cassWear(c), `${fmtKm(cassKm(c))} · ${esc(cassWhere(c))}`)}
       <div class="at-lbl">Monter sur</div><div class="at-list">${rows.join('')}</div>
       <details${cassKm(c) ? '' : ' open'}><summary>Réglages de la cassette</summary>
-      <div class="at-kv at-wrap"><span>Étagement</span><div class="at-chips">${RANGES.map(r => `<button type="button" class="${r === c.range ? 'on' : ''}" data-at="range:${c.id}:${r}">${r}</button>`).join('')}</div></div>
+      ${Object.entries(RANGES).map(([brand, rs]) => `<div class="at-kv at-wrap"><span>${brand}</span><div class="at-chips">${rs.map(r => `<button type="button" class="${r === c.range ? 'on' : ''}" data-at="range:${c.id}:${r}" aria-pressed="${r === c.range}">${r}</button>`).join('')}</div></div>`).join('')}
+      <div class="at-add"><input type="text" class="at-name at-small" id="atRange" value="${Object.values(RANGES).flat().includes(c.range) ? '' : esc(c.range)}" placeholder="Autre étagement : 10-44, 9-36…" maxlength="7" inputmode="text" aria-label="Autre étagement"><button type="button" class="at-mini" data-at="rangeset:${c.id}">OK</button></div>
       <div class="at-kv at-wrap"><span>Vitesses</span><div class="at-chips">${[11, 12].map(n => `<button type="button" class="${n === c.speeds ? 'on' : ''}" data-at="speeds:${c.id}:${n}">${n} v</button>`).join('')}</div></div>
       <div class="at-kv"><span>Inventaire</span><b></b><button type="button" class="at-danger" data-at="delcass:${c.id}">Je n'ai plus cette cassette</button></div></details>`);
   }
@@ -815,7 +817,7 @@ const Atelier = (() => {
     for (const o of [A.W[p.id].front, A.W[p.id].rear]) o.position.copy(A.cam.position).add(V3(0, -.6, 0)).addScaledVector(A.cam.getWorldDirection(V3()), 1.2);
     layout(true); select({ kind: 'pair', id: p.id, part: 'rear' }); say('Nouvelle paire : donnez-lui un nom et sa hauteur de jante'); updateTop(); }
   function addCass(peg){ if (peg < 0 || G().cass.some(c => c.loc === 'wall' && c.peg === peg)) return;
-    const b0 = bikeOf(htId()) || bikesIn()[0], sp = b0 ? vOf(b0).speeds : 12, c = { id: rid(), name: 'Nouvelle cassette', range: sp === 12 ? '11-30' : '11-28', speeds: sp, tint: '#c4c8ce', loc: 'wall', peg, since: null, km0: 0, wear: 0 };
+    const b0 = bikeOf(htId()) || bikesIn()[0], sp = b0 ? vOf(b0).speeds : 12, c = { id: rid(), name: 'Nouvelle cassette', range: b0 ? rangeOf(b0, sp) : '11-30', speeds: sp, tint: '#c4c8ce', loc: 'wall', peg, since: null, km0: 0, wear: 0 };
     G().cass.push(c); save(); makeCass(c); A.C[c.id].position.copy(A.cam.position).add(V3(0, -.3, 0)).addScaledVector(A.cam.getWorldDirection(V3()), .8);
     layout(true); select({ kind: 'cassette', id: c.id }); say('Nouvelle cassette : nommez-la (vitesse, montagne…)'); updateTop(); }
   function editPair(pid, ch){ const p = pairOf(pid); if (!p) return; Object.assign(p, ch);
@@ -951,6 +953,7 @@ const Atelier = (() => {
       case 'brk': return editPair(x, { brakes: y });
       case 'tire': return editPair(x, { tire: +y });
       case 'range': return editCass(x, { range: y });
+      case 'rangeset': { const r = rangeOk(q('#atRange')?.value); if (!r) return say('Étagement du type 10-33 (petit-grand pignon)', 'err'); return editCass(x, { range: r }); }
       case 'speeds': return editCass(x, { speeds: +y });
       case 'delpair': return delPair(x);
       case 'delcass': return delCass(x);
