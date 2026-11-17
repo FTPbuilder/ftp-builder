@@ -687,6 +687,89 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 .s3d-load{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;color:#cfe3e8;font-size:14px;padding:30px;text-align:center}
 .s3d-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--swim);animation:s3dspin 1s linear infinite}@keyframes s3dspin{to{transform:rotate(360deg)}}
 .s3d [hidden]{display:none!important}
+/* Garage › Atelier 3D (js/23-atelier.js) : toujours sombre, quel que soit le thème */
+.gr-atelier{width:100%;margin-top:10px;justify-content:flex-start;gap:8px;flex-wrap:wrap;text-align:left}.gr-atelier .tiny{flex-basis:100%;margin-left:26px}
+html.at-open,html.at-open body{overflow:hidden}
+.at3d{--at-card:#1c2029;--at-card2:#232835;--at-line:#2a2f3b;--at-text:#eef0f4;--at-muted:#9aa1b0;--at-acc:#ff8a4c;--at-ok:#5ad19a;--at-warn:#f5c542;position:fixed;inset:0;z-index:2000;background:#15171c;color:var(--at-text);font:15px/1.45 Inter,system-ui,sans-serif;overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+.at3d [hidden]{display:none!important}
+.at3d button{font:inherit;color:inherit;cursor:pointer}
+.at3d button:focus-visible,.at3d input:focus-visible{outline:2px solid var(--at-acc);outline-offset:2px}
+.at-stage{position:absolute;inset:0}.at-cv{display:block;width:100%;height:100%;touch-action:none;outline:none}
+.at-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:max(10px,env(safe-area-inset-top)) max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left));pointer-events:none;z-index:5}
+.at-top>*{pointer-events:auto}
+.at-ib{flex:none;width:44px;height:44px;border:0;border-radius:14px;display:grid;place-items:center;color:var(--at-text);background:rgba(15,17,21,.74);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.at3d[data-mode="arrange"] .at-top [data-at="arrange"]{background:var(--at-acc);color:#1a0d05}
+.at-ttl{flex:1;min-width:0;padding:5px 12px 6px;border-radius:14px;background:rgba(15,17,21,.74);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px)}
+.at-ttl b{display:block;font:800 20px/1.05 "Barlow Condensed",sans-serif;letter-spacing:.02em;text-transform:uppercase}
+.at-ttl span{display:block;font-size:12px;color:var(--at-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-prog{flex:none;min-width:58px;height:44px;border-radius:14px;display:grid;place-items:center;font:800 20px "Barlow Condensed",sans-serif;background:rgba(15,17,21,.74)}
+.at-panel{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:min(100%,560px);z-index:4;border-radius:22px 22px 0 0;border-top:1px solid var(--at-line);padding:12px max(14px,env(safe-area-inset-right)) max(14px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));background:rgba(15,17,21,.9);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px)}
+.at-zones{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;margin:0 -14px 12px;padding:0 14px}.at-zones::-webkit-scrollbar{display:none}
+.at-zones button{flex:none;height:40px;padding:0 15px;border-radius:20px;border:1px solid var(--at-line);background:var(--at-card);font-weight:600;font-size:13px}
+.at-zones button.on{background:var(--at-text);color:#12141a;border-color:var(--at-text)}
+.at-primary,.at-sec{min-height:50px;border-radius:15px;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:9px;width:100%;padding:0 14px}
+.at-primary{border:0;background:var(--at-acc);color:#1a0d05}.at-sec{border:1px solid #3a4150;background:transparent;color:var(--at-text)}
+.at-primary:disabled,.at-sec:disabled{opacity:.42;cursor:default}
+.at-row2,.at-row3{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.at-row3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.at-hint{font-size:12px;color:var(--at-muted);text-align:center;margin-top:8px}
+.at-sheet{background:var(--at-card);box-shadow:0 -14px 40px rgba(0,0,0,.5);max-height:58vh;overflow-y:auto;z-index:6;padding-top:8px;animation:atUp .22s ease-out}
+@keyframes atUp{from{opacity:0;margin-bottom:-24px}to{opacity:1;margin-bottom:0}}
+.at-sh-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px}.at-sh-head>div{flex:1;min-width:0}.at-x{background:var(--at-card2)}
+.at-kick{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--at-acc)}
+.at3d input.at-name,.at3d h3.at-name{display:block;width:100%;min-height:0;margin:2px 0 0;padding:4px 8px 4px 0;border:0;border-bottom:1px dashed #3a4150;border-radius:0;background:transparent;color:var(--at-text);font:800 25px/1.1 "Barlow Condensed",sans-serif;letter-spacing:.01em;text-transform:uppercase;-webkit-user-select:text;user-select:text;outline:none}
+.at3d h3.at-name{border:0}.at3d input.at-name:focus{border-bottom-color:var(--at-acc)}
+.at3d input.at-small{font:500 15px/1.3 Inter,system-ui,sans-serif;text-transform:none;border:1px solid #3a4150;border-radius:11px;padding:8px 10px;min-height:40px;background:#12151b}
+.at3d input.at-meas{width:84px;flex:none}
+.at-meta{margin:4px 0 12px;font-size:13px;color:var(--at-muted)}
+.at-wear{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:6px}.at-wear span{color:var(--at-muted)}
+.at-bar{height:8px;border-radius:4px;background:#2c313c;overflow:hidden;margin-bottom:14px}.at-bar i{display:block;height:100%;border-radius:4px;transition:width .35s}
+.at-kv{display:flex;align-items:center;gap:10px;min-height:48px;border-top:1px solid var(--at-line);font-size:13px}.at-kv.at-wrap{flex-wrap:wrap;padding:8px 0 2px}
+.at-kv>span{color:var(--at-muted);flex:none;width:104px}.at-kv b{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-kv button,.at-mini{flex:none;min-height:36px;padding:0 12px;border-radius:11px;border:1px solid #3a4150;background:transparent;color:var(--at-text);font-size:13px;font-weight:600}
+.at-mini.on{background:var(--at-acc);border-color:var(--at-acc);color:#1a0d05}.at-mini:disabled{opacity:.55}
+.at3d .at-danger{color:#ff9c9c;border-color:#5a2f35}
+.at-acts{display:flex;flex-direction:column;gap:8px;margin-top:14px}
+.at-why{font-size:11px;color:var(--at-muted);margin:-4px 0 2px;text-align:center}
+.at-list{display:flex;flex-direction:column;margin-top:4px}
+.at-li{display:flex;align-items:center;gap:10px;min-height:52px;border-top:1px solid var(--at-line)}.at-li>div{flex:1;min-width:0}
+.at-li b{display:block;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.at-li small{display:block;font-size:12px;color:var(--at-muted)}
+.at-qty{width:26px;text-align:center;font-weight:700;font-variant-numeric:tabular-nums}.at-pct{font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+.at-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
+.at-chips button{min-height:36px;min-width:44px;padding:0 12px;border-radius:18px;border:1px solid #3a4150;background:transparent;color:var(--at-text);font-size:13px;font-weight:600}
+.at-chips button.on{background:var(--at-text);color:#12141a;border-color:var(--at-text)}
+.at-lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--at-muted)}
+.at-add{display:flex;gap:8px;align-items:center;margin-top:8px}
+.at3d details{border-top:1px solid var(--at-line);margin-top:2px}
+.at3d summary{min-height:46px;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:600;color:var(--at-muted);cursor:pointer;list-style:none}
+.at3d summary::-webkit-details-marker{display:none}
+.at3d summary::after{content:"";width:8px;height:8px;border-right:2px solid var(--at-muted);border-bottom:2px solid var(--at-muted);transform:rotate(45deg) translateY(-3px);transition:transform .2s}
+.at3d details[open] summary::after{transform:rotate(-135deg) translateY(-2px)}
+.at-mhead{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px}.at-mhead b{font:800 18px "Barlow Condensed",sans-serif;letter-spacing:.03em;text-transform:uppercase}.at-mhead span{font-size:12px;color:var(--at-muted)}
+.at-tasks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:10px 0 2px}
+.at-task{display:flex;align-items:center;gap:9px;min-height:50px;padding:6px 10px;border-radius:13px;border:1px solid var(--at-line);background:var(--at-card);text-align:left;color:var(--at-text)}
+.at-task i{flex:none;width:12px;height:12px;border-radius:50%;background:var(--c)}.at-task div{min-width:0}
+.at-task b{display:block;font-size:13px;font-weight:600;line-height:1.2}.at-task small{display:block;font-size:11px;color:var(--c);font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.at-task.done{background:#15241d;border-color:#1f4a35}
+.at-tags{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
+.at-tag{position:absolute;left:0;top:0;pointer-events:auto;min-height:40px;padding:5px 10px 6px;border-radius:11px;border:1px solid rgba(255,255,255,.16);background:rgba(15,17,21,.84);color:var(--at-text);display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;white-space:nowrap;box-shadow:0 6px 18px rgba(0,0,0,.35);text-align:left;will-change:transform}
+.at-tag b{font:700 14px/1.05 "Barlow Condensed",sans-serif;letter-spacing:.03em;text-transform:uppercase}.at-tag small{font-size:11px;line-height:1.15;color:var(--at-muted)}.at-tag small em{font-style:normal;font-weight:700;color:var(--at-acc)}
+.at-tag.ghost{background:rgba(15,17,21,.5);border-style:dashed}.at-tag.add{border-style:dashed;flex-direction:row;align-items:center;gap:6px}
+.at-tag.on{border-color:var(--at-acc);box-shadow:0 0 0 1.5px var(--at-acc),0 8px 20px rgba(0,0,0,.4)}
+.at-tag::after{content:"";position:absolute;left:50%;bottom:-5px;width:8px;height:8px;margin-left:-4px;background:inherit;border-right:1px solid rgba(255,255,255,.16);border-bottom:1px solid rgba(255,255,255,.16);transform:rotate(45deg)}
+.at-tag.flat::after{display:none}
+.at-tag.at-mv{touch-action:none;cursor:move;flex-direction:row;align-items:center;gap:6px;border-color:rgba(255,138,76,.55)}.at-tag.at-mv svg{flex:none;color:var(--at-acc)}
+.at3d[data-mode="maint"] .at-top [data-at="arrange"],.at3d[data-mode="explode"] .at-top [data-at="arrange"]{display:none}
+.at-dot,.at-num{position:absolute;left:0;top:0;pointer-events:auto;width:44px;height:44px;border:0;padding:0;background:transparent;display:grid;place-items:center}
+.at-dot span{width:28px;height:28px;border-radius:50%;background:var(--c);border:3px solid #0f1115;color:#0f1115;display:grid;place-items:center;font:800 14px/1 "Barlow Condensed",sans-serif;animation:atPing 1.8s infinite}
+.at-dot.done span{animation:none}
+@keyframes atPing{0%{box-shadow:0 0 0 0 rgba(255,138,76,.55)}70%{box-shadow:0 0 0 12px rgba(255,138,76,0)}100%{box-shadow:0 0 0 0 rgba(255,138,76,0)}}
+.at-num i{font:800 15px/1 "Barlow Condensed",sans-serif;font-style:normal;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#fff;color:#12141a;box-shadow:0 3px 10px rgba(0,0,0,.35)}.at-num.on i{background:var(--at-acc)}
+.at-toast{position:absolute;left:50%;top:calc(max(10px,env(safe-area-inset-top)) + 60px);transform:translate(-50%,-8px);max-width:min(92vw,460px);padding:10px 14px;border-radius:13px;background:#0f1115;border:1px solid var(--at-line);font-size:13px;font-weight:600;display:flex;gap:8px;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.45);opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:9}
+.at-toast.show{opacity:1;transform:translate(-50%,0)}.at-toast i{flex:none;width:10px;height:10px;border-radius:50%;background:var(--at-ok)}.at-toast.warn i{background:var(--at-warn)}.at-toast.err i{background:var(--at-acc)}
+.at-load{position:absolute;inset:0;z-index:20;display:grid;place-content:center;justify-items:center;gap:14px;text-align:center;padding:24px;background:#0f1115;transition:opacity .5s}
+.at-load.out{opacity:0;pointer-events:none}.at-load b{font:800 26px "Barlow Condensed",sans-serif;letter-spacing:.04em;text-transform:uppercase}.at-load small{color:var(--at-muted);font-size:13px;max-width:320px}
+.at-spin{width:38px;height:38px;border-radius:50%;border:3px solid #2c313c;border-top-color:var(--at-acc);animation:s3dspin 1s linear infinite}
+@media (prefers-reduced-motion:reduce){.at-dot span{animation:none}.at-sheet{animation:none}}
 </style>
 </head>
 <body>
@@ -721,33 +804,34 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.49.1';</script>
-<script src="js/00-schema.js?v=0.49.1"></script>
-<script src="js/01-core.js?v=0.49.1"></script>
-<script src="js/02-plan.js?v=0.49.1"></script>
-<script src="js/03-fit-metrics.js?v=0.49.1"></script>
-<script src="js/04-fit-write-coach.js?v=0.49.1"></script>
-<script src="js/05-charts.js?v=0.49.1"></script>
-<script src="js/06-render.js?v=0.49.1"></script>
-<script src="js/07-health-import.js?v=0.49.1"></script>
-<script src="js/08-explain-challenges.js?v=0.49.1"></script>
-<script src="js/09-mobility.js?v=0.49.1"></script>
-<script src="js/10-test-absences.js?v=0.49.1"></script>
-<script src="js/11-session-chart.js?v=0.49.1"></script>
-<script src="js/12-tracks.js?v=0.49.1"></script>
-<script src="js/13-climbs.js?v=0.49.1"></script>
-<script src="js/14-adjust.js?v=0.49.1"></script>
-<script src="js/15-dialogs.js?v=0.49.1"></script>
-<script src="js/16-clicks.js?v=0.49.1"></script>
-<script src="js/17-cloud.js?v=0.49.1"></script>
-<script src="js/18-social.js?v=0.49.1"></script>
-<script src="js/19-onboarding.js?v=0.49.1"></script>
-<script src="js/20-health-shortcut.js?v=0.49.1"></script>
-<script src="js/21-library.js?v=0.49.1"></script>
-<script src="js/22-bike3d.js?v=0.49.1"></script>
-<script src="js/22-swim3d.js?v=0.49.1"></script>
-<script src="js/23-garage-catalog.js?v=0.49.1"></script>
-<script src="js/23-garage.js?v=0.49.1"></script>
-<script src="js/24-boot.js?v=0.49.1"></script>
+<script>"use strict"; const APP_VERSION = '0.50.0';</script>
+<script src="js/00-schema.js?v=0.50.0"></script>
+<script src="js/01-core.js?v=0.50.0"></script>
+<script src="js/02-plan.js?v=0.50.0"></script>
+<script src="js/03-fit-metrics.js?v=0.50.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.50.0"></script>
+<script src="js/05-charts.js?v=0.50.0"></script>
+<script src="js/06-render.js?v=0.50.0"></script>
+<script src="js/07-health-import.js?v=0.50.0"></script>
+<script src="js/08-explain-challenges.js?v=0.50.0"></script>
+<script src="js/09-mobility.js?v=0.50.0"></script>
+<script src="js/10-test-absences.js?v=0.50.0"></script>
+<script src="js/11-session-chart.js?v=0.50.0"></script>
+<script src="js/12-tracks.js?v=0.50.0"></script>
+<script src="js/13-climbs.js?v=0.50.0"></script>
+<script src="js/14-adjust.js?v=0.50.0"></script>
+<script src="js/15-dialogs.js?v=0.50.0"></script>
+<script src="js/16-clicks.js?v=0.50.0"></script>
+<script src="js/17-cloud.js?v=0.50.0"></script>
+<script src="js/18-social.js?v=0.50.0"></script>
+<script src="js/19-onboarding.js?v=0.50.0"></script>
+<script src="js/20-health-shortcut.js?v=0.50.0"></script>
+<script src="js/21-library.js?v=0.50.0"></script>
+<script src="js/22-bike3d.js?v=0.50.0"></script>
+<script src="js/22-swim3d.js?v=0.50.0"></script>
+<script src="js/23-garage-catalog.js?v=0.50.0"></script>
+<script src="js/23-garage.js?v=0.50.0"></script>
+<script src="js/23-atelier.js?v=0.50.0"></script>
+<script src="js/24-boot.js?v=0.50.0"></script>
 </body>
 </html>
