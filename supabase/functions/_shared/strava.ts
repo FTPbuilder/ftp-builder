@@ -1,5 +1,7 @@
 // Outils Strava partagés (tokens, récupération d'activité + flux)
 import { createClient, SupabaseClient } from "npm:@supabase/supabase-js@2.45.4";
+import { sid } from "./ids.ts";
+export { sid, rawInt } from "./ids.ts";
 
 export const admin = (): SupabaseClient =>
   createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -19,7 +21,7 @@ export async function tokenRequest(body: Record<string, string>) {
 }
 
 // Renvoie un access token valide pour l'utilisateur (rafraîchi si besoin)
-export async function accessTokenFor(db: SupabaseClient, where: { user_id?: string; athlete_id?: number }) {
+export async function accessTokenFor(db: SupabaseClient, where: { user_id?: string; athlete_id?: string }) {
   let q = db.from("strava_tokens").select("*");
   q = where.user_id ? q.eq("user_id", where.user_id) : q.eq("athlete_id", where.athlete_id!);
   const { data: t, error } = await q.maybeSingle();
@@ -36,7 +38,7 @@ export async function accessTokenFor(db: SupabaseClient, where: { user_id?: stri
 const RIDES = new Set(["Ride", "VirtualRide", "EBikeRide", "GravelRide", "MountainBikeRide"]);
 
 // Récupère une activité + ses flux et la dépose dans strava_inbox (vélo uniquement)
-export async function ingestActivity(db: SupabaseClient, token: string, user_id: string, stravaId: number) {
+export async function ingestActivity(db: SupabaseClient, token: string, user_id: string, stravaId: string) {
   const h = { Authorization: `Bearer ${token}` };
   const ar = await fetch(`https://www.strava.com/api/v3/activities/${stravaId}`, { headers: h });
   if (!ar.ok) throw new Error(`activity ${stravaId}: ${ar.status}`);
@@ -45,7 +47,7 @@ export async function ingestActivity(db: SupabaseClient, token: string, user_id:
   const sr = await fetch(`https://www.strava.com/api/v3/activities/${stravaId}/streams?keys=time,watts,heartrate,cadence,latlng,altitude,distance,velocity_smooth&key_by_type=true`, { headers: h });
   const streams = sr.ok ? await sr.json() : null;
   const activity = {
-    id: a.id, name: a.name, sport_type: a.sport_type, start_date: a.start_date, start_date_local: a.start_date_local,
+    id: sid(a), name: a.name, sport_type: a.sport_type, start_date: a.start_date, start_date_local: a.start_date_local,
     moving_time: a.moving_time, elapsed_time: a.elapsed_time, distance: a.distance, trainer: a.trainer,
     average_watts: a.average_watts, weighted_average_watts: a.weighted_average_watts, max_watts: a.max_watts, device_watts: a.device_watts,
     average_heartrate: a.average_heartrate, max_heartrate: a.max_heartrate, average_cadence: a.average_cadence,
@@ -60,7 +62,7 @@ export async function ingestActivity(db: SupabaseClient, token: string, user_id:
     distance: a.trainer ? null : streams.distance?.data ?? null, velocity_smooth: a.trainer ? null : streams.velocity_smooth?.data ?? null,
   } : null;
   const { error } = await db.from("strava_inbox").upsert(
-    { user_id, strava_id: a.id, activity, streams: compact, imported: false },
+    { user_id, strava_id: sid(a), activity, streams: compact, imported: false },
     { onConflict: "user_id,strava_id", ignoreDuplicates: true },
   );
   if (error) throw error;

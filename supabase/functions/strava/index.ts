@@ -4,7 +4,7 @@
 //  { action: "disconnect" }      -> révoque et supprime les tokens
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
-import { admin, tokenRequest, accessTokenFor, ingestActivity, ensureSubscription, cors, json } from "../_shared/strava.ts";
+import { admin, tokenRequest, accessTokenFor, ingestActivity, ensureSubscription, cors, json, sid } from "../_shared/strava.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
@@ -21,12 +21,12 @@ Deno.serve(async (req) => {
       const t = await tokenRequest({ grant_type: "authorization_code", code: body.code });
       if (body.scope && !String(body.scope).includes("activity:read")) return json({ error: "Autorise l'accès aux activités sur Strava (case « Voir les données de vos activités »)" }, 400);
       const { error } = await db.from("strava_tokens").upsert({
-        user_id: user.id, athlete_id: t.athlete.id, access_token: t.access_token, refresh_token: t.refresh_token,
+        user_id: user.id, athlete_id: sid(t.athlete), access_token: t.access_token, refresh_token: t.refresh_token,
         expires_at: new Date(t.expires_at * 1000).toISOString(), scope: body.scope ?? null,
       }, { onConflict: "user_id" });
       if (error) throw error;
       let webhook: unknown = null; try { webhook = await ensureSubscription(); } catch (e) { webhook = { subscribed: false, error: String(e) }; }
-      return json({ connected: true, athlete: { id: t.athlete.id, firstname: t.athlete.firstname }, webhook });
+      return json({ connected: true, athlete: { id: sid(t.athlete), firstname: t.athlete.firstname }, webhook });
     }
 
     if (body.action === "sync") {
@@ -37,12 +37,13 @@ Deno.serve(async (req) => {
       const r = await fetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=60`, { headers: { Authorization: `Bearer ${tk.token}` } });
       if (!r.ok) throw new Error(`liste Strava ${r.status}`);
       const list = await r.json();
-      const { data: known } = await db.from("strava_inbox").select("strava_id").eq("user_id", user.id);
-      const seen = new Set((known ?? []).map((k) => Number(k.strava_id)));
+      const { data: known } = await db.from("strava_inbox").select("strava_id:strava_id::text").eq("user_id", user.id);
+      const seen = new Set((known ?? []).map((k) => String(k.strava_id)));
       let added = 0;
       for (const a of list) {
-        if (seen.has(a.id)) continue;
-        const res = await ingestActivity(db, tk.token, user.id, a.id);
+        const id = sid(a);
+        if (seen.has(id)) continue;
+        const res = await ingestActivity(db, tk.token, user.id, id);
         if ((res as { ok?: boolean }).ok) added++;
       }
       return json({ added });
