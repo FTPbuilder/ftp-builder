@@ -443,6 +443,126 @@ const Bike3D = (() => {
     return { root, groups, len: 1.66, ft };
   }
 
+  /* ---------- Atelier (js/23-atelier.js) : la même maquette FTP, mais le vélo SANS roues ni cassette ----------
+     Roues (une paire = roue AV + roue AR) et cassettes deviennent des objets indépendants qu'on accroche au mur, au home trainer ou à un vélo.
+     Matériaux partagés entre toutes les maquettes de l'atelier, sauf la peinture et les stickers propres à chaque vélo. */
+  let atK = null;
+  const atCv = (T, w, h, rep = 1) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8;
+    if (rep > 1) { t.wrapS = T.RepeatWrapping; t.repeat.set(rep, 1); } return { c, x: c.getContext('2d'), t }; };
+  async function atKit(){
+    if (atK) return atK;
+    const gl = await loadFtp(), T = THREE, meta = gl.scene.userData || {}; // loadFtp charge three.js : THREE n'existe qu'après
+    gl.scene.updateMatrixWorld(true);
+    const byName = {}; gl.scene.traverse(o => { if (o.name && !byName[o.name]) byName[o.name] = o; });
+    const ph = (o, ao = true) => { const m = new T.MeshPhysicalMaterial({ envMapIntensity: .95, ...o }); for (const k of ['color', 'sheenColor']) if (o[k] != null) m[k] = lin(T, o[k]); return ao ? withAO(m) : m; };
+    const wall = atCv(T, 1024, 48, 2); // flancs de pneu : même dessin que la maquette du Garage
+    { const { c, x, t } = wall, W = c.width, H = c.height; x.fillStyle = '#161616'; x.fillRect(0, 0, W, H); x.globalAlpha = .18; x.fillStyle = '#262626';
+      for (let y = 4; y < H; y += 7) x.fillRect(0, y, W, 1); x.globalAlpha = 1; x.fillStyle = '#3a3a3a'; x.textBaseline = 'middle'; x.textAlign = 'left'; setFont(x, FONTS.bloc, H*.4); x.fillText('FTP RACE', W*.08, H*.52);
+      setFont(x, FONTS.tech, H*.2); x.fillText('700 × 28C   ·   TUBELESS READY   ·   4–6 BAR', W*.33, H*.5); t.needsUpdate = true; }
+    const KIND = {
+      Paint_Frame: () => ph({ color: '#3b3f45', roughness: .6 }), Carbon_Black: () => ph({ color: '#0c0c0d', roughness: .42, clearcoat: .35, clearcoatRoughness: .35 }),
+      Rubber_Hood: () => ph({ color: '#0d0d0e', roughness: .82 }), Bar_Tape: () => ph({ color: '#111112', roughness: .78, sheen: .4, sheenRoughness: .6, sheenColor: '#333333' }),
+      Saddle_Cover: () => ph({ color: '#0f0f10', roughness: .62, sheen: .35, sheenRoughness: .5, sheenColor: '#2a2a2a' }), Saddle_Rails: () => ph({ color: '#1a1a1c', roughness: .3, metalness: .4, clearcoat: .6 }),
+      Tyre_Tread: () => ph({ color: '#151515', roughness: .74 }), Tyre_Wall: () => ph({ map: wall.t, roughness: .76 }), Metal_Silver: () => ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }),
+      Metal_Steel: () => ph({ color: '#9a9da3', roughness: .34, metalness: 1 }), Metal_Dark: () => ph({ color: '#2a2b2f', roughness: .34, metalness: .9 }),
+      Anodized_Black: () => ph({ color: '#0e0e10', roughness: .36, metalness: .55, clearcoat: .3, clearcoatRoughness: .3 }), Brake_Pad: () => ph({ color: '#3a221a', roughness: .85 }) };
+    const shared = {}, mat = kind => shared[kind] ||= (KIND[kind] || KIND.Anodized_Black)();
+    const decalMat = t => ph({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8, roughness: .32, clearcoat: .7, clearcoatRoughness: .08, alphaTest: .02 }, false);
+    atK = { T, gl, meta, byName, ph, KIND, mat, shared, decalMat, geo: {}, cv: (w, h, rep) => atCv(T, w, h, rep) };
+    return atK;
+  }
+  // copie des maillages d'objets du GLB, exprimés par rapport à un point (axe de roue…) ; la géométrie est partagée
+  function atClone(names, origin, matFor){
+    const { T, byName } = atK, out = [];
+    for (const n of names) { const src = byName[n]; if (!src) continue;
+      src.traverse(o => { if (!o.isMesh) return; const m = new T.Mesh(o.geometry, matFor(o.material?.name, n)); o.matrixWorld.decompose(m.position, m.quaternion, m.scale); m.position.sub(origin);
+        m.castShadow = true; m.receiveShadow = true; m.userData.part = n; out.push(m); }); }
+    return out;
+  }
+  // vélo sans roues : groupes nommés comme ceux du Garage (frein AV et AR séparés), ancres des axes ; repère du GLB recentré (empattement au milieu)
+  function atBike(opts){
+    const { T, gl, meta, KIND } = atK, V = opts.variant || {}, rimBrake = V.brakes === 'rim';
+    const skip = n => /^(Hub_|Lockring_|Axle_|Rotor_|Tyre_|Cassette_)/.test(n) || (rimBrake ? /^Caliper_/.test(n) : /^RimBrake_/.test(n));
+    const scene = gl.scene.clone(true); scene.updateMatrixWorld(true);
+    const root = new T.Group(), groups = {}, grp = k => { if (!groups[k]) { const g = new T.Group(); g.userData.g = k; groups[k] = g; root.add(g); } return groups[k]; };
+    const dc = meta.decals || {}, cvs = { down: atK.cv(2048, Math.round(2048*(dc.downtube?.height || .055)/(dc.downtube?.length || .5))), fork: atK.cv(1024, Math.round(1024*(dc.fork?.height || .03)/(dc.fork?.length || .2))),
+      head: atK.cv(256, Math.round(256*(dc.headtube?.height || .09)/(dc.headtube?.width || .037))) };
+    const paint = withFlip(KIND.Paint_Frame()); paint.name = 'Paint_Frame';
+    const dm = { down: atK.decalMat(cvs.down.t), fork: atK.decalMat(cvs.fork.t), head: atK.decalMat(cvs.head.t) }, decals = Object.values(dm);
+    const DECAL = { Decal_DownTube_R: 'down', Decal_DownTube_L: 'down', Decal_Fork_R: 'fork', Decal_Fork_L: 'fork', Decal_HeadTube: 'head' };
+    const nameOf = o => { for (let p = o; p; p = p.parent) if (FTP_G[p.name]) return p.name; return null; };
+    const meshes = []; scene.traverse(o => { if (o.isMesh) meshes.push(o); });
+    for (const m of meshes) { const n = nameOf(m); if (!n || skip(n)) continue; let k = FTP_G[n]; if (k === 'calipers') k = /_F(_|$)/.test(n) ? 'brakeF' : 'brakeR';
+      const kind = m.material?.name; m.material = DECAL[n] ? dm[DECAL[n]] : kind === 'Paint_Frame' ? paint : atK.mat(kind);
+      m.userData.part = n; m.castShadow = !DECAL[n]; m.receiveShadow = true; if (DECAL[n]) m.renderOrder = 2; grp(k).attach(m); }
+    // pièces internes, visibles seulement en éclaté : roulements de direction, boîtier, batterie Di2
+    const BB = new T.Vector3(...(meta.bb || [.4036, .2675, 0])), HT = new T.Vector3(...(meta.ht_top || [.7956, .8275, 0])), HA = 73*Math.PI/180, SA = 73.5*Math.PI/180;
+    const dn = new T.Vector3(Math.cos(HA), -Math.sin(HA), 0), sd = new T.Vector3(-Math.cos(SA), Math.sin(SA), 0), HB = HT.clone().addScaledVector(dn, .15), sh = atK.shared;
+    const polished = sh.polished ||= atK.ph({ color: '#9aa1aa', roughness: .12, metalness: 1 }, false), dark = sh.darkm ||= atK.ph({ color: '#2c2f35', roughness: .32, metalness: .85 }, false), batt = sh.batt ||= atK.ph({ color: '#1f6feb', roughness: .35, metalness: .3 }, false);
+    const extra = (k, geo, mat, pos, q) => { const m = new T.Mesh(geo, mat); m.position.copy(pos); if (q) m.quaternion.copy(q); m.castShadow = true; grp(k).add(m); grp(k).userData.hideAssembled = true; return m; };
+    const qd = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), dn), qx = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI/2);
+    for (const p of [HT.clone().addScaledVector(dn, .008), HB.clone().addScaledVector(dn, -.008)]) extra('headset', new T.TorusGeometry(.0175, .0052, 12, 40), polished, p, qd);
+    extra('bb', new T.CylinderGeometry(.0205, .0205, .088, 32), polished, BB, qx);
+    for (const z of [1, -1]) extra('bb', new T.CylinderGeometry(.023, .023, .006, 32), dark, BB.clone().add(new T.Vector3(0, 0, .044*z)), qx);
+    if (V.di2) extra('battery', new T.CylinderGeometry(.011, .011, .12, 20), batt, BB.clone().addScaledVector(sd, .49), new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), sd));
+    for (const g of Object.values(groups)) if (g.userData.hideAssembled) g.visible = false;
+    const AF = meta.axle_f || [.9919, .3395, 0], AR = meta.axle_r || [0, .3395, 0], anchorF = new T.Object3D(), anchorR = new T.Object3D();
+    anchorF.position.set(AF[0], AF[1], AF[2] || 0); anchorR.position.set(AR[0], AR[1], AR[2] || 0); root.add(anchorF, anchorR); root.position.set(-.5, 0, 0);
+    let cur = null;
+    const ft = { look: null, set(look){ const L = lookOf(look, opts.model), sig = JSON.stringify(L); if (sig === cur) return false; cur = sig; ft.look = L;
+      const P = PAINTS.find(p => p.id === L.paint) || PAINTS[1], hex = L.custom || P.hex, F = FINISHES[L.finish] || FINISHES[P.finish] || FINISHES.mat, pc = lin(T, hex), flip = !L.custom && P.flip;
+      { const m = paint; m.color.copy(pc); m.roughness = F.rough; m.metalness = F.metal; m.clearcoat = F.cc; m.clearcoatRoughness = F.ccr; m.iridescence = P.irid && !L.custom ? 1 : 0; m.iridescenceIOR = 1.75; m.iridescenceThicknessRange = [260, 820];
+        const U = m.userData.flip; if (U) { U.ftpbFlip.value = flip ? 1 : 0; if (flip) [U.ftpbC0, U.ftpbC1, U.ftpbC2].forEach((u, i) => u.value.copy(lin(T, P.flip[i]))); } m.needsUpdate = true; }
+      const lum = .2126*pc.r + .7152*pc.g + .0722*pc.b, ink = INKS.find(i => i.id === L.ink) || INKS[0], auto = !L.custom && P.ink ? INKS.find(i => i.id === P.ink) : null;
+      const spec = ink.id === 'auto' ? auto || { hex: lum > .32 ? '#141414' : '#f4f4f2' } : ink.id === 'ton' ? { hex, gloss: true, tone: true } : ink;
+      for (const m of decals) { m.color.copy(lin(T, spec.hex)); if (spec.tone) m.color.offsetHSL(0, 0, lum > .3 ? -.06 : .05); m.metalness = spec.metal ? .75 : 0; m.roughness = spec.metal ? .26 : spec.gloss ? .12 : .34;
+        m.iridescence = spec.irid ? 1 : 0; m.iridescenceIOR = 1.9; m.iridescenceThicknessRange = [200, 900]; m.needsUpdate = true; }
+      const name = L.name.trim() || 'FTP builder', Fo = FONTS[L.font] || FONTS.sport, Fb = L.font === 'script' ? FONTS.bloc : Fo;
+      { const { c, x, t } = cvs.down; x.clearRect(0, 0, c.width, c.height); x.fillStyle = '#fff'; fitText(x, name, Fo, c.width*.84, c.height*(L.font === 'script' ? .8 : .66)); drawCentered(x, name, c.width/2, c.height*.52); t.needsUpdate = true; }
+      { const { c, x, t } = cvs.fork; x.clearRect(0, 0, c.width, c.height); x.fillStyle = '#fff'; fitText(x, name, Fo, c.width*.8, c.height*(L.font === 'script' ? .62 : .48)); drawCentered(x, name, c.width/2, c.height*.52); t.needsUpdate = true; }
+      { const { c, x, t } = cvs.head, W = c.width, cx = W/2, cy = c.height*.4, R = W*.43; x.clearRect(0, 0, W, c.height); x.strokeStyle = x.fillStyle = '#fff'; x.lineWidth = W*.055; x.lineJoin = 'round'; x.beginPath();
+        for (let i = 0; i < 6; i++) { const a = -Math.PI/2 + i*Math.PI/3, px = cx + R*Math.cos(a), py = cy + R*1.18*Math.sin(a); i ? x.lineTo(px, py) : x.moveTo(px, py); } x.closePath(); x.stroke();
+        fitText(x, initials(name), Fb, R*1.15, R*.62); drawCentered(x, initials(name), cx, cy + R*.02); x.lineWidth = W*.045;
+        for (let j = 0; j < 2; j++) { const y = cy + R*1.55 + j*W*.13; x.beginPath(); x.moveTo(cx - W*.2, y); x.lineTo(cx, y + W*.08); x.lineTo(cx + W*.2, y); x.stroke(); } t.needsUpdate = true; }
+      return true; },
+      dispose(){ for (const k in cvs) cvs[k].t.dispose(); } };
+    ft.set(opts.look);
+    return { root, groups, ft, anchorF, anchorR, meta };
+  }
+  // roue indépendante (origine = axe) : jante profilée à la hauteur choisie, rayons, valve ; moyeu, pneu et disque du GLB
+  function atWheel(o){
+    const { T, meta, ph } = atK, front = !!o.front, rimBrake = o.brakes === 'rim', D = clamp(+o.depth || 50, 20, 90)/1000, tw = clamp((+o.tire || 28)/28, .93, 1.15);
+    const A = new T.Vector3(...(front ? (meta.axle_f || [.9919, .3395, 0]) : (meta.axle_r || [0, .3395, 0]))), S = front ? 'F' : 'R';
+    const names = [`Hub_${S}`, `Axle_${S}`, `Tyre_${S}_Tread`, `Tyre_${S}_Wall_R`, `Tyre_${S}_Wall_L`];
+    if (!rimBrake) names.push(`Lockring_${S}`, `Rotor_${S}_Band`, `Rotor_${S}_Spider`, `Rotor_${S}_Rivets`);
+    const w = new T.Group();
+    for (const m of atClone(names, A, kind => atK.mat(kind))) { if (/^Tyre_/.test(m.userData.part)) { m.position.z *= tw; m.scale.z *= tw; } w.add(m); }
+    const sh = atK.shared, rimMat = sh.rim ||= ph({ color: '#0b0b0c', roughness: .36, clearcoat: .45, clearcoatRoughness: .22 }, false), spokeMat = sh.spoke ||= ph({ color: '#18181a', roughness: .32, metalness: .7 }, false);
+    const trackMat = sh.track ||= ph({ color: '#202023', roughness: .72, metalness: .15 }, false), valveMat = sh.valve ||= ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }, false), capMat = sh.cap ||= ph({ color: '#0e0e10', roughness: .36, metalness: .55 }, false);
+    const cv = atK.cv(1024, 64, 2), rimDecal = atK.decalMat(cv.t); rimDecal.polygonOffsetFactor = -2; rimDecal.color.copy(lin(T, '#e9e9e9'));
+    { const { c, x, t } = cv, H = c.height, ini = o.mark || 'FTP'; x.clearRect(0, 0, c.width, H); x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
+      setFont(x, FONTS.sport, H*.65); let px = c.width*.06; x.fillText(ini, px, H*.53); px += x.measureText(ini).width + H*.35; x.fillRect(px, H*.24, H*.05, H*.56); px += H*.4;
+      setFont(x, FONTS.tech, H*.26); x.fillText(`AERO ${Math.round(D*1000)}`, px, H*.4); setFont(x, FONTS.tech, H*.17); x.globalAlpha = .75; x.fillText(rimBrake ? 'CARBON  RIM  BRAKE' : 'CARBON  DISC  TLR', px, H*.7); x.globalAlpha = 1; t.needsUpdate = true; }
+    const add = (geo, mat, ro = 0) => { const m = new T.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; m.renderOrder = ro; w.add(m); return m; };
+    const key = `${D}|${rimBrake ? 1 : 0}|${front ? 1 : 0}`, g = atK.geo[key] ||= (() => {
+      const band = (s0, s1, off, flipV) => { const n = 10, pr = [], vv = []; for (let i = 0; i <= n; i++) { const s = s0 + (s1 - s0)*i/n; pr.push([R_TOP - .0008 - s*(D - .0008), rimHalf(s, D)]); vv.push(flipV ? 1 - i/n : i/n); }
+        return [latheGeo(T, pr, 128, { flipU: true, vVals: vv, offset: off }), latheGeo(T, pr.map(([r, z]) => [r, -z]).reverse(), 128, { vVals: vv.slice().reverse(), offset: off })]; };
+      return { rim: latheGeo(T, rimProfile(D), 128, { closed: true }), track: rimBrake ? band(.012, Math.min(.42, .0135/D), .00012, false) : null,
+        deco: band(rimBrake ? Math.min(.5, .016/D) : .16, .86, .00022, true), spokes: spokesGeo(T, (meta.hub || {})[front ? 'front' : 'rear'] || { flanges: [{ z: -.03, r: .0205, n: 12 }, { z: .03, r: .0205, n: 12 }] }, D, front) }; })();
+    add(g.rim, rimMat); if (g.track) g.track.forEach(x => add(x, trackMat, 1)); g.deco.forEach(x => add(x, rimDecal, 2)); add(g.spokes, spokeMat);
+    const vg = new T.Group(), rIn = R_TOP - D, vb = new T.Mesh(new T.CylinderGeometry(.0026, .0026, .016, 16), valveMat), vc = new T.Mesh(new T.CylinderGeometry(.0034, .0034, .009, 16), capMat);
+    vb.position.y = rIn - .004; vc.position.y = rIn - .013; for (const m of [vb, vc]) { m.castShadow = true; vg.add(m); } vg.rotation.z = -Math.PI*.62; w.add(vg);
+    return w;
+  }
+  // cassette indépendante (origine = axe arrière) : pignons du GLB, teinte et diamètre du plus grand pignon au choix
+  function atCassette(o){
+    const { T, meta, ph } = atK, A = new T.Vector3(...(meta.axle_r || [0, .3395, 0])), g = new T.Group(), inner = new T.Group(); g.add(inner);
+    const tint = atK.shared['cass:' + (o.tint || '#c9cbcf')] ||= ph({ color: o.tint || '#c9cbcf', roughness: .26, metalness: 1 });
+    for (const m of atClone([+o.speeds === 11 ? 'Cassette_Cogs_11' : 'Cassette_Cogs', 'Cassette_Core'], A, (kind, n) => n === 'Cassette_Core' ? atK.mat(kind) : tint)) inner.add(m);
+    const f = clamp((+o.big || 30)/30, .86, 1.16); inner.scale.set(f, f, 1);
+    return g;
+  }
+
   /* ---------- scène, lumière, sol ---------- */
   function studio(T, r){
     const pm = new T.PMREMGenerator(r);
@@ -627,5 +747,5 @@ const Bike3D = (() => {
   function zoom(f){ if (!R) return; st.focus = null; const off = R.cam.position.clone().sub(R.ctl.target); off.setLength(clamp(off.length()*f, R.ctl.minDistance, R.ctl.maxDistance)); R.cam.position.copy(R.ctl.target).add(off); idleNow(); wake(600); }
   // apparence de la maquette FTP (couleur, sticker…) : mise à jour immédiate, sans reconstruire la scène
   function setLook(look){ if (R?.ft?.set(look)) wake(300); }
-  return { mount, explode, select, snapshot, stop, labels, zone, zoom, setLook, lookOf, PAINTS, FINISHES, INKS, FONTS, RIMS, resetView: () => home(false), LABEL, NAME_RX, KEYS: Object.keys(LABEL), get R(){ return R; }, get t(){ return st.t; }, get sel(){ return st.sel; }, get zoneKeys(){ return st.zone ? [...st.zone] : null; } };
+  return { mount, explode, select, snapshot, stop, labels, zone, zoom, setLook, lookOf, PAINTS, FINISHES, INKS, FONTS, RIMS, atelier: { kit: atKit, bike: atBike, wheel: atWheel, cassette: atCassette }, resetView: () => home(false), LABEL, NAME_RX, KEYS: Object.keys(LABEL), get R(){ return R; }, get t(){ return st.t; }, get sel(){ return st.sel; }, get zoneKeys(){ return st.zone ? [...st.zone] : null; } };
 })();

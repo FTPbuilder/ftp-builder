@@ -259,6 +259,7 @@ const Garage = (() => {
         <div class="gr-status"><button type="button" class="gr-chip" data-gr="tab" data-v="parts"><i class="gr-dot" style="background:${sm.state[1]}"></i>${sm.state[0]}</button>
           <button type="button" class="gr-chip" data-gr="tab" data-v="parts"><b>${sm.att}</b> à surveiller</button>
           ${sm.next ? `<button type="button" class="gr-chip gr-next" data-gr="${sm.next.care ? 'tab' : 'part'}" data-v="care" data-k="${sm.next.part || ''}"><span class="muted">Prochaine</span> <b>${esc(sm.next.l)}</b> <span style="color:${sm.next.col}">${esc(sm.next.txt)}</span></button>` : ''}</div>
+        ${typeof Atelier !== 'undefined' && !b.retired ? Atelier.button() : ''}
         <div class="gr-fid tiny">${glb ? `🧩 Ton modèle 3D « ${esc(b.glb.name)} »` : '◇ Maquette FTP Builder : géométrie et implantation fidèles, cadre aéro sans marque · couleur, sticker et jantes dans l\'onglet Vélo'}</div>
       </section>
       <div class="seg gr-tabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" data-gr="tab" data-v="${k}">${l}</button>`).join('')}</div>
@@ -771,6 +772,6 @@ const Garage = (() => {
     else if (a === 'copyall') copy((Adm.list || []).filter(y => y.status === 'nouveau').map(reqTxt).join('\n'));
     else if (a === 'set' && r) { const { error } = await Cloud.sb.from('bike_requests').update({ status: x.dataset.s }).eq('id', r.id); if (error) return toast('Échec : ' + error.message); r.status = x.dataset.s; render(); toast(RSTAT[r.status][1]); }
   });
-  return { reqTileHTML, reqPane, Adm, admCheck, tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet,
+  return { reqTileHTML, reqPane, Adm, admCheck, tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet, variant, model, col,
     wipeLocal: () => Media.wipe(), get mode(){ return mode; }, get explode(){ return explode(); } };
 })();
