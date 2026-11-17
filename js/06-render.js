@@ -1008,7 +1008,7 @@ function triDlg(id){
     ${triStepsHTML(x, W)}
     ${stt === 'done' ? `<div class="note ok" style="margin-top:10px">✅ Faite : ${esc(done.w.type)} · ${fmtDur(done.w.duration_min*60)}${done.w.distance_km ? ` · ${x.sport === 'swim' ? Math.round(done.w.distance_km*1000) + ' m' : (+done.w.distance_km).toFixed(1).replace('.', ',') + ' km'}` : ''}</div>` : stt === 'missed' ? `<div class="note warn" style="margin-top:10px">Pas de séance de ${x.sport === 'swim' ? 'nat' : 'course'} trouvée ce jour-là.</div>` : ''}
     ${x.sport !== 'race' ? `<div class="row" style="margin-top:12px;flex-wrap:wrap">
-      ${x.sport === 'swim' && typeof Swim3D !== 'undefined' && Swim3D.available() ? `<button class="btn primary" data-swim3d="${x.id}">🏊 Comprendre la séance</button>` : ''}
+      ${x.sport === 'swim' && typeof Swim3D !== 'undefined' ? Swim3D.button(x.id) : ''}
       <button class="btn" data-swap="t:${x.id}">🔄 ${x.swap ? 'Modifier le remplacement' : 'Changer de séance'}</button>
       ${done ? `<button class="btn" data-ssess="w:${esc(done.w.start_at)}">Voir la séance faite</button>` : ''}
       <label class="small" style="display:flex;gap:6px;align-items:center">Déplacer au <input type="date" id="triMove" value="${x.date}" style="width:auto"></label>
