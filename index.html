@@ -660,6 +660,33 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 @keyframes spFlash{0%{opacity:.55}20%,100%{opacity:0}}
 @keyframes spSpark{0%{opacity:1;transform:translate(0,0)}100%{opacity:0;transform:translate(-70px,6px)}}
 @media (prefers-reduced-motion:reduce){#splash .sp,#splash .sp img,#splash .wh,#splash .bolt,#splash .spark,#splash .flash{animation:none}}
+/* Comprendre la séance (natation 3D, js/22-swim3d.js) */
+.s3d{position:fixed;inset:0;z-index:2000;background:#06161c;color:#fff;overflow:hidden;font:15px/1.4 Inter,system-ui,sans-serif;-webkit-user-select:none;user-select:none;touch-action:manipulation}
+.s3d-stage{position:absolute;inset:0}.s3d-stage canvas{display:block;width:100%;height:100%}
+.s3d-top{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:calc(env(safe-area-inset-top) + 8px) 10px 8px;background:linear-gradient(rgba(0,0,0,.55),transparent)}
+.s3d-ttl{flex:1;min-width:0;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 1px 3px rgba(0,0,0,.6)}
+.s3d-b{appearance:none;border:0;background:rgba(10,20,26,.55);color:#fff;border-radius:999px;min-width:40px;height:40px;font-size:17px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);cursor:pointer}
+.s3d-b:disabled{opacity:.35}
+.s3d-sub{position:absolute;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom) + 70px);padding:10px 14px;border-radius:14px;background:rgba(6,14,20,.72);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:16px;line-height:1.4}
+.s3d-sub b{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--swim);margin-bottom:2px}
+.s3d-ctl{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom) + 14px);display:none;justify-content:center;gap:12px}.s3d.run .s3d-ctl{display:flex}
+.s3d-sp{font-size:13px;font-weight:700;padding:0 14px}
+.s3d-cues{position:absolute;left:12px;top:calc(env(safe-area-inset-top) + 60px);max-width:min(78vw,340px);padding:10px 12px;border-radius:14px;background:rgba(6,14,20,.66);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:13px}
+.s3d-cues>b{display:block;color:#ffb02e;font-size:12px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.s3d-cues div{display:flex;gap:8px;align-items:flex-start;padding:3px 0;opacity:.55;transition:opacity .3s}.s3d-cues div.on{opacity:1;font-weight:600}.s3d-cues div.done{opacity:.8}
+.s3d-cues i{flex:none;width:18px;height:18px;border-radius:50%;background:#ffb02e;color:#111;font-style:normal;font-size:11px;font-weight:800;display:grid;place-items:center}
+.s3d-hud{position:absolute;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 58px);padding:10px 12px;border-radius:14px;background:rgba(6,14,20,.66);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.s3d-hb{display:flex;flex-direction:column}.s3d-hb span{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--swim)}.s3d-hb b{font-size:16px}
+.s3d-hr{display:flex;justify-content:space-between;gap:10px;font-size:13px;margin-top:4px;color:#d8e6ea}
+.s3d-bar{height:4px;border-radius:2px;background:rgba(255,255,255,.18);margin-top:8px;overflow:hidden}.s3d-bar i{display:block;height:100%;background:var(--swim)}
+.s3d-card{position:absolute;left:14px;right:14px;bottom:calc(env(safe-area-inset-bottom) + 18px);max-width:460px;margin:0 auto;padding:16px;border-radius:18px;background:rgba(8,18,24,.84);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);text-align:center;max-height:72vh;overflow:auto}
+.s3d-card h2{margin:4px 0 6px;font-size:21px}.s3d-card p{margin:0 0 10px;color:#cfdde2;font-size:14px}.s3d-card .btn.primary{width:100%;min-height:50px;font-size:17px;margin:4px 0 8px}
+.s3d-k{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--swim);font-weight:700}
+.s3d-kp{display:flex;justify-content:center;gap:18px;margin:6px 0 12px}.s3d-kp span{display:flex;flex-direction:column;font-size:11px;color:#9fb3ba}.s3d-kp b{font-size:18px;color:#fff}
+.s3d-rec{text-align:left;margin:0 0 12px;padding-left:20px;font-size:13px}.s3d-rec li{margin:3px 0}.s3d-rec span{color:#9fb3ba}
+.s3d-load{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:12px;color:#cfe3e8;font-size:14px;padding:30px;text-align:center}
+.s3d-spin{width:34px;height:34px;border-radius:50%;border:3px solid rgba(255,255,255,.2);border-top-color:var(--swim);animation:s3dspin 1s linear infinite}@keyframes s3dspin{to{transform:rotate(360deg)}}
+.s3d [hidden]{display:none!important}
 </style>
 </head>
 <body>
@@ -694,32 +721,33 @@ dialog.gr-sheet::backdrop{background:rgba(0,0,0,.35)}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.48.0';</script>
-<script src="js/00-schema.js?v=0.48.0"></script>
-<script src="js/01-core.js?v=0.48.0"></script>
-<script src="js/02-plan.js?v=0.48.0"></script>
-<script src="js/03-fit-metrics.js?v=0.48.0"></script>
-<script src="js/04-fit-write-coach.js?v=0.48.0"></script>
-<script src="js/05-charts.js?v=0.48.0"></script>
-<script src="js/06-render.js?v=0.48.0"></script>
-<script src="js/07-health-import.js?v=0.48.0"></script>
-<script src="js/08-explain-challenges.js?v=0.48.0"></script>
-<script src="js/09-mobility.js?v=0.48.0"></script>
-<script src="js/10-test-absences.js?v=0.48.0"></script>
-<script src="js/11-session-chart.js?v=0.48.0"></script>
-<script src="js/12-tracks.js?v=0.48.0"></script>
-<script src="js/13-climbs.js?v=0.48.0"></script>
-<script src="js/14-adjust.js?v=0.48.0"></script>
-<script src="js/15-dialogs.js?v=0.48.0"></script>
-<script src="js/16-clicks.js?v=0.48.0"></script>
-<script src="js/17-cloud.js?v=0.48.0"></script>
-<script src="js/18-social.js?v=0.48.0"></script>
-<script src="js/19-onboarding.js?v=0.48.0"></script>
-<script src="js/20-health-shortcut.js?v=0.48.0"></script>
-<script src="js/21-library.js?v=0.48.0"></script>
-<script src="js/22-bike3d.js?v=0.48.0"></script>
-<script src="js/23-garage-catalog.js?v=0.48.0"></script>
-<script src="js/23-garage.js?v=0.48.0"></script>
-<script src="js/24-boot.js?v=0.48.0"></script>
+<script>"use strict"; const APP_VERSION = '0.49.0';</script>
+<script src="js/00-schema.js?v=0.49.0"></script>
+<script src="js/01-core.js?v=0.49.0"></script>
+<script src="js/02-plan.js?v=0.49.0"></script>
+<script src="js/03-fit-metrics.js?v=0.49.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.49.0"></script>
+<script src="js/05-charts.js?v=0.49.0"></script>
+<script src="js/06-render.js?v=0.49.0"></script>
+<script src="js/07-health-import.js?v=0.49.0"></script>
+<script src="js/08-explain-challenges.js?v=0.49.0"></script>
+<script src="js/09-mobility.js?v=0.49.0"></script>
+<script src="js/10-test-absences.js?v=0.49.0"></script>
+<script src="js/11-session-chart.js?v=0.49.0"></script>
+<script src="js/12-tracks.js?v=0.49.0"></script>
+<script src="js/13-climbs.js?v=0.49.0"></script>
+<script src="js/14-adjust.js?v=0.49.0"></script>
+<script src="js/15-dialogs.js?v=0.49.0"></script>
+<script src="js/16-clicks.js?v=0.49.0"></script>
+<script src="js/17-cloud.js?v=0.49.0"></script>
+<script src="js/18-social.js?v=0.49.0"></script>
+<script src="js/19-onboarding.js?v=0.49.0"></script>
+<script src="js/20-health-shortcut.js?v=0.49.0"></script>
+<script src="js/21-library.js?v=0.49.0"></script>
+<script src="js/22-bike3d.js?v=0.49.0"></script>
+<script src="js/22-swim3d.js?v=0.49.0"></script>
+<script src="js/23-garage-catalog.js?v=0.49.0"></script>
+<script src="js/23-garage.js?v=0.49.0"></script>
+<script src="js/24-boot.js?v=0.49.0"></script>
 </body>
 </html>
