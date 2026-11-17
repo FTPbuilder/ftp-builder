@@ -192,7 +192,7 @@ const Cloud = (() => {
   async function refreshStrava(){
     if (!user()) return;
     const { data } = await sb.rpc('strava_status');
-    strava = data && data.length ? { connected: true, athlete: data[0].athlete_id } : { connected: false };
+    strava = data && data.length ? { connected: true, athlete: String(data[0].athlete_id) } : { connected: false };
   }
   function connectStrava(){
     if (!STRAVA_CLIENT_ID) return toast("Strava n'est pas encore configuré (Client ID manquant)");
@@ -299,12 +299,14 @@ const Cloud = (() => {
   }
   async function importInbox(){
     if (!user() || !S.profile) return 0;
-    const { data, error } = await sb.from('strava_inbox').select('id, strava_id, activity, streams').eq('imported', false).order('received_at');
+    // strava_id lu en texte : les identifiants Strava passent en 64 bits (juin 2027), un nombre JS les arrondirait
+    const { data, error } = await sb.from('strava_inbox').select('id, strava_id:strava_id::text, activity, streams').eq('imported', false).order('received_at');
     if (error || !data?.length) return 0;
     let n = 0;
     for (const row of data) {
       const a0 = row.activity, st = row.streams || {};
-      if (S.activities.some(x => x.stravaId === row.strava_id)) { await sb.from('strava_inbox').update({ imported:true }).eq('id', row.id); continue; }
+      const sidRow = String(row.strava_id);
+      if (S.activities.some(x => x.stravaId != null && String(x.stravaId) === sidRow)) { await sb.from('strava_inbox').update({ imported:true }).eq('id', row.id); continue; }
       // démarrage accidentel (quelques secondes, aucune distance) : ignoré
       if ((a0.moving_time || 0) < 60 && (a0.distance || 0) < 200) { await sb.from('strava_inbox').update({ imported:true }).eq('id', row.id); continue; }
       const start = Math.floor(Date.parse(a0.start_date)/1000);
@@ -314,7 +316,7 @@ const Cloud = (() => {
       const fit = { records, laps:[], user:{}, zones:{}, workout:{ name: a0.name }, noPower: !a0.device_watts,
         sessions:[{ start, timer: a0.moving_time, distKm: a0.distance/1000, subSport: a0.trainer ? 6 : 0, avgSpeed: a0.average_speed || null, maxSpeed: a0.max_speed || null, ascent: a0.total_elevation_gain ?? null, avgHr: a0.average_heartrate ? Math.round(a0.average_heartrate) : null, maxHr: a0.max_heartrate || null }] };
       const a = activityFromFit(fit, a0.name);
-      a.source = 'strava'; a.stravaId = row.strava_id; a.startTs = start; if (a0.gear_id) { a.gearId = String(a0.gear_id); a.gearName = a0.gear_name || null; }
+      a.source = 'strava'; a.stravaId = sidRow; a.startTs = start; if (a0.gear_id) { a.gearId = String(a0.gear_id); a.gearName = a0.gear_name || null; }
       if (!a0.trainer && st.latlng) Tracks.put(start, Tracks.fromStreams(st), 'strava');
       if (!a.durationS) a.durationS = a0.moving_time;
       // doublon avec un .fit déjà importé (même départ à 2 min près)
