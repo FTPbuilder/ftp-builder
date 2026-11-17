@@ -717,7 +717,7 @@ html.at-open,html.at-open body{overflow:hidden}
 .at-sh-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:6px}.at-sh-head>div{flex:1;min-width:0}.at-x{background:var(--at-card2)}
 .at-kick{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--at-acc)}
 .at3d input.at-name,.at3d h3.at-name{display:block;width:100%;min-height:0;margin:2px 0 0;padding:4px 8px 4px 0;border:0;border-bottom:1px dashed #3a4150;border-radius:0;background:transparent;color:var(--at-text);font:800 25px/1.1 "Barlow Condensed",sans-serif;letter-spacing:.01em;text-transform:uppercase;-webkit-user-select:text;user-select:text;outline:none}
-.at3d h3.at-name{border:0}.at3d input.at-name:focus{border-bottom-color:var(--at-acc)}
+.at3d h3.at3d h3.at-name{border:0}.at-ren{position:relative;display:block}.at-ren .at-name{padding-right:30px}.at-ren svg{position:absolute;right:4px;bottom:9px;color:var(--at-muted);pointer-events:none}.at-ren:focus-within svg{color:var(--at-acc)}.at3d input.at-name:focus{border-bottom-color:var(--at-acc)}
 .at3d input.at-small{font:500 15px/1.3 Inter,system-ui,sans-serif;text-transform:none;border:1px solid #3a4150;border-radius:11px;padding:8px 10px;min-height:40px;background:#12151b}
 .at3d input.at-meas{width:84px;flex:none}
 .at-meta{margin:4px 0 12px;font-size:13px;color:var(--at-muted)}
@@ -804,34 +804,34 @@ html.at-open,html.at-open body{overflow:hidden}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.50.1';</script>
-<script src="js/00-schema.js?v=0.50.1"></script>
-<script src="js/01-core.js?v=0.50.1"></script>
-<script src="js/02-plan.js?v=0.50.1"></script>
-<script src="js/03-fit-metrics.js?v=0.50.1"></script>
-<script src="js/04-fit-write-coach.js?v=0.50.1"></script>
-<script src="js/05-charts.js?v=0.50.1"></script>
-<script src="js/06-render.js?v=0.50.1"></script>
-<script src="js/07-health-import.js?v=0.50.1"></script>
-<script src="js/08-explain-challenges.js?v=0.50.1"></script>
-<script src="js/09-mobility.js?v=0.50.1"></script>
-<script src="js/10-test-absences.js?v=0.50.1"></script>
-<script src="js/11-session-chart.js?v=0.50.1"></script>
-<script src="js/12-tracks.js?v=0.50.1"></script>
-<script src="js/13-climbs.js?v=0.50.1"></script>
-<script src="js/14-adjust.js?v=0.50.1"></script>
-<script src="js/15-dialogs.js?v=0.50.1"></script>
-<script src="js/16-clicks.js?v=0.50.1"></script>
-<script src="js/17-cloud.js?v=0.50.1"></script>
-<script src="js/18-social.js?v=0.50.1"></script>
-<script src="js/19-onboarding.js?v=0.50.1"></script>
-<script src="js/20-health-shortcut.js?v=0.50.1"></script>
-<script src="js/21-library.js?v=0.50.1"></script>
-<script src="js/22-bike3d.js?v=0.50.1"></script>
-<script src="js/22-swim3d.js?v=0.50.1"></script>
-<script src="js/23-garage-catalog.js?v=0.50.1"></script>
-<script src="js/23-garage.js?v=0.50.1"></script>
-<script src="js/23-atelier.js?v=0.50.1"></script>
-<script src="js/24-boot.js?v=0.50.1"></script>
+<script>"use strict"; const APP_VERSION = '0.50.2';</script>
+<script src="js/00-schema.js?v=0.50.2"></script>
+<script src="js/01-core.js?v=0.50.2"></script>
+<script src="js/02-plan.js?v=0.50.2"></script>
+<script src="js/03-fit-metrics.js?v=0.50.2"></script>
+<script src="js/04-fit-write-coach.js?v=0.50.2"></script>
+<script src="js/05-charts.js?v=0.50.2"></script>
+<script src="js/06-render.js?v=0.50.2"></script>
+<script src="js/07-health-import.js?v=0.50.2"></script>
+<script src="js/08-explain-challenges.js?v=0.50.2"></script>
+<script src="js/09-mobility.js?v=0.50.2"></script>
+<script src="js/10-test-absences.js?v=0.50.2"></script>
+<script src="js/11-session-chart.js?v=0.50.2"></script>
+<script src="js/12-tracks.js?v=0.50.2"></script>
+<script src="js/13-climbs.js?v=0.50.2"></script>
+<script src="js/14-adjust.js?v=0.50.2"></script>
+<script src="js/15-dialogs.js?v=0.50.2"></script>
+<script src="js/16-clicks.js?v=0.50.2"></script>
+<script src="js/17-cloud.js?v=0.50.2"></script>
+<script src="js/18-social.js?v=0.50.2"></script>
+<script src="js/19-onboarding.js?v=0.50.2"></script>
+<script src="js/20-health-shortcut.js?v=0.50.2"></script>
+<script src="js/21-library.js?v=0.50.2"></script>
+<script src="js/22-bike3d.js?v=0.50.2"></script>
+<script src="js/22-swim3d.js?v=0.50.2"></script>
+<script src="js/23-garage-catalog.js?v=0.50.2"></script>
+<script src="js/23-garage.js?v=0.50.2"></script>
+<script src="js/23-atelier.js?v=0.50.2"></script>
+<script src="js/24-boot.js?v=0.50.2"></script>
 </body>
 </html>
