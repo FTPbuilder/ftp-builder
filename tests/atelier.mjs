@@ -1,6 +1,6 @@
-// Garage › Atelier 3D : la pièce (tapis + home trainer direct, rack, mur des roues, panneau à cassettes, étagère), roues et cassettes nommées qui se montent
-// (freins compatibles, roue AR au mur pendant le home trainer direct), entretien sur le pied d'atelier écrit dans le carnet du Garage, vue éclatée,
-// aménagement (glisser, tourner, collisions, sauvegarde) et persistance.
+// Garage › Atelier 3D : la pièce (tapis + home trainer direct, rack, podium d'exposition, mur des roues, panneau à cassettes, étagère), roues et cassettes
+// nommées qui se montent (freins compatibles, roue AR au mur pendant le home trainer direct), entretien sur le pied d'atelier écrit dans le carnet du Garage,
+// vue éclatée, vélo mis en exposition puis rendu au home trainer, aménagement (glisser, tourner, collisions, sauvegarde) et persistance.
 const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] }); const ctx = await b.newContext({ ...pw.devices['iPhone 13'] });
@@ -99,9 +99,23 @@ await ev(() => Atelier.debug.act('finish')); await pg.waitForTimeout(4200); awai
 w = await ev(([id, p]) => { const A = Atelier.debug.A; return { mode: Atelier.debug.st.mode, seat: A.B[id].holder.parent === A.trainer.seat, rear: A.W[p].rear.parent === A.groups.wheels, groups: Object.values(A.B[id].groups).every(g => g.parent === A.B[id].root) }; }, [bikeId, p1]);
 assert(w.mode === 'atelier' && w.seat && w.rear && w.groups, 'terminer : pièces remontées, vélo revenu sur le home trainer, roue AR au mur');
 
+// exposition : le vélo quitte le home trainer pour le podium avec ses deux roues et sa cassette ; le podium se déplace, le vélo suit
+await ev(id => Atelier.debug.act(`spot:${id}:expo`), bikeId); await settle(); await pg.waitForTimeout(1600); await settle();
+w = await ev(([id, p, c]) => { const A = Atelier.debug.A, s = S.garage.atelier.spots, h = Atelier.debug.G().cass.find(x => x.loc === 'ht');
+  return { expo: s.expo, ht: s.ht, seat: A.B[id].holder.parent === A.expo.seat, front: A.W[p].front.parent === A.B[id].anchorF, rear: A.W[p].rear.parent === A.B[id].anchorR,
+    cass: A.C[c].parent === A.W[p].rear, htCass: !!h && A.C[h.id].parent === A.trainer.anchor, plate: A.expo.plateName === S.garage.bikes[0].name, zone: Atelier.debug.st.zone }; }, [bikeId, p1, c1]);
+assert(w.expo === bikeId && !w.ht && w.seat && w.front && w.rear && w.cass && w.htCass && w.plate && w.zone === 'expo', 'exposition : vélo debout sur le podium avec ses deux roues et sa cassette, plaque à son nom');
+await shot('exposition');
+const ex0 = await ev(id => Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], bikeId);
+assert(await ev(() => Atelier.debug.move('expo', { x: 1.6 })), 'podium d\'exposition déplacé');
+assert(Math.abs(await ev(id => Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], bikeId) - ex0 + .15) < .02, 'le vélo exposé suit son podium');
+await ev(id => Atelier.debug.act(`spot:${id}:ht`), bikeId); await settle(); await pg.waitForTimeout(1600); await settle();
+w = await ev(([id, p]) => { const A = Atelier.debug.A, s = S.garage.atelier.spots; return { ht: s.ht, expo: s.expo, seat: A.B[id].holder.parent === A.trainer.seat, rear: A.W[p].rear.parent === A.groups.wheels }; }, [bikeId, p1]);
+assert(w.ht === bikeId && !w.expo && w.seat && w.rear, 'retour sur le home trainer : la roue AR raccrochée au mur');
+
 // aménagement : glisser, tourner, collisions, sauvegarde
 await ev(() => Atelier.debug.act('arrange')); await settle();
-assert(await ev(() => Atelier.debug.st.mode === 'arrange' && !Atelier.debug.A.ceil.visible && document.querySelectorAll('.at-tag.at-mv').length === 7), 'aménager : vue de dessus, 7 meubles à déplacer');
+assert(await ev(() => Atelier.debug.st.mode === 'arrange' && !Atelier.debug.A.ceil.visible && document.querySelectorAll('.at-tag.at-mv').length === 8), 'aménager : vue de dessus, 8 meubles à déplacer');
 const x0 = await ev(id => Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], bikeId);
 assert(await ev(() => Atelier.debug.move('ht', { x: -.9, z: 1.25 })), 'tapis du home trainer déplacé');
 w = await ev(id => ({ x: Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], saved: S.garage.atelier.layout.ht }), bikeId);
@@ -127,7 +141,7 @@ assert(await ev(() => Atelier.debug.st.mode === 'atelier' && Atelier.debug.A.cei
 await ev(() => Atelier.close()); await pg.waitForTimeout(300);
 assert(await ev(() => !document.querySelector('.at3d') && !Atelier.debug.A), 'atelier fermé, retour au Garage');
 w = await ev(() => JSON.parse(localStorage.getItem('ftpb_state_v1')).garage.atelier);
-assert(w.layout?.ht?.r === 90 && w.wheels.length === 2 && w.cass.some(c => c.name === 'Cassette Alpes'), 'atelier enregistré dans l\'état local (disposition, roues, cassettes)');
+assert(w.layout?.ht?.r === 90 && w.layout?.expo?.x === 1.6 && w.wheels.length === 2 && w.cass.some(c => c.name === 'Cassette Alpes'), 'atelier enregistré dans l\'état local (disposition, roues, cassettes)');
 await pg.tap('[data-atelier]'); await pg.waitForFunction(() => Atelier.debug.A?.R && !document.querySelector('.at-load'), null, { timeout: 90000 }); await settle();
 w = await ev(([id, p, c]) => { const A = Atelier.debug.A, G = Atelier.debug.G(); return { ht: S.garage.atelier.layout.ht, pair: G.wheels.find(x => x.bikeId === id)?.id, cass: G.cass.find(x => x.id === c)?.loc, wheels: G.wheels.length, front: A.W[p].front.parent === A.B[id].anchorF, q: A.B[id].holder.getWorldQuaternion(new THREE.Quaternion()).y }; }, [bikeId, p1, c1]);
 assert(w.ht?.r === 90 && Math.abs(Math.abs(w.q) - Math.SQRT1_2) < .02 && w.pair === p1 && w.cass === p1 && w.wheels === 2 && w.front, 'réouverture : disposition, roues et cassettes retrouvées');

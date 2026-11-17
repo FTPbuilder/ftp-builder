@@ -1,15 +1,17 @@
 "use strict";
-// FTP Builder · Garage › Atelier 3D : la pièce où vivent les vélos du Garage — tapis + home trainer, rack mural, mur des roues, panneau à cassettes,
+// FTP Builder · Garage › Atelier 3D : la pièce où vivent les vélos du Garage — tapis + home trainer, rack mural, podium d'exposition, mur des roues, panneau à cassettes,
 // étagère à pièces détachées, pied d'atelier ; roues et cassettes nommées qui se montent d'un geste, entretien guidé, vue éclatée, aménagement libre
 /* ============ Atelier ============
-   S.garage.atelier = { v, wheels:[Paire], cass:[Cassette], stock:[Pièce], layout:{ clé → position }, spots:{ ht, racks:[] }, seeded:[id de vélo] }
+   S.garage.atelier = { v, wheels:[Paire], cass:[Cassette], stock:[Pièce], layout:{ clé → position }, spots:{ ht, racks:[], expo }, seeded:[id de vélo] }
    - Paire = { id, name, depth (mm), brakes 'rim'|'disc', tire (mm), bikeId|null, slot (0-3 sur le mur des roues)|null, since (pose)|null, km0, wear }
        km = km0 + km route du vélo depuis la pose ; usure = celle des pneus du vélo (Garage) quand elle est montée, sinon la dernière connue.
    - Cassette = { id, name, range '11-28', speeds, tint, loc 'wall'|'ht'|id de paire (roue AR), peg (0-4)|null, since, km0, wear }
-   - Pièce = { id, name, qty } (étagère) ; layout = position des meubles : tapis du home trainer, pied d'atelier, pompe (x, z, r en degrés),
-     mur des roues et étagère (z le long de leur mur), établi et rack (x le long du mur du fond).
-   - Vélos : ceux du Garage encore en service. Le premier qui reçoit les sorties home trainer va sur le tapis, les autres sur le rack (2 places).
-     Home trainer direct : la roue AR attend au mur, la chaîne tourne sur la cassette du home trainer.
+   - Pièce = { id, name, qty } (étagère) ; layout = position des meubles : tapis du home trainer, pied d'atelier, podium d'exposition, pompe
+     (x, z, r en degrés), mur des roues et étagère (z le long de leur mur), établi et rack (x le long du mur du fond).
+   - Vélos : ceux du Garage encore en service, chacun à une place : tapis du home trainer (1), rack mural (2) ou podium d'exposition (1).
+     Le premier qui reçoit les sorties home trainer va sur le tapis, les suivants sur le rack, puis sur le podium ; on les change de place
+     depuis leur fiche (la place visée est occupée → échange). Home trainer direct : la roue AR attend au mur, la chaîne tourne sur la
+     cassette du home trainer ; au rack et en exposition, le vélo garde ses deux roues.
    - L'entretien sur le pied d'atelier écrit dans le carnet du Garage (lubrification, dégraissage, nettoyage, mesure de chaîne, galets, sueur).
    - Rien de la 3D n'est chargé tant que l'atelier n'est pas ouvert ; sans WebGL le Garage reste entier. */
 const Atelier = (() => {
@@ -26,11 +28,16 @@ const Atelier = (() => {
   /* ---------- la pièce ---------- */
   const ROOM = { x0: -2.6, x1: 2.6, zb: -2.2, zf: 2.8, h: 2.7 };
   const CAMBOX = { x: [-2.42, 2.42], y: [.25, 2.5], z: [-2.04, 2.66] };
-  const LAY0 = { ht: { x: -1.32, z: .55, r: 0 }, stand: { x: .45, z: .25, r: 0 }, pump: { x: 2.05, z: .62, r: 0 }, wheels: { z: -1.05 }, bench: { x: -.15 }, rack: { x: 1.66 }, shelf: { z: -.55 } };
+  const LAY0 = { ht: { x: -1.32, z: .55, r: 0 }, stand: { x: .45, z: .25, r: 0 }, expo: { x: 1.75, z: 1.52, r: -90 }, pump: { x: 2.05, z: .4, r: 0 },
+    wheels: { z: -1.05 }, bench: { x: -.15 }, rack: { x: 1.66 }, shelf: { z: -.55 } };
   const ITEMS = { // meubles déplaçables : au sol (glissent et tournent) ou au mur (glissent le long de leur mur) ; empreinte au sol en repère local
     ht: { l: 'Home trainer', floor: true, w: 1.95, d: .95, cx: 0, cz: 0 }, stand: { l: "Pied d'atelier", floor: true, w: 1.4, d: 1.06, cx: -.06, cz: -.08 },
-    pump: { l: 'Pompe', floor: true, w: .3, d: .24, cx: 0, cz: 0 }, wheels: { l: 'Mur des roues', wall: 'left', w: 2.2, d: .45 },
-    bench: { l: 'Établi', wall: 'back', w: 1.84, d: .64 }, rack: { l: 'Rack', wall: 'back', w: 1.75, d: .5 }, shelf: { l: 'Étagère', wall: 'right', w: 1.84, d: .4 } };
+    expo: { l: 'Exposition', floor: true, w: 1.95, d: .8, cx: 0, cz: 0 }, pump: { l: 'Pompe', floor: true, w: .3, d: .24, cx: 0, cz: 0 },
+    wheels: { l: 'Mur des roues', wall: 'left', w: 2.2, d: .45 }, bench: { l: 'Établi', wall: 'back', w: 1.84, d: .64 }, rack: { l: 'Rack', wall: 'back', w: 1.75, d: .5 },
+    shelf: { l: 'Étagère', wall: 'right', w: 1.84, d: .4 } };
+  const FIXED = [{ x: -2.5, z: 2.1, hw: .1, hd: .42, r: 0 }]; // obstacles fixes : la pile de pneus neufs contre le mur de gauche, près de la porte
+  const SPOT = { ht: { l: 'Home trainer', in: 'sur le home trainer', z: 'trainer', chip: 'Home trainer' }, rack: { l: 'Rack mural', in: 'sur le rack mural', z: 'rack', chip: 'Rack' },
+    expo: { l: 'Exposition', in: 'en exposition', z: 'expo', chip: 'Exposition' } };
   const SLOTS = [[-.55, 1.95], [.55, 1.95], [-.55, 1.13], [.55, 1.13]]; // mur des roues : z relatif, hauteur du centre
   const PEGS = [-.77, -.42, -.07, .28, .63], PEG_Y = 1.36; // crochets à cassettes du panneau (x relatif à l'établi)
   const PANEL = { w: 2.0, h: 2.45, z: .7, y: 1.325, hide: 4.1 };
@@ -52,8 +59,9 @@ const Atelier = (() => {
   const pairOnBike = id => G().wheels.find(p => p.bikeId === id), cassOnPair = id => G().cass.find(c => c.loc === id), cassOnHT = () => G().cass.find(c => c.loc === 'ht');
   const bigOf = c => +String(c.range).split('-')[1] || 30;
   const brk = x => x === 'rim' ? 'à patins' : 'à disque';
-  const htId = () => G().spots.ht || null;
-  const placed = id => htId() === id || G().spots.racks.includes(id);
+  const htId = () => G().spots.ht || null, expoId = () => G().spots.expo || null;
+  const spotOf = id => !id ? null : htId() === id ? 'ht' : expoId() === id ? 'expo' : G().spots.racks.includes(id) ? 'rack' : null;
+  const placed = id => !!spotOf(id), zoneOf = id => SPOT[spotOf(id)]?.z || 'home';
   function rangeOf(b, speeds){ let s = ''; try { s = Garage.partInfo(b, 'cassette').spec || ''; } catch (e) {} const m = s.match(/(\d{1,2})\s*-\s*(\d{2})/); return m ? `${m[1]}-${m[2]}` : speeds === 12 ? '11-30' : '11-28'; }
   const needSlot = p => !p.bikeId || (htId() === p.bikeId && direct(bikeOf(p.bikeId))); // au mur, ou roue AR qui attend pendant le home trainer direct
   function fixSlots(){ const a = G(), used = new Set();
@@ -68,8 +76,10 @@ const Atelier = (() => {
   function seed(){
     const a = G(), act = bikesOn(), ids = act.map(b => b.id), today = todayISO();
     if (a.spots.ht && !ids.includes(a.spots.ht)) a.spots.ht = null;
-    a.spots.racks = a.spots.racks.filter(id => ids.includes(id) && id !== a.spots.ht).slice(0, 2);
-    for (const b of act) { if (placed(b.id)) continue; if (!a.spots.ht && b.rule?.ht) a.spots.ht = b.id; else if (a.spots.racks.length < 2) a.spots.racks.push(b.id); else if (!a.spots.ht) a.spots.ht = b.id; }
+    if (a.spots.expo && (!ids.includes(a.spots.expo) || a.spots.expo === a.spots.ht)) a.spots.expo = null;
+    a.spots.racks = a.spots.racks.filter(id => ids.includes(id) && id !== a.spots.ht && id !== a.spots.expo).slice(0, 2);
+    for (const b of act) { if (placed(b.id)) continue; if (!a.spots.ht && b.rule?.ht) a.spots.ht = b.id; else if (a.spots.racks.length < 2) a.spots.racks.push(b.id);
+      else if (!a.spots.expo) a.spots.expo = b.id; else if (!a.spots.ht) a.spots.ht = b.id; }
     for (const b of act) { if (a.seeded.includes(b.id)) continue; a.seeded.push(b.id);
       const V = vOf(b), L = Bike3D.lookOf(b.look, b.model), r = rangeOf(b, V.speeds), since = b.since || today;
       let p = pairOnBike(b.id); if (!p) { p = { id: rid(), name: "Roues d'origine", depth: L.rim, brakes: V.brakes, tire: +b.tires?.r || 28, bikeId: b.id, slot: null, since, km0: 0, wear: 0 }; a.wheels.push(p); }
@@ -142,7 +152,7 @@ const Atelier = (() => {
   /* ---------- murs, sol, plafond, lumières ---------- */
   function buildRoom(){
     const { x0, x1, zb, zf, h: H } = ROOM, W = x1 - x0, Dz = zf - zb, cz = (zb + zf)/2, g = new T.Group(), s = A.scene; s.add(g);
-    const floor = mesh(new T.PlaneGeometry(W, Dz), new T.MeshStandardMaterial({ map: ctex(1024, 1024, (x, w, h) => planks(x, w, h, { base: [204, 174, 136], n: 9, seed: 11 }), { rep: [W/1.6, Dz/1.6] }), roughness: .58, envMapIntensity: .4 }), g, 0, 0, cz, false);
+    const floor = mesh(new T.PlaneGeometry(W, Dz), new T.MeshStandardMaterial({ map: ctex(1024, 1024, (x, w, h) => planks(x, w, h, { base: [196, 158, 110], n: 9, seed: 11 }), { rep: [W/1.6, Dz/1.6] }), roughness: .58, envMapIntensity: .4 }), g, 0, 0, cz, false);
     floor.rotation.x = -Math.PI/2;
     const wallM = rep => new T.MeshStandardMaterial({ map: ctex(512, 512, (x, w, h) => boards(x, w, h, { base: [214, 211, 205] }), { rep }), roughness: .9, envMapIntensity: .35 });
     const back = mesh(new T.PlaneGeometry(W, H), wallM([W, H]), g, 0, H/2, zb, false);
@@ -157,12 +167,12 @@ const Atelier = (() => {
     box(W, .07, .014, base, g, 0, .035, zb + .007, false); box(.014, .07, Dz, base, g, x0 + .007, .035, cz, false); box(.014, .07, Dz, base, g, x1 - .007, .035, cz, false);
     const led = A.mats.led = new T.MeshBasicMaterial({ color: col('#fff6e2') }), ring = std('spotring', { color: '#e8e3d9', roughness: .5 });
     for (const x of [-1.5, 0, 1.5]) for (const z of [-1.3, .4, 2.0]) { cyl(.07, .07, .01, ring, ceil, x, H - .004, z, 32).castShadow = false; cyl(.05, .05, .012, led, ceil, x, H - .006, z, 32).castShadow = false; }
-    for (let i = 0; i < 4; i++) { const t = tor(.33, .016, M().rub, g, 2.555 - i*.032, .335, 1.0 + i*.035, 64); t.rotation.y = Math.PI/2; t.rotation.x = .06*i; } // pneus neufs contre le mur
+    for (let i = 0; i < 4; i++) { const t = tor(.33, .016, M().rub, g, -2.555 + i*.032, .335, 2.05 + i*.035, 64); t.rotation.y = Math.PI/2; } // pneus neufs contre le mur (hors du champ du podium)
     Object.assign(A, { ceil, front, walls: { back, left, right, floor } }); A.occ.push(floor, back, left, right, ...front.children, ...ceil.children);
-    s.add(new T.HemisphereLight(col('#fff6ea'), col('#6a5a49'), .62));
-    const key = new T.DirectionalLight(col('#fff3e4'), 1.05); key.position.set(.9, 2.6, 1.7); key.target.position.set(-.2, 0, -.9); key.castShadow = true;
+    s.add(new T.HemisphereLight(col('#fff3df'), col('#5e4731'), .62));
+    const key = new T.DirectionalLight(col('#fff0d8'), 1.05); key.position.set(.9, 2.6, 1.7); key.target.position.set(-.2, 0, -.9); key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -3.6, right: 3.6, top: 3.6, bottom: -3.6, near: .1, far: 9 }); key.shadow.bias = -.0004; key.shadow.normalBias = .015; s.add(key, key.target);
-    for (const [x, y, z, i] of [[-.2, 2.3, -1.4, .55], [-1.3, 2.3, .6, .45], [1.6, 2.35, -1.3, .45], [1.9, 2.3, -.3, .35], [0, 2.4, 1.6, .3]]) { const p = new T.PointLight(col('#ffe9d2'), i, 4.2, 2); p.position.set(x, y, z); s.add(p); }
+    for (const [x, y, z, i] of [[-.2, 2.3, -1.4, .55], [-1.3, 2.3, .6, .45], [1.6, 2.35, -1.3, .45], [1.9, 2.3, -.3, .35], [0, 2.4, 1.6, .3]]) { const p = new T.PointLight(col('#ffe4c2'), i, 4.2, 2); p.position.set(x, y, z); s.add(p); }
   }
 
   /* ---------- établi, panneau perforé (outils, crochets à cassettes) et panneau de la vue éclatée ---------- */
@@ -266,6 +276,40 @@ const Atelier = (() => {
     return { rig, seat };
   }
 
+  /* ---------- podium d'exposition : le vélo debout sur ses deux roues, tenu par l'axe arrière, avec sa plaque ---------- */
+  const EXPO = { w: 1.9, d: .76, h: .07 };
+  function buildExpo(g){
+    const m = M(), { w: W, d: D, h: H } = EXPO, rr = .1, sh = new T.Shape(), x0 = -W/2, y0 = -D/2;
+    sh.moveTo(x0 + rr, y0); sh.lineTo(x0 + W - rr, y0); sh.quadraticCurveTo(x0 + W, y0, x0 + W, y0 + rr); sh.lineTo(x0 + W, y0 + D - rr); sh.quadraticCurveTo(x0 + W, y0 + D, x0 + W - rr, y0 + D);
+    sh.lineTo(x0 + rr, y0 + D); sh.quadraticCurveTo(x0, y0 + D, x0, y0 + D - rr); sh.lineTo(x0, y0 + rr); sh.quadraticCurveTo(x0, y0, x0 + rr, y0);
+    // plateau clair qui semble flotter : socle sombre en retrait, filet de LED dessous, halo chaud sur le parquet
+    const top = new T.ExtrudeGeometry(sh, { depth: .032, bevelEnabled: true, bevelThickness: .006, bevelSize: .006, bevelSegments: 2, curveSegments: 8 }); top.rotateX(-Math.PI/2); top.translate(0, .032, 0);
+    A.occ.push(mesh(top, [std('podium', { color: '#ece9e3', roughness: .4 }), std('podiumSide', { color: '#dedad2', roughness: .55 })], g));
+    box(W - .1, .022, D - .1, m.blk, g, 0, .011, 0); box(W - .06, .004, D - .06, A.mats.led, g, 0, .024, 0, false);
+    const glow = ctex(256, 128, (x, w, h) => { for (let i = 0; i < 14; i++) { const k = i/13, ix = 8 + k*44, iy = 4 + k*22; x.fillStyle = `rgba(255,214,160,${(.012 + .05*k*k).toFixed(3)})`; x.beginPath();
+      if (x.roundRect) x.roundRect(ix, iy, w - 2*ix, h - 2*iy, 26 - k*14); else x.rect(ix, iy, w - 2*ix, h - 2*iy); x.fill(); } });
+    const gl = mesh(new T.PlaneGeometry(W + .6, D + .5), new T.MeshBasicMaterial({ map: glow, transparent: true, depthWrite: false, blending: T.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 }), g, 0, .002, 0, false);
+    gl.rotation.x = -Math.PI/2; gl.receiveShadow = false; gl.renderOrder = 1;
+    // pied d'exposition : deux chevalets qui viennent chercher les bouts de l'axe arrière (x = -0,5 dans le repère du vélo)
+    const ay = H + .3395, rod = (a, b, rad) => { const dv = b.clone().sub(a), o = mesh(new T.CylinderGeometry(rad, rad, dv.length(), 12), m.steel, g); o.position.copy(a).addScaledVector(dv, .5); o.quaternion.setFromUnitVectors(V3(0, 1, 0), dv.normalize()); return o; };
+    for (const s of [1, -1]) { for (const fx of [-.66, -.34]) rod(V3(fx, H + .012, s*.11), V3(-.5, ay - .014, s*.095), .009);
+      box(.36, .016, .03, m.steel, g, -.5, H + .008, s*.11); cyl(.012, .012, .024, m.blk, g, -.5, ay, s*.084, 16).rotation.x = Math.PI/2; }
+    box(.03, .016, .22, m.steel, g, -.66, H + .008, 0);
+    // plaque inclinée au bord du plateau : nom du vélo exposé
+    const plate = ctex(512, 128, () => {}), pl = new T.Group(); pl.position.set(.12, H, D/2 - .11); pl.rotation.x = -.95; g.add(pl);
+    box(.48, .125, .014, m.blk, pl, 0, .0625, 0); const face = mesh(new T.PlaneGeometry(.46, .115), new T.MeshStandardMaterial({ map: plate, roughness: .5, envMapIntensity: .3 }), pl, 0, .0625, .0075, false);
+    face.receiveShadow = false; box(.06, .03, .05, m.blk, g, .12, H + .015, D/2 - .1);
+    g.userData.pick = { kind: 'expo' };
+    const seat = new T.Object3D(); seat.position.set(0, H, 0); g.add(seat);
+    return { seat, plate, plateName: null };
+  }
+  function expoPlate(){ const e = A.expo, b = bikeOf(expoId()), name = b?.name || 'Podium libre'; if (!e || e.plateName === name) return; e.plateName = name;
+    const c = e.plate.image, x = c.getContext('2d'), W = c.width, H = c.height, F = Bike3D.FONTS;
+    x.fillStyle = '#1b1d22'; x.fillRect(0, 0, W, H); x.fillStyle = '#ff8a4c'; x.fillRect(0, H - 7, W, 7);
+    x.textAlign = 'left'; x.textBaseline = 'alphabetic'; x.font = font(F.tech, 21); x.fillText('E X P O S I T I O N', 24, 38);
+    let px = 54; x.font = font(F.sport, px); while (x.measureText(name).width > W - 48 && px > 24) x.font = font(F.sport, px -= 2);
+    x.fillStyle = b ? '#f4f4f2' : 'rgba(244,244,242,.45)'; x.fillText(name, 22, 98); e.plate.needsUpdate = true; }
+
   /* ---------- rack mural (1 ou 2 vélos superposés) ---------- */
   const rackYs = () => G().spots.racks.length > 1 ? [1.34, .22] : [.96];
   function buildRack(g){
@@ -315,7 +359,11 @@ const Atelier = (() => {
       if (Math.max(...u) <= Math.min(...v) + .005 || Math.max(...v) <= Math.min(...u) + .005) return false; }
     return true; }
   const inside = R => corners(R).every(([x, z]) => x >= ROOM.x0 - 1e-6 && x <= ROOM.x1 + 1e-6 && z >= ROOM.zb - 1e-6 && z <= ROOM.zf - .3);
-  function valid(k, L){ const R = rectOf(k, L); if (!inside(R)) return false; for (const o in ITEMS) if (o !== k && overlap(R, rectOf(o))) return false; return true; }
+  function valid(k, L){ const R = rectOf(k, L); if (!inside(R) || FIXED.some(F => overlap(R, F))) return false; for (const o in ITEMS) if (o !== k && overlap(R, rectOf(o))) return false; return true; }
+  // meuble arrivé avec une mise à jour (podium d'exposition) : si sa place par défaut est prise par un meuble déplacé, la place libre la plus proche
+  function ensureFree(k){ if (G().layout[k] || valid(k, lay(k))) return; const L0 = lay(k), C = [];
+    for (let x = ROOM.x0; x <= ROOM.x1; x += .1) for (let z = ROOM.zb; z <= ROOM.zf; z += .1) for (const r of [L0.r || 0, ((L0.r || 0) + 450) % 360]) C.push({ x: +x.toFixed(2), z: +z.toFixed(2), r });
+    const ok = C.sort((a, b) => Math.hypot(a.x - L0.x, a.z - L0.z) - Math.hypot(b.x - L0.x, b.z - L0.z)).find(L => valid(k, L)); if (ok) { G().layout[k] = ok; save(); } }
 
   /* ---------- rendu, envols, effets ---------- */
   const flights = new Map(), tweens = [];
@@ -366,6 +414,7 @@ const Atelier = (() => {
     home:    { l: 'Ensemble', s: () => { const h = wp(A.groups.ht, .35, .85, -.55), bz = wp(A.groups.bench, 0, .85, .9); return { t: h.lerp(bz, .3), az: 24, el: 15, w: 2.5, h: 2.2, look: true }; } },
     trainer: { l: 'Home trainer', s: () => ({ t: wp(A.groups.ht, 0, .56, 0), az: 36 + (lay('ht').r || 0), el: 20, w: 1.95, h: 1.15 }) },
     rack:    { l: 'Rack', s: () => { const ys = rackYs(); return { t: wp(A.groups.rack, 0, ys.length > 1 ? 1.25 : 1.45, .28), az: -16, el: 6, w: 1.95, h: ys.length > 1 ? 2.3 : 1.45 }; } },
+    expo:    { l: 'Exposition', s: () => ({ t: wp(A.groups.expo, 0, .6, 0), az: 8 + (lay('expo').r || 0), el: 9, w: 2.05, h: 1.25 }) }, // de profil, côté transmission
     wheels:  { l: 'Roues', s: () => ({ t: wp(A.groups.wheels, 0, 1.6, 0), az: 90, el: 2, w: 2.3, h: 1.8, maxD: 2.2 }) },
     pegs:    { l: 'Cassettes', s: () => ({ t: wp(A.groups.bench, -.07, 1.5, 0), az: 0, el: 6, w: 1.75, h: .75 }) },
     shelf:   { l: 'Pièces', s: () => ({ t: wp(A.groups.shelf, 0, 1.42, 0), az: -90, el: 6, w: 2.0, h: 1.65 }) },
@@ -448,7 +497,7 @@ const Atelier = (() => {
   }
 
   /* ---------- placement : chaque vélo, roue et cassette à sa place ---------- */
-  const homeSeat = id => htId() === id ? A.trainer.seat : A.seats.rack[G().spots.racks.indexOf(id)] || null;
+  const homeSeat = id => htId() === id ? A.trainer.seat : expoId() === id ? A.expo.seat : A.seats.rack[G().spots.racks.indexOf(id)] || null;
   function destPair(p, part){
     const b = p.bikeId && A.B[p.bikeId], parked = b && htId() === p.bikeId && direct(bikeOf(p.bikeId)) && st.onStand !== p.bikeId;
     if (b && (part === 'front' || !parked)) return { parent: part === 'front' ? b.anchorF : b.anchorR, pos: V3(), quat: Q() };
@@ -460,7 +509,7 @@ const Atelier = (() => {
     if (c.peg == null) return null; const b = A.C[c.id].userData.box; return { parent: A.groups.bench, pos: V3(PEGS[c.peg], PEG_Y - .012, .024 - b.min.z), quat: Q() };
   }
   function layout(anim = true){
-    if (!A?.R || st.mode === 'explode') return; fixSlots(); fixPegs(); trainerKind();
+    if (!A?.R || st.mode === 'explode') return; fixSlots(); fixPegs(); trainerKind(); expoPlate();
     const AN = anim ? { dur: 1050, lift: .3 } : null; let moved = false, i = 0;
     for (const id in A.B) { const seat = st.onStand === id ? A.stand.seat : homeSeat(id); if (!seat) { A.B[id].holder.visible = false; continue; } if (place(A.B[id].holder, seat, V3(), Q(), AN && { dur: 1500, lift: .3, pop: false })) moved = true; }
     const d0 = moved ? 700 : 0;
@@ -507,9 +556,11 @@ const Atelier = (() => {
     pg.hidden = !['maint', 'explode'].includes(st.mode); if (!pg.hidden) { const pts = points(st.onStand); pg.textContent = `${pts.filter(x => x.done).length}/${pts.length}`; }
   }
   function renderDock(){
-    const z = q('.at-zones'); if (!z.childElementCount) z.innerHTML = ['home', 'trainer', 'rack', 'wheels', 'pegs', 'shelf'].map(k => `<button type="button" data-at="zone:${k}" data-z="${k}">${ZONES[k].l}</button>`).join('');
+    const z = q('.at-zones'); if (!z.childElementCount) z.innerHTML = ['home', 'trainer', 'rack', 'expo', 'wheels', 'pegs', 'shelf'].map(k => `<button type="button" data-at="zone:${k}" data-z="${k}">${ZONES[k].l}</button>`).join('');
     for (const b of z.children) { const on = b.dataset.z === st.zone; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
-    const mb = q('.at-dock [data-at^="maint"]'); if (mb) { const id = htId() || G().spots.racks[0]; mb.dataset.at = 'maint:' + (id || ''); mb.disabled = !id; }
+    // « Faire un entretien » : le vélo qu'on regarde, sinon celui du home trainer, de l'exposition, puis du rack
+    const mb = q('.at-dock [data-at^="maint"]'); if (mb) { const zid = st.zone === 'expo' ? expoId() : st.zone === 'rack' ? G().spots.racks[0] : null, id = zid || htId() || expoId() || G().spots.racks[0];
+      mb.dataset.at = 'maint:' + (id || ''); mb.disabled = !id; }
   }
   const X_BTN = `<button type="button" class="at-ib at-x" data-at="close" aria-label="Fermer la fiche"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
   const wearHTML = (w, left) => `<div class="at-wear"><span>${left}</span><b style="color:${wearCol(w)}">${wearTxt(w)} · ${Math.round(w*100)} %</b></div><div class="at-bar"><i style="width:${Math.max(3, w*100)}%;background:${wearCol(w)}"></i></div>`;
@@ -553,14 +604,27 @@ const Atelier = (() => {
       <div class="at-kv"><span>Inventaire</span><b></b><button type="button" class="at-danger" data-at="delcass:${c.id}">Je n'ai plus cette cassette</button></div></details>`);
   }
   function bikeSheet(id){
-    const b = bikeOf(id), V = vOf(b), p = pairOnBike(id), c = p && cassOnPair(p.id), onHT = htId() === id, ht = onHT && direct(b) ? cassOnHT() : undefined;
-    openSheet(head(`Vélo · ${onHT ? 'sur le home trainer' : 'sur le rack mural'}`, `<h3 class="at-name">${esc(b.name)}</h3>`) +
+    const b = bikeOf(id), V = vOf(b), p = pairOnBike(id), c = p && cassOnPair(p.id), sp = spotOf(id), onHT = sp === 'ht', ht = onHT && direct(b) ? cassOnHT() : undefined;
+    const busy = k => k === 'rack' ? (G().spots.racks.length >= 2 ? bikeOf(G().spots.racks[0]) : null) : bikeOf(G().spots[k]); // place occupée → échange
+    openSheet(head(`Vélo · ${SPOT[sp]?.in || 'au garage'}`, `<h3 class="at-name">${esc(b.name)}</h3>`) +
       `<p class="at-meta">${esc([b.brand, b.modelName].filter(Boolean).join(' '))} · freins ${brk(V.brakes)} · ${V.speeds} vitesses</p>
       <div class="at-kv"><span>Roues</span><b>${p ? esc(p.name) + ' · ' + p.depth + ' mm' : 'Aucune'}</b><button type="button" data-at="pickpair:${id}">Changer</button></div>
       <div class="at-kv"><span>Cassette AR</span><b>${c ? esc(c.name) + ' · ' + c.range : 'Aucune'}</b>${p ? `<button type="button" data-at="pickcass:${p.id}">Changer</button>` : ''}</div>
       ${ht !== undefined ? `<div class="at-kv"><span>Home trainer</span><b>${ht ? esc(ht.name) + ' · ' + ht.range : 'Sans cassette'}</b><button type="button" data-at="pickcass:ht">Changer</button></div>` : ''}
-      <div class="at-kv"><span>Place</span><b>${onHT ? 'Tapis du home trainer' : 'Rack mural'}</b><button type="button" data-at="swapspot:${id}">${onHT ? 'Au rack' : 'Sur le tapis'}</button></div>
+      <div class="at-kv at-wrap"><span>Place</span><div class="at-chips">${Object.keys(SPOT).map(k => `<button type="button" class="${sp === k ? 'on' : ''}" data-at="spot:${id}:${k}" aria-pressed="${sp === k}">${SPOT[k].chip}</button>`).join('')}</div></div>
+      ${Object.keys(SPOT).some(k => k !== sp && busy(k)) ? '<p class="at-why">Place déjà prise : les deux vélos échangent leur place.</p>' : ''}
       <div class="at-acts"><button type="button" class="at-primary" data-at="maint:${id}">Faire un entretien</button></div>`);
+  }
+  // choisir le vélo d'une place (podium, rack, home trainer) : place prise → échange ; un vélo hors de l'atelier peut y entrer
+  const SPOT_GO = { ht: ['Installer un vélo', 'Installer'], rack: ['Ranger un vélo', 'Ranger'], expo: ['Exposer un vélo', 'Exposer'] };
+  const SPOT_TXT = { ht: 'Le vélo du home trainer ; sur un home trainer direct, sa roue arrière attend au mur.', rack: 'Deux places, l\'une au-dessus de l\'autre ; le vélo garde ses roues.',
+    expo: 'Le vélo exposé garde ses deux roues et sa cassette ; il reste prêt pour l\'entretien.' };
+  function spotSheet(k){
+    const s = G().spots, here = k === 'rack' ? s.racks : [s[k]].filter(Boolean), full = here.length >= (k === 'rack' ? 2 : 1), sw = full ? bikeOf(here[0]) : null, solo = k !== 'rack' && bikeOf(here[0]);
+    openSheet(head(SPOT[k].l, `<h3 class="at-name">${solo ? esc(solo.name) : SPOT_GO[k][0]}</h3>`) + `<p class="at-meta">${SPOT_TXT[k]}</p><div class="at-list">` +
+      bikesOn().map(b => { const on = here.includes(b.id), sp = spotOf(b.id), why = on ? 'ici' : (sp ? SPOT[sp].l : 'hors de l\'atelier (plus de place)') + (sw ? (sp ? ' · échange avec ' : ' · prend la place de ') + esc(sw.name) : '');
+        return `<div class="at-li"><div><b>${esc(b.name)}</b><small>${why}</small></div><button type="button" class="at-mini${on ? ' on' : ''}" data-at="spot:${b.id}:${k}"${on ? ' disabled' : ''}>${on ? 'Ici' : SPOT_GO[k][1]}</button></div>`; }).join('') + '</div>' +
+      (k === 'expo' && solo && s.racks.length < 2 ? `<div class="at-acts"><button type="button" class="at-sec" data-at="spot:${solo.id}:rack">Ranger ${esc(solo.name)} au rack</button></div>` : ''));
   }
   function pickPairSheet(id){
     const b = bikeOf(id), V = vOf(b);
@@ -658,7 +722,7 @@ const Atelier = (() => {
         add('at-tag', `<b>Mur des roues</b><small>${a.wheels.length} paire${a.wheels.length > 1 ? 's' : ''}</small>`, () => wp(A.groups.wheels, .1, 2.52, 0), 'zone:wheels');
         add('at-tag', `<b>Cassettes</b><small>${a.cass.length} nommée${a.cass.length > 1 ? 's' : ''}</small>`, () => wp(A.groups.bench, -.07, 1.64, .08), 'zone:pegs');
         add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'zone:shelf');
-        for (const b of bikesIn()) if (A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${htId() === b.id ? 'Home trainer' : 'Rack mural'}</small>`, () => A.B[b.id].holder.localToWorld(V3(0, 1.08, 0)), htId() === b.id ? 'zone:trainer' : 'zone:rack');
+        for (const b of bikesIn()) if (A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${SPOT[spotOf(b.id)].l}</small>`, () => A.B[b.id].holder.localToWorld(V3(0, 1.08, 0)), 'zone:' + zoneOf(b.id));
       } else if (st.zone === 'wheels') {
         for (let s = 0; s < SLOTS.length; s++) { const p = a.wheels.find(x => x.slot === s), at = () => wp(A.groups.wheels, .1, SLOTS[s][1] + .4, SLOTS[s][0]);
           if (!p) add('at-tag add', `${PLUS}<b>Paire</b>`, at, 'addpair:' + s, { label: 'Ajouter une paire de roues' });
@@ -674,7 +738,12 @@ const Atelier = (() => {
       } else if (st.zone === 'trainer') { const b = bikeOf(htId());
         if (b && A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${esc(pairOnBike(b.id)?.name || 'sans roues')}</small>`, () => A.B[b.id].holder.localToWorld(V3(.25, 1.05, 0)), 'bike:' + b.id);
         if (!b || direct(b)) { const ht = cassOnHT(); add('at-tag', `<b>Home trainer</b><small>${ht ? esc(ht.name) + ' · ' + ht.range : 'sans cassette'}</small>`, () => A.trainer.td.localToWorld(V3(0, .32, .05)), ht ? 'cassette:' + ht.id : 'pickcass:ht'); }
+        if (!b) add('at-tag add', `${PLUS}<b>Installer un vélo</b>`, () => wp(A.groups.ht, .15, .95, 0), 'spotpick:ht', { label: 'Choisir le vélo du home trainer' });
       } else if (st.zone === 'rack') { for (const id of a.spots.racks) { const b = bikeOf(id); if (b && A.B[id]) add('at-tag', `<b>${esc(b.name)}</b><small>${esc(pairOnBike(id)?.name || 'sans roues')}</small>`, () => A.B[id].holder.localToWorld(V3(.1, 1.05, 0)), 'bike:' + id); }
+        if (a.spots.racks.length < 2) add('at-tag add', `${PLUS}<b>Ranger un vélo</b>`, () => wp(A.groups.rack, a.spots.racks.length ? .62 : 0, a.spots.racks.length ? .5 : 1.25, .3), 'spotpick:rack', { label: 'Choisir un vélo à ranger au rack' });
+      } else if (st.zone === 'expo') { const b = bikeOf(expoId());
+        if (b && A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${esc(pairOnBike(b.id)?.name || 'sans roues')}</small>`, () => A.B[b.id].holder.localToWorld(V3(.2, 1.08, 0)), 'bike:' + b.id);
+        else add('at-tag add', `${PLUS}<b>Exposer un vélo</b>`, () => wp(A.groups.expo, 0, .55, 0), 'spotpick:expo', { label: 'Choisir le vélo à exposer' });
       } else if (st.zone === 'shelf') add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock · voir</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'shelf');
     } else if (st.mode === 'maint' && !sheetOpen) {
       points(st.onStand).forEach((t, i) => add('at-dot' + (t.done ? ' done' : ''), `<span>${t.done ? '✓' : i + 1}</span>`, () => anchorOf(st.onStand, t.at), 'pcard:' + t.key, { c: t.done ? '#5ad19a' : t.col, ay: -50, dy: 0, label: `${t.l} : ${t.done ? 'vérifié' : t.txt}` }));
@@ -703,12 +772,14 @@ const Atelier = (() => {
   function select(p){
     st.sel = p;
     if (p.kind === 'pair') { const pr = pairOf(p.id); if (!pr) return; const d = destPair(pr, p.part || 'rear');
-      if (!d || d.parent === A.groups.wheels) { st.zone = 'wheels'; if (pr.slot != null) go(slotSpec(pr)); else go('wheels'); } else go(htId() === pr.bikeId ? 'trainer' : 'rack'); pairSheet(pr); }
+      if (!d || d.parent === A.groups.wheels) { st.zone = 'wheels'; if (pr.slot != null) go(slotSpec(pr)); else go('wheels'); } else go(zoneOf(pr.bikeId)); pairSheet(pr); }
     else if (p.kind === 'cassette') { const c = cassOf(p.id), o = A.C[c?.id]; if (!c || !o) return;
       if (c.loc === 'wall') { st.zone = 'pegs'; go({ t: wp(A.groups.bench, PEGS[c.peg ?? 0], PEG_Y - .03, 0), az: 0, el: 4, w: .6, h: .45 }); }
-      else { const onWall = c.loc !== 'ht' && destPair(pairOf(c.loc), 'rear')?.parent === A.groups.wheels; go({ t: o.getWorldPosition(V3()).add(V3(0, 0, .03)), az: onWall ? 90 : 34 + (lay('ht').r || 0), el: 12, w: .8, h: .6 }); }
+      else { const onWall = c.loc !== 'ht' && destPair(pairOf(c.loc), 'rear')?.parent === A.groups.wheels, dir = V3(0, 0, 1).applyQuaternion(o.getWorldQuaternion(Q())); // côté transmission, où que soit le vélo
+        go({ t: o.getWorldPosition(V3()).add(dir.clone().multiplyScalar(.03)), az: onWall ? 90 : 34 + Math.atan2(dir.x, dir.z)/D2R, el: 12, w: .8, h: .6 }); }
       cassSheet(c); }
-    else if (p.kind === 'bike') { go(htId() === p.id ? 'trainer' : 'rack'); bikeSheet(p.id); }
+    else if (p.kind === 'bike') { go(zoneOf(p.id)); bikeSheet(p.id); }
+    else if (p.kind === 'expo') { go('expo'); spotSheet('expo'); }
     else if (p.kind === 'shelf') { go('shelf'); shelfSheet(); }
     else if (p.kind === 'pump') { st.sel = null; say('Pression des pneus : onglet Pression du Garage (méthode SILCA)'); }
   }
@@ -720,7 +791,7 @@ const Atelier = (() => {
       if (old && freeAfter < 1) return say('Mur des roues plein : libérez un emplacement d\'abord', 'err'); }
     else if (p.slot == null && freeSlot() < 0) return say('Mur des roues plein (4 emplacements)', 'err');
     if (old) unmountPair(old); if (target === 'wall') unmountPair(p); else mountPairOn(p, target); save();
-    hideSheet(); go(target === 'wall' ? 'wheels' : htId() === target ? 'trainer' : 'rack'); layout(true);
+    hideSheet(); go(target === 'wall' ? 'wheels' : zoneOf(target)); layout(true);
     if (target === 'wall') say(`${p.name} raccrochée au mur`);
     else { const b = bikeOf(target), c = cassOnPair(p.id), V = vOf(b); say(`${p.name} montée sur ${b.name}${old ? ' · ' + old.name + ' au mur' : ''}`);
       if (!c && !(htId() === target && direct(b))) setTimeout(() => say('Pas de cassette sur la roue arrière : pensez à en monter une', 'warn'), 3000);
@@ -732,7 +803,7 @@ const Atelier = (() => {
     if ((target === 'wall' || old) && G().cass.filter(x => x.loc === 'wall' && x !== c).length >= PEGS.length) return say('Panneau plein : 5 crochets à cassettes', 'err');
     moveCass(c, target); if (old) moveCass(old, 'wall'); fixPegs(); save(); hideSheet();
     if (target === 'wall') go('pegs'); else if (target === 'ht') go('trainer');
-    else { const pr = pairOf(target); if (destPair(pr, 'rear')?.parent === A.groups.wheels) { st.zone = 'wheels'; go(slotSpec(pr)); } else go(htId() === pr.bikeId ? 'trainer' : 'rack'); }
+    else { const pr = pairOf(target); if (destPair(pr, 'rear')?.parent === A.groups.wheels) { st.zone = 'wheels'; go(slotSpec(pr)); } else go(zoneOf(pr.bikeId)); }
     layout(true);
     say(`${c.name} ${target === 'wall' ? 'raccrochée au panneau' : target === 'ht' ? 'montée sur le home trainer' : `montée sur la roue AR de « ${pairOf(target).name} »`}${old ? ' · ' + old.name + ' au panneau' : ''}`);
     const b = target === 'ht' ? bikeOf(htId()) : target !== 'wall' && pairOf(target).bikeId ? bikeOf(pairOf(target).bikeId) : null;
@@ -757,12 +828,24 @@ const Atelier = (() => {
     hideSheet(); layout(true); go('wheels'); say(`${p.name} retirée de l'atelier`); updateTop(); }
   function delCass(cid){ const c = cassOf(cid); if (!c) return; G().cass = G().cass.filter(x => x !== c); save(); dropObj(A.C[cid]); delete A.C[cid]; hideSheet(); layout(true); go('pegs'); say(`${c.name} retirée de l'atelier`); updateTop(); }
   function rename(key, v){ const [k, id] = key.split(':'), o = k === 'pair' ? pairOf(id) : cassOf(id); v = String(v || '').trim().slice(0, 34); if (!o || !v) return; o.name = v; save(); tagsRebuild(); }
-  function swapSpot(id){ const a = G(), b = bikeOf(id); if (!b) return;
-    if (a.spots.ht === id) { if (a.spots.racks.length >= 2) return say('Le rack est plein (2 vélos)', 'err'); a.spots.ht = null; a.spots.racks.push(id); }
-    else { const prev = a.spots.ht; a.spots.racks = a.spots.racks.filter(x => x !== id); a.spots.ht = id; if (prev) a.spots.racks.push(prev); }
-    if (direct(bikeOf(a.spots.ht)) && a.spots.ht && !cassOnHT()) { const V = vOf(bikeOf(a.spots.ht)); a.cass.push({ id: rid(), name: 'Cassette du home trainer', range: rangeOf(bikeOf(a.spots.ht), V.speeds), speeds: V.speeds, tint: '#3d4047', loc: 'ht', peg: null, since: todayISO(), km0: 0, wear: 0 }); makeCass(a.cass[a.cass.length - 1]); }
-    fixSlots(); save(); hideSheet(); for (const k in A.B) { A.scene.attach(A.B[k].holder); A.B[k].holder.userData.dest = null; } A.seats.rack = buildRack(A.groups.rack);
-    layout(true); go(a.spots.ht === id ? 'trainer' : 'rack'); say(a.spots.ht === id ? `${b.name} sur le home trainer` : `${b.name} rangé sur le rack`); updateTop(); }
+  // changer un vélo de place (home trainer, rack, exposition) : si la place visée est prise, l'occupant prend la place libérée ;
+  // un vélo resté hors de l'atelier (plus de 4 vélos) peut y entrer, l'occupant délogé en sort alors
+  function moveBike(id, to){
+    const a = G(), s = a.spots, b = bikeOf(id), from = spotOf(id); if (!b || b.retired || !SPOT[to] || from === to) return;
+    if (st.mode !== 'atelier') return say("Terminez d'abord l'entretien", 'warn');
+    const other = to === 'rack' ? (s.racks.length >= 2 ? s.racks[0] : null) : s[to] || null;
+    if (from === 'rack') { const i = s.racks.indexOf(id); if (other) s.racks[i] = other; else s.racks.splice(i, 1); } else if (from) s[from] = other;
+    if (to === 'rack') { const i = other ? s.racks.indexOf(other) : -1; if (i >= 0) s.racks[i] = id; else s.racks.push(id); } else s[to] = id;
+    const hb = bikeOf(s.ht);
+    if (hb && direct(hb) && !cassOnHT()) { const V = vOf(hb), c = { id: rid(), name: 'Cassette du home trainer', range: rangeOf(hb, V.speeds), speeds: V.speeds, tint: '#3d4047', loc: 'ht', peg: null, since: todayISO(), km0: 0, wear: 0 }; a.cass.push(c); makeCass(c); }
+    fixSlots(); save(); hideSheet();
+    const fresh = [id, other].filter(x => x && placed(x) && !A.B[x]); for (const x of fresh) makeBike(bikeOf(x));
+    for (const k in A.B) { A.scene.attach(A.B[k].holder); A.B[k].holder.userData.dest = null; } A.seats.rack = buildRack(A.groups.rack); // le rack change de forme (1 ou 2 vélos)
+    for (const x of fresh) { place(A.B[x].holder, homeSeat(x), V3(), Q(), null); burst(A.B[x].holder); }
+    layout(true); go(zoneOf(id));
+    const ob = bikeOf(other); say(`${b.name} ${SPOT[to].in}${ob ? ` · ${ob.name} ${from ? SPOT[from].in : "n'a plus de place dans l'atelier"}` : ''}`); updateTop();
+    const hc = cassOnHT(); if (hb && direct(hb) && [id, other].includes(hb.id) && hc && hc.speeds !== vOf(hb).speeds) setTimeout(() => say(`Cassette du home trainer en ${hc.speeds} v, ${hb.name} en ${vOf(hb).speeds} v : à vérifier`, 'warn'), 3000);
+  }
   function startMaint(id){
     if (st.mode !== 'atelier' || !id || !A.B[id]) return; Object.assign(st, { mode: 'maint', onStand: id, sel: null, done: {} });
     q('.at-sheet').hidden = true; standFade(true, 0); renderMaint(); layout(true); go('stand'); say(`${bikeOf(id).name} sur le pied d'atelier : touchez les points numérotés`);
@@ -802,7 +885,7 @@ const Atelier = (() => {
     if (st.mode === 'explode') return assemble(finishMaint); const id = st.onStand; if (!id) return;
     const n = st.logged.filter(x => S.garage.log.some(e => e.id === x)).length;
     Object.assign(st, { mode: 'atelier', onStand: null, sel: null, done: {}, logged: [] }); q('.at-sheet').hidden = true; panels(); layout(true); standFade(false, 1300);
-    go(htId() === id ? 'trainer' : 'rack'); updateTop(); say(n ? `Entretien noté dans le carnet : ${n} opération${n > 1 ? 's' : ''}` : 'Vélo remis à sa place');
+    go(zoneOf(id)); updateTop(); say(n ? `Entretien noté dans le carnet : ${n} opération${n > 1 ? 's' : ''}` : 'Vélo remis à sa place');
   }
 
   /* ---------- aménagement : faire glisser les meubles, les vélos et les roues suivent ---------- */
@@ -871,7 +954,8 @@ const Atelier = (() => {
       case 'speeds': return editCass(x, { speeds: +y });
       case 'delpair': return delPair(x);
       case 'delcass': return delCass(x);
-      case 'swapspot': return swapSpot(x);
+      case 'spot': return moveBike(x, y);
+      case 'spotpick': if (x === 'expo') return select({ kind: 'expo' }); go(SPOT[x].z); return spotSheet(x);
       case 'stock': { const it = G().stock.find(i => i.id === x); if (it) { it.qty = Math.max(0, (+it.qty || 0) + +y); if (!it.qty && +y < 0) G().stock = G().stock.filter(i => i !== it); save(); } return shelfSheet(); }
       case 'stockadd': { const n = (x || q('#atStockN')?.value || '').trim().slice(0, 34); if (!n) return; const it = G().stock.find(i => i.name.toLowerCase() === n.toLowerCase());
         if (it) it.qty = (+it.qty || 0) + 1; else G().stock.push({ id: rid(), name: n, qty: 1 }); save(); say(`${n} ajouté à l'étagère`); return shelfSheet(); }
@@ -935,7 +1019,8 @@ const Atelier = (() => {
   }
   function build(){
     const el = A.el, R = new T.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: !!navigator.webdriver });
-    R.setPixelRatio(navigator.webdriver ? .5 : Math.min(devicePixelRatio || 1, 2)); // tests (rendu logiciel) : demi-résolution R.outputEncoding = T.sRGBEncoding; R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = .92;
+    R.setPixelRatio(navigator.webdriver ? .5 : Math.min(devicePixelRatio || 1, 2)); // tests (rendu logiciel) : demi-résolution
+    R.outputEncoding = T.sRGBEncoding; R.toneMapping = T.ACESFilmicToneMapping; R.toneMappingExposure = .92;
     R.shadowMap.enabled = !navigator.webdriver; R.shadowMap.type = T.PCFSoftShadowMap; R.shadowMap.autoUpdate = false;
     const cv = R.domElement; cv.className = 'at-cv'; cv.setAttribute('aria-label', 'Atelier vélo en 3D : touchez un objet pour l\'inspecter'); el.querySelector('.at-stage').appendChild(cv);
     const scene = new T.Scene(); scene.background = new T.Color('#1a1d24'); // couleur d'écran (non convertie : le fond n'est pas ré-encodé en r147)
@@ -945,8 +1030,8 @@ const Atelier = (() => {
     A.halo = new T.Mesh(new T.RingGeometry(.965, 1, 72), new T.MeshBasicMaterial({ color: col('#ff8a4c'), transparent: true, opacity: .6, depthTest: false, side: T.DoubleSide })); A.halo.renderOrder = 997; A.halo.visible = false; scene.add(A.halo);
     buildRoom();
     for (const k of Object.keys(ITEMS)) { const g = new T.Group(); g.userData.item = k; scene.add(g); A.groups[k] = g; }
-    buildBench(A.groups.bench); A.panelSeat = A.panel; buildWheelWall(A.groups.wheels); A.trainer = buildTrainer(A.groups.ht); A.stand = buildStand(A.groups.stand); A.seats.rack = buildRack(A.groups.rack); buildShelf(A.groups.shelf); buildPump(A.groups.pump);
-    A.pick.push(A.groups.shelf, A.groups.pump); for (const k in ITEMS) setGroup(k); buildFoot();
+    buildBench(A.groups.bench); A.panelSeat = A.panel; buildWheelWall(A.groups.wheels); A.trainer = buildTrainer(A.groups.ht); A.stand = buildStand(A.groups.stand); A.expo = buildExpo(A.groups.expo); A.seats.rack = buildRack(A.groups.rack); buildShelf(A.groups.shelf); buildPump(A.groups.pump);
+    A.pick.push(A.groups.shelf, A.groups.pump, A.groups.expo); ensureFree('expo'); for (const k in ITEMS) setGroup(k); buildFoot();
     for (const b of bikesOn()) if (placed(b.id)) makeBike(b);
     for (const p of G().wheels) makePair(p);
     for (const c of G().cass) makeCass(c);
