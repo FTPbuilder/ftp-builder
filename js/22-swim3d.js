@@ -709,7 +709,7 @@ const Swim3D = (() => {
     c.fov = CAM.fov; c.updateProjectionMatrix(); c.lookAt(CAM.t);
     const under = c.position.y < -.004; U.camUnder.value = under ? 1 : 0;
     if (R.shafts) { R.shafts.visible = under; if (under) R.shafts.children.forEach(m => { m.material.opacity = .05 + .045*Math.sin(now*.8 + m.userData.ph); }); }
-    R.scene.fog = under ? (R.fogU ||= new THREE.FogExp2(0x0d6f86, .16)) : null;
+    R.scene.fog = under ? (R.fogU ||= new THREE.FogExp2(0x0d6f86, .12)) : null;
     R.scene.background.set(under ? 0x0d6f86 : 0xdfe9ee);
   }
 
@@ -913,7 +913,7 @@ const Swim3D = (() => {
     D.i++; D.t = 0; D.say = null; const b = D.beats[D.i]; if (!b) return;
     if (b.line) { D.say = speak(b.line.t); subtitle(b.line.t); } else subtitle('');
     if (b.hi != null) drawBoard(D.P, b.hi);
-    if (b.demoStart || (b.demo && !D.demo)) D.demo = { x: 1.2, u: 0, b: b.b }; if (!b.demo && !b.demoStart) D.demo = null;
+    if (b.demoStart || (b.demo && !D.demo)) D.demo = { x: 2.4, u: 0, b: b.b }; if (!b.demo && !b.demoStart) D.demo = null;
     cues(b.demo ? DRILLS[b.b.drill] : null, b.cue);
     if (b.dive) { D.dive = { t: 0 }; sndWhistle(); subtitle(''); }
     if (b.sim) { D.sim = buildSim(D.P); D.simT = 8/(100/D.P.blocks[0].pace); D.simShot = -1; D.lastB = -1; hud(true); } else hud(false);
@@ -965,7 +965,7 @@ const Swim3D = (() => {
       const wl = boneW(co, 'L_Hand'), wr = boneW(co, 'R_Hand'); if (slow < 1) { W.fx.trail(wl); W.fx.trail(wr, [.1, .85, .9]); }
       standAt(sw, -.5, LANE4 - 1.2, Math.PI/2 + .3, now, { arms: 'hips', lookW: V3(dm.x, 0, LANE4) });
       const x = dm.x, c = b.cam;
-      if (c === 'uwSide') camSet(V3(x + .25, -.52, LANE4 - 1.85), V3(x + .35, -.28, LANE4), 46);
+      if (c === 'uwSide') camSet(V3(x + 2.25, -.58, LANE4 - 2.55), V3(x + .3, -.3, LANE4), 50); // trois-quarts avant, sous l'eau : tout le corps tient dans l'écran
       else if (c === 'uwFront') camSet(V3(x + 2.7, -.72, LANE4 + .6), V3(x + .2, -.25, LANE4), 48);
       else camSet(V3(x + 1.1, .95, LANE4 - 2.3), V3(x + .3, -.05, LANE4), 44);
     } else { // sur la plage : le coach parle, présente le tableau, mime ; le nageur écoute
