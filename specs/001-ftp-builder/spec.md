@@ -91,6 +91,16 @@ Dans Profil › GARAGE, l'utilisateur ajoute son vélo de tri (Canyon Aeroad CFR
 
 ---
 
+### User Story 7 - Comprendre une séance de natation en 3D (Priority: P3)
+
+Dans la fiche d'une séance de nat du plan tri, le bouton « Comprendre la séance » ouvre une scène 3D plein écran : un bassin de 25 m. Après « Faire la séance », le nageur (l'utilisateur) et le coach se font face sur la plage, près du plot 4. Le coach explique chaque bloc à la voix (voix française du téléphone, sous-titrée), en s'appuyant sur le tableau de la séance : distances, allures calculées sur la CSS, récup et départ à la pendule. Pour chaque éducatif (rattrapé, chien, poings fermés, pull-buoy jambes serrées, pull plaquettes, visée), il explique pourquoi, mime le geste penché face au nageur, puis le montre dans l'eau au ralenti, vu sous l'eau, avec trois points clés affichés un à un et la trace des mains. Le nageur ajuste ses lunettes, plonge du plot et la séance entière défile en accéléré (longueurs, virages, récups au mur, pull-buoy et plaquettes quand il le faut) avec le bloc, la répétition, l'allure cible, le chrono et la distance ; on finit sur un bilan, avec de quoi revoir un éducatif.
+
+**Why this priority**: aide à exécuter la séance (comprendre les allures, les départs et les éducatifs avant d'aller à la piscine) ; ne touche pas au plan.
+
+**Independent Test**: plan tri avec une CSS de 1'37, ouvrir une séance « Nat technique + aérobie » en compte admin : le bouton apparaît (pas pour un compte non admin ni pour une séance de course), la scène se charge, le coach salue l'utilisateur par son prénom, la démonstration de l'éducatif passe sous l'eau avec ses points clés, la séance en accéléré affiche le bloc 1 à 1'52/100, la fin affiche le bilan ; fermer revient à la fiche.
+
+---
+
 ### Edge Cases
 
 - Séance manquée : le plan propose de la reporter dans les 48 h ou de la supprimer, sans casser la règle des 48 h entre séances intenses.
@@ -133,6 +143,9 @@ Dans Profil › GARAGE, l'utilisateur ajoute son vélo de tri (Canyon Aeroad CFR
 - **FR-023**: Une sortie DOIT être attribuée au vélo choisi à la main, sinon au vélo Strava / Intervals associé (`gear_id`), sinon au premier vélo qui reçoit son type ; l'assistant d'entretien pondère les km selon la météo notée (sec, humide, pluie) et le home trainer, et ne signale que ce qui est dû ou proche.
 - **FR-027**: Chaque séance sweet spot, seuil (dont over-unders et seuil avec relances) et VO2max DOIT porter un niveau de difficulté (1-10) ; les niveaux de l'athlète par zone DOIVENT se déduire de l'historique (séance réussie près ou au-dessus du niveau → hausse, manquée ou trop dure à son niveau → baisse, hausse de FTP → baisse proportionnelle) et un calibrage (après chaque test FTP accepté, tous les 28 jours au démarrage s'il y a du neuf, ou à la demande) DOIT remplacer chaque séance clé à venir par une séance de la même famille visant le niveau + 0,3 / + 0,7 / + 1 selon la semaine du bloc, sans toucher la séance du jour ni une séance modifiée à la main.
 - **FR-028**: La maquette 3D du Garage DOIT être personnalisable par l'utilisateur et enregistrée avec son vélo : couleur (teintes actuelles du marché ou couleur libre) et finition, sticker « FTP builder » par défaut ou nom libre (style et couleur au choix), hauteur de jante ; elle DOIT suivre l'équipement du vélo (freins à patins ou à disques, 11 ou 12 vitesses).
+
+- **FR-029**: Une séance de natation du plan DOIT pouvoir être expliquée en 3D (« Comprendre la séance ») : blocs tirés de la séance (allure /100 m = CSS + écart de la zone, départ à la pendule arrondi à 5 s, récup), script du coach généré (accueil, objectif, distance et durée, chaque bloc, éducatifs avec pourquoi, mime, démonstration au ralenti sous l'eau et 3 points clés, pendule, conseil final), plongeon puis séance entière en accéléré (vitesse auto, ×6, ×25, ×60), bilan ; voix coupée par un bouton, sous-titres toujours affichés ; chapitres précédent / suivant et pause.
+- **FR-030**: Le module « Comprendre la séance » DOIT rester réservé au compte admin (`is_admin()`) tant que l'admin ne l'a pas validé (`PUBLIC` dans `js/22-swim3d.js`) ; le nageur et le coach sont des corps sculptés pour FTP Builder (`tools/swim3d`, sans modèle tiers), chargés depuis `models/nageurs.js` ; si le bassin 3D ne se charge pas, un message le dit sans bloquer l'app.
 
 ### Key Entities
 

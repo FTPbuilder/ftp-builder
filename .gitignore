@@ -5,4 +5,5 @@ eval-*.png
 abs*.png
 adj.png
 tools/bike3d/build/
+tools/swim3d/build/
 __pycache__/

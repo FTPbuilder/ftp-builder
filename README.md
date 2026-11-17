@@ -14,6 +14,7 @@ Ouvrir `index.html` dans un navigateur (ou GitHub Pages). Données stockées loc
 `index.html` : structure, CSS, `APP_VERSION`. `js/01-core.js` … `js/24-boot.js` : un fichier par domaine, chargés dans l'ordre (un fichier n'utilise au chargement que ceux qui le précèdent).
 Nouvelle version : `node tools/bump.mjs X.Y.Z`.
 `models/velo-aero.js` : maquette 3D du Garage (vélo aéro FTP Builder, GLB compressé en base64), générée par `tools/bike3d` (voir son README).
+`models/nageurs.js` : nageur et coach 3D de « Comprendre la séance » (natation, `js/22-swim3d.js`), générés par `tools/swim3d` (voir son README).
 
 ## Tests
 ```
