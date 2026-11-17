@@ -455,20 +455,21 @@ const Bike3D = (() => {
     gl.scene.updateMatrixWorld(true);
     const byName = {}; gl.scene.traverse(o => { if (o.name && !byName[o.name]) byName[o.name] = o; });
     const ph = (o, ao = true) => { const m = new T.MeshPhysicalMaterial({ envMapIntensity: .95, ...o }); for (const k of ['color', 'sheenColor']) if (o[k] != null) m[k] = lin(T, o[k]); return ao ? withAO(m) : m; };
-    const wall = atCv(T, 1024, 48, 2); // flancs de pneu : même dessin que la maquette du Garage
-    { const { c, x, t } = wall, W = c.width, H = c.height; x.fillStyle = '#161616'; x.fillRect(0, 0, W, H); x.globalAlpha = .18; x.fillStyle = '#262626';
-      for (let y = 4; y < H; y += 7) x.fillRect(0, y, W, 1); x.globalAlpha = 1; x.fillStyle = '#3a3a3a'; x.textBaseline = 'middle'; x.textAlign = 'left'; setFont(x, FONTS.bloc, H*.4); x.fillText('FTP RACE', W*.08, H*.52);
-      setFont(x, FONTS.tech, H*.2); x.fillText('700 × 28C   ·   TUBELESS READY   ·   4–6 BAR', W*.33, H*.5); t.needsUpdate = true; }
+    // flancs de pneu : même dessin que la maquette du Garage, noirs ou beiges (« gumwall »), un matériau par couleur et largeur
+    const walls = {}, wallMat = (tan, tire = 28) => walls[`${tan ? 1 : 0}:${tire}`] ||= (() => { const wl = atCv(T, 1024, 48, 2), { c, x, t } = wl, W = c.width, H = c.height;
+      x.fillStyle = tan ? '#ae8a5e' : '#161616'; x.fillRect(0, 0, W, H); x.globalAlpha = tan ? .12 : .18; x.fillStyle = tan ? '#7d5d3a' : '#262626';
+      for (let y = 4; y < H; y += 7) x.fillRect(0, y, W, 1); x.globalAlpha = 1; x.fillStyle = tan ? '#6e5032' : '#3a3a3a'; x.textBaseline = 'middle'; x.textAlign = 'left'; setFont(x, FONTS.bloc, H*.4); x.fillText('FTP RACE', W*.08, H*.52);
+      setFont(x, FONTS.tech, H*.2); x.fillText(`700 × ${tire}C   ·   TUBELESS READY   ·   4–6 BAR`, W*.33, H*.5); t.needsUpdate = true; return ph({ map: t, roughness: tan ? .82 : .76 }); })();
     const KIND = {
       Paint_Frame: () => ph({ color: '#3b3f45', roughness: .6 }), Carbon_Black: () => ph({ color: '#0c0c0d', roughness: .42, clearcoat: .35, clearcoatRoughness: .35 }),
       Rubber_Hood: () => ph({ color: '#0d0d0e', roughness: .82 }), Bar_Tape: () => ph({ color: '#111112', roughness: .78, sheen: .4, sheenRoughness: .6, sheenColor: '#333333' }),
       Saddle_Cover: () => ph({ color: '#0f0f10', roughness: .62, sheen: .35, sheenRoughness: .5, sheenColor: '#2a2a2a' }), Saddle_Rails: () => ph({ color: '#1a1a1c', roughness: .3, metalness: .4, clearcoat: .6 }),
-      Tyre_Tread: () => ph({ color: '#151515', roughness: .74 }), Tyre_Wall: () => ph({ map: wall.t, roughness: .76 }), Metal_Silver: () => ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }),
+      Tyre_Tread: () => ph({ color: '#151515', roughness: .74 }), Tyre_Wall: () => wallMat(false), Metal_Silver: () => ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }),
       Metal_Steel: () => ph({ color: '#9a9da3', roughness: .34, metalness: 1 }), Metal_Dark: () => ph({ color: '#2a2b2f', roughness: .34, metalness: .9 }),
       Anodized_Black: () => ph({ color: '#0e0e10', roughness: .36, metalness: .55, clearcoat: .3, clearcoatRoughness: .3 }), Brake_Pad: () => ph({ color: '#3a221a', roughness: .85 }) };
     const shared = {}, mat = kind => shared[kind] ||= (KIND[kind] || KIND.Anodized_Black)();
     const decalMat = t => ph({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8, roughness: .32, clearcoat: .7, clearcoatRoughness: .08, alphaTest: .02 }, false);
-    atK = { T, gl, meta, byName, ph, KIND, mat, shared, decalMat, geo: {}, cv: (w, h, rep) => atCv(T, w, h, rep) };
+    atK = { T, gl, meta, byName, ph, KIND, mat, shared, decalMat, wallMat, geo: {}, cv: (w, h, rep) => atCv(T, w, h, rep) };
     return atK;
   }
   // copie des maillages d'objets du GLB, exprimés par rapport à un point (axe de roue…) ; la géométrie est partagée
@@ -529,14 +530,14 @@ const Bike3D = (() => {
     ft.set(opts.look);
     return { root, groups, ft, anchorF, anchorR, meta };
   }
-  // roue indépendante (origine = axe) : jante profilée à la hauteur choisie, rayons, valve ; moyeu, pneu et disque du GLB
+  // roue indépendante (origine = axe) : jante profilée à la hauteur choisie, rayons, valve ; moyeu, pneu (flancs noirs ou beiges) et disque du GLB
   function atWheel(o){
     const { T, meta, ph } = atK, front = !!o.front, rimBrake = o.brakes === 'rim', D = clamp(+o.depth || 50, 20, 90)/1000, tw = clamp((+o.tire || 28)/28, .93, 1.15);
     const A = new T.Vector3(...(front ? (meta.axle_f || [.9919, .3395, 0]) : (meta.axle_r || [0, .3395, 0]))), S = front ? 'F' : 'R';
     const names = [`Hub_${S}`, `Axle_${S}`, `Tyre_${S}_Tread`, `Tyre_${S}_Wall_R`, `Tyre_${S}_Wall_L`];
     if (!rimBrake) names.push(`Lockring_${S}`, `Rotor_${S}_Band`, `Rotor_${S}_Spider`, `Rotor_${S}_Rivets`);
     const w = new T.Group();
-    for (const m of atClone(names, A, kind => atK.mat(kind))) { if (/^Tyre_/.test(m.userData.part)) { m.position.z *= tw; m.scale.z *= tw; } w.add(m); }
+    for (const m of atClone(names, A, kind => kind === 'Tyre_Wall' ? atK.wallMat(o.wall === 'beige', Math.round(+o.tire || 28)) : atK.mat(kind))) { if (/^Tyre_/.test(m.userData.part)) { m.position.z *= tw; m.scale.z *= tw; } w.add(m); }
     const sh = atK.shared, rimMat = sh.rim ||= ph({ color: '#0b0b0c', roughness: .36, clearcoat: .45, clearcoatRoughness: .22 }, false), spokeMat = sh.spoke ||= ph({ color: '#18181a', roughness: .32, metalness: .7 }, false);
     const trackMat = sh.track ||= ph({ color: '#202023', roughness: .72, metalness: .15 }, false), valveMat = sh.valve ||= ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }, false), capMat = sh.cap ||= ph({ color: '#0e0e10', roughness: .36, metalness: .55 }, false);
     const cv = atK.cv(1024, 64, 2), rimDecal = atK.decalMat(cv.t); rimDecal.polygonOffsetFactor = -2; rimDecal.color.copy(lin(T, '#e9e9e9'));

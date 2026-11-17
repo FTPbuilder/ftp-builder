@@ -3,7 +3,7 @@
 // étagère à pièces détachées, pied d'atelier ; roues et cassettes nommées qui se montent d'un geste, entretien guidé, vue éclatée, aménagement libre
 /* ============ Atelier ============
    S.garage.atelier = { v, wheels:[Paire], cass:[Cassette], stock:[Pièce], layout:{ clé → position }, spots:{ ht, racks:[], expo }, seeded:[id de vélo] }
-   - Paire = { id, name, depth (mm), brakes 'rim'|'disc', tire (mm), bikeId|null, slot (0-3 sur le mur des roues)|null, since (pose)|null, km0, wear }
+   - Paire = { id, name, depth (mm, jante avant), depthR (mm, jante arrière si différente), wall 'noir'|'beige' (flancs), brakes 'rim'|'disc', tire (mm), bikeId|null, slot (0-3 sur le mur des roues)|null, since (pose)|null, km0, wear }
        km = km0 + km route du vélo depuis la pose ; usure = celle des pneus du vélo (Garage) quand elle est montée, sinon la dernière connue.
    - Cassette = { id, name, range '11-28', speeds, tint, loc 'wall'|'ht'|id de paire (roue AR), peg (0-4)|null, since, km0, wear }
    - Pièce = { id, name, qty } (étagère) ; layout = position des meubles : tapis du home trainer, pied d'atelier, podium d'exposition, pompe
@@ -58,6 +58,7 @@ const Atelier = (() => {
   const lay = k => ({ ...LAY0[k], ...(G().layout[k] || {}) });
   const pairOf = id => G().wheels.find(p => p.id === id), cassOf = id => G().cass.find(c => c.id === id);
   const pairOnBike = id => G().wheels.find(p => p.bikeId === id), cassOnPair = id => G().cass.find(c => c.loc === id), cassOnHT = () => G().cass.find(c => c.loc === 'ht');
+  const depthR = p => +p.depthR || p.depth, depthTxt = p => depthR(p) !== p.depth ? `${p.depth}/${depthR(p)} mm` : `${p.depth} mm`; // jantes avant / arrière
   const bigOf = c => +String(c.range).split('-')[1] || 30;
   const brk = x => x === 'rim' ? 'à patins' : 'à disque';
   const htId = () => G().spots.ht || null, expoId = () => G().spots.expo || null;
@@ -83,7 +84,7 @@ const Atelier = (() => {
       else if (!a.spots.expo) a.spots.expo = b.id; else if (!a.spots.ht) a.spots.ht = b.id; }
     for (const b of act) { if (a.seeded.includes(b.id)) continue; a.seeded.push(b.id);
       const V = vOf(b), L = Bike3D.lookOf(b.look, b.model), r = rangeOf(b, V.speeds), since = b.since || today;
-      let p = pairOnBike(b.id); if (!p) { p = { id: rid(), name: "Roues d'origine", depth: L.rim, brakes: V.brakes, tire: +b.tires?.r || 28, bikeId: b.id, slot: null, since, km0: 0, wear: 0 }; a.wheels.push(p); }
+      let p = pairOnBike(b.id); if (!p) { p = { id: rid(), name: "Roues d'origine", depth: L.rim, wall: L.wall === 'beige' ? 'beige' : 'noir', brakes: V.brakes, tire: +b.tires?.r || 28, bikeId: b.id, slot: null, since, km0: 0, wear: 0 }; a.wheels.push(p); }
       if (!cassOnPair(p.id)) a.cass.push({ id: rid(), name: "Cassette d'origine", range: r, speeds: V.speeds, tint: '#c9cbcf', loc: p.id, peg: null, since, km0: 0, wear: 0 });
       if (a.spots.ht === b.id && direct(b) && !cassOnHT()) a.cass.push({ id: rid(), name: 'Cassette du home trainer', range: r, speeds: V.speeds, tint: '#3d4047', loc: 'ht', peg: null, since, km0: 0, wear: 0 }); }
     for (const p of a.wheels) if (p.bikeId && !ids.includes(p.bikeId)) unmountPair(p); // vélo vendu ou supprimé : ses roues reviennent au mur
@@ -232,7 +233,7 @@ const Atelier = (() => {
     for (const [z, y] of SLOTS) for (const dz of [-.19, .19]) { cyl(.006, .006, .17, hk, g, .085, y + .3, z + dz, 10).rotation.z = Math.PI/2; cyl(.006, .006, .035, hk, g, .168, y + .316, z + dz, 10); }
     const sg = sign('ROUES', .26, .065); sg.rotation.y = Math.PI/2; sg.position.set(.02, 2.42, 0); g.add(sg);
   }
-  const slotPose = (p, part) => { const [z, y] = SLOTS[p.slot]; return { pos: V3(part === 'rear' ? .145 : .055, y + .3 - (.3152 - p.depth/1000) + .008, z + (part === 'rear' ? .19 : -.19)), quat: qY(Math.PI/2) }; };
+  const slotPose = (p, part) => { const [z, y] = SLOTS[p.slot]; return { pos: V3(part === 'rear' ? .145 : .055, y + .3 - (.3152 - (part === 'rear' ? depthR(p) : p.depth)/1000) + .008, z + (part === 'rear' ? .19 : -.19)), quat: qY(Math.PI/2) }; };
 
   /* ---------- tapis + home trainer (direct ou à rouleau), cale de roue avant ---------- */
   function buildTrainer(g){
@@ -529,7 +530,7 @@ const Atelier = (() => {
     m.local = { chain: chB ? V3(lerp(chB.min.x, chB.max.x, .42), chB.min.y + .012, chB.max.z) : bb.clone(), rd: cen('rd') || bb.clone(), brakeF: cen('brakeF') || ht.clone(), headset: ht.clone().add(V3(.012, -.06, .025)) };
     A.B[b.id] = { ...m, holder: h, bike: b };
   }
-  function makePair(p){ const mk = front => { const o = Bike3D.atelier.wheel({ front, depth: p.depth, brakes: p.brakes, tire: p.tire, mark: 'FTP' }); o.add(hitDisc(.345, .03));
+  function makePair(p){ const mk = front => { const o = Bike3D.atelier.wheel({ front, depth: front ? p.depth : depthR(p), brakes: p.brakes, tire: p.tire, wall: p.wall, mark: 'FTP' }); o.add(hitDisc(.345, .03));
       o.userData.pick = { kind: 'pair', id: p.id, part: front ? 'front' : 'rear' }; A.scene.add(o); A.pick.push(o); return o; };
     A.W[p.id] = { front: mk(true), rear: mk(false) }; }
   function makeCass(c){ const o = Bike3D.atelier.cassette({ speeds: c.speeds, big: bigOf(c), tint: c.tint }); o.userData.pick = { kind: 'cassette', id: c.id }; A.scene.add(o); o.updateMatrixWorld(true);
@@ -566,7 +567,7 @@ const Atelier = (() => {
   const X_BTN = `<button type="button" class="at-ib at-x" data-at="close" aria-label="Fermer la fiche"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>`;
   const wearHTML = (w, left) => `<div class="at-wear"><span>${left}</span><b style="color:${wearCol(w)}">${wearTxt(w)} · ${Math.round(w*100)} %</b></div><div class="at-bar"><i style="width:${Math.max(3, w*100)}%;background:${wearCol(w)}"></i></div>`;
   const head = (kick, nameHTML) => `<div class="at-sh-head"><div><div class="at-kick">${kick}</div>${nameHTML}</div>${X_BTN}</div>`;
-  const nameInput = (key, v, label) => `<input type="text" class="at-name" data-atname="${key}" value="${esc(v)}" aria-label="${label}" maxlength="34" enterkeyhint="done">`;
+  const nameInput = (key, v, label) => `<label class="at-ren"><input type="text" class="at-name" data-atname="${key}" value="${esc(v)}" aria-label="${label} (touchez pour renommer)" maxlength="34" enterkeyhint="done"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg></label>`; // nom modifiable : crayon + soulignement
   function openSheet(html){ const sh = q('.at-sheet'); sh.innerHTML = html; sh.hidden = false; sh.scrollTop = 0; panels(); refocus(); tagsRebuild(); }
   function hideSheet(){ q('.at-sheet').hidden = true; st.sel = null; panels(); }
   function closeSheet(){ hideSheet(); if (st.mode === 'atelier') go(st.zone); else go(st.mode === 'explode' ? 'explode' : st.mode === 'arrange' ? 'plan' : 'stand'); }
@@ -581,11 +582,13 @@ const Atelier = (() => {
     if (p.bikeId) acts += `<button type="button" class="at-sec" data-at="mount:${p.id}:wall">Raccrocher au mur</button>`;
     const note = p.bikeId && htId() === p.bikeId && direct(bikeOf(p.bikeId)) ? '<p class="at-why">Sur le home trainer direct, la roue arrière attend au mur.</p>' : '';
     openSheet(head('Paire de roues', nameInput('pair:' + p.id, p.name, 'Nom de la paire')) +
-      `<p class="at-meta">Jantes ${p.depth} mm · freins ${brk(p.brakes)} · pneus ${p.tire || 28} mm</p>${wearHTML(pairWear(p), `${fmtKm(pairKm(p))} · ${esc(where(p))}`)}${note}
+      `<p class="at-meta">Jantes ${depthTxt(p)} · flancs ${p.wall === 'beige' ? 'beiges' : 'noirs'} · freins ${brk(p.brakes)} · pneus ${p.tire || 28} mm</p>${wearHTML(pairWear(p), `${fmtKm(pairKm(p))} · ${esc(where(p))}`)}${note}
       <div class="at-acts">${acts}</div>
       <div class="at-kv" style="margin-top:14px"><span>Cassette AR</span><b>${c ? esc(c.name) + ' · ' + c.range : 'Aucune'}</b><button type="button" data-at="pickcass:${p.id}">${c ? 'Changer' : 'Monter'}</button></div>
       <details${pairKm(p) ? '' : ' open'}><summary>Réglages de la paire</summary>
-      <div class="at-kv at-wrap"><span>Hauteur de jante</span><div class="at-chips">${DEPTHS.map(d => `<button type="button" class="${d === p.depth ? 'on' : ''}" data-at="depth:${p.id}:${d}" aria-pressed="${d === p.depth}">${d}</button>`).join('')}</div></div>
+      <div class="at-kv at-wrap"><span>Jante avant</span><div class="at-chips">${DEPTHS.map(d => `<button type="button" class="${d === p.depth ? 'on' : ''}" data-at="depth:${p.id}:${d}" aria-pressed="${d === p.depth}">${d}</button>`).join('')}</div></div>
+      <div class="at-kv at-wrap"><span>Jante arrière</span><div class="at-chips">${DEPTHS.map(d => `<button type="button" class="${d === depthR(p) ? 'on' : ''}" data-at="depthr:${p.id}:${d}" aria-pressed="${d === depthR(p)}">${d}</button>`).join('')}</div></div>
+      <div class="at-kv at-wrap"><span>Flancs</span><div class="at-chips">${[['noir', 'Noirs'], ['beige', 'Beiges']].map(([k, l]) => `<button type="button" class="${(p.wall || 'noir') === k ? 'on' : ''}" data-at="wall:${p.id}:${k}" aria-pressed="${(p.wall || 'noir') === k}">${l}</button>`).join('')}</div></div>
       <div class="at-kv at-wrap"><span>Freinage</span><div class="at-chips"><button type="button" class="${p.brakes === 'rim' ? 'on' : ''}" data-at="brk:${p.id}:rim">Patins</button><button type="button" class="${p.brakes === 'disc' ? 'on' : ''}" data-at="brk:${p.id}:disc">Disques</button></div></div>
       <div class="at-kv at-wrap"><span>Pneus</span><div class="at-chips">${[25, 28, 30, 32].map(t => `<button type="button" class="${t === (p.tire || 28) ? 'on' : ''}" data-at="tire:${p.id}:${t}">${t} mm</button>`).join('')}</div></div>
       <div class="at-kv"><span>Inventaire</span><b></b><button type="button" class="at-danger" data-at="delpair:${p.id}">Je n'ai plus cette paire</button></div></details>`);
@@ -610,7 +613,7 @@ const Atelier = (() => {
     const busy = k => k === 'rack' ? (G().spots.racks.length >= 2 ? bikeOf(G().spots.racks[0]) : null) : bikeOf(G().spots[k]); // place occupée → échange
     openSheet(head(`Vélo · ${SPOT[sp]?.in || 'au garage'}`, `<h3 class="at-name">${esc(b.name)}</h3>`) +
       `<p class="at-meta">${esc([b.brand, b.modelName].filter(Boolean).join(' '))} · freins ${brk(V.brakes)} · ${V.speeds} vitesses</p>
-      <div class="at-kv"><span>Roues</span><b>${p ? esc(p.name) + ' · ' + p.depth + ' mm' : 'Aucune'}</b><button type="button" data-at="pickpair:${id}">Changer</button></div>
+      <div class="at-kv"><span>Roues</span><b>${p ? esc(p.name) + ' · ' + depthTxt(p) : 'Aucune'}</b><button type="button" data-at="pickpair:${id}">Changer</button></div>
       <div class="at-kv"><span>Cassette AR</span><b>${c ? esc(c.name) + ' · ' + c.range : 'Aucune'}</b>${p ? `<button type="button" data-at="pickcass:${p.id}">Changer</button>` : ''}</div>
       ${ht !== undefined ? `<div class="at-kv"><span>Home trainer</span><b>${ht ? esc(ht.name) + ' · ' + ht.range : 'Sans cassette'}</b><button type="button" data-at="pickcass:ht">Changer</button></div>` : ''}
       <div class="at-kv at-wrap"><span>Place</span><div class="at-chips">${Object.keys(SPOT).map(k => `<button type="button" class="${sp === k ? 'on' : ''}" data-at="spot:${id}:${k}" aria-pressed="${sp === k}">${SPOT[k].chip}</button>`).join('')}</div></div>
@@ -632,7 +635,7 @@ const Atelier = (() => {
     const b = bikeOf(id), V = vOf(b);
     openSheet(head('Changer de roues', `<h3 class="at-name">${esc(b.name)}</h3>`) + `<p class="at-meta">Freins ${brk(V.brakes)} : seules les paires compatibles se montent.</p><div class="at-list">` +
       G().wheels.map(p => { const ok = p.brakes === V.brakes, on = p.bikeId === id;
-        return `<div class="at-li"><div><b>${esc(p.name)}</b><small>${p.depth} mm · ${p.brakes === 'rim' ? 'patins' : 'disques'} · ${esc(where(p))}</small></div><button type="button" class="at-mini${on ? ' on' : ''}" data-at="mount:${p.id}:${id}"${on || !ok ? ' disabled' : ''}>${on ? 'Montée' : ok ? 'Monter' : 'Incompatible'}</button></div>`; }).join('') + '</div>');
+        return `<div class="at-li"><div><b>${esc(p.name)}</b><small>${depthTxt(p)} · ${p.brakes === 'rim' ? 'patins' : 'disques'} · ${esc(where(p))}</small></div><button type="button" class="at-mini${on ? ' on' : ''}" data-at="mount:${p.id}:${id}"${on || !ok ? ' disabled' : ''}>${on ? 'Montée' : ok ? 'Monter' : 'Incompatible'}</button></div>`; }).join('') + '</div>');
   }
   function pickCassSheet(target){
     const label = target === 'ht' ? 'Home trainer' : 'Roue AR · ' + (pairOf(target)?.name || '');
@@ -696,7 +699,7 @@ const Atelier = (() => {
       if (pt) return pointCard(pt.key); }
     st.sel = { kind: 'part', key };
     const p = pairOnBike(id), c = p && cassOnPair(p.id), parts = partsOf(b, EXP_PARTS[key] || []);
-    const sub = key === 'cassette' && c ? `${c.name} · ${c.range}` : (key === 'wheelF' || key === 'wheelR') && p ? `${p.name} · ${p.depth} mm` : b.name;
+    const sub = key === 'cassette' && c ? `${c.name} · ${c.range}` : (key === 'wheelF' || key === 'wheelR') && p ? `${p.name} · ${depthTxt(p)}` : b.name;
     openSheet(head(n >= 0 ? `Pièce n° ${n + 1}` : 'Pièce', `<h3 class="at-name">${PART_L[key] || key}</h3>`) + `<p class="at-meta">${esc(sub)}</p>` +
       (parts.length ? `<div class="at-list">${parts.map(i => `<div class="at-li"><div><b>${esc(i.l)}</b><small>${esc(i.spec || '')}</small></div><span class="at-pct" style="color:${wearCol(1 - i.rem)}">${Math.round(i.rem*100)} %</span><button type="button" class="at-mini" data-at="sheet:${i.k}">Fiche</button></div>`).join('')}</div>` : '<p class="at-meta">Pas de suivi d\'usure pour cette pièce.</p>'));
     if (n >= 0) { const e = A.exp[n], s = Math.max(e.size.x, e.size.y, .3); go({ t: e.center.clone(), az: 0, el: 0, w: s*2.1, h: s*1.6 }); }
@@ -729,7 +732,7 @@ const Atelier = (() => {
         for (let s = 0; s < SLOTS.length; s++) { const p = a.wheels.find(x => x.slot === s), at = () => wp(A.groups.wheels, .1, SLOTS[s][1] + .4, SLOTS[s][0]);
           if (!p) add('at-tag add', `${PLUS}<b>Paire</b>`, at, 'addpair:' + s, { label: 'Ajouter une paire de roues' });
           else { const ghost = !!p.bikeId, on = sel?.kind === 'pair' && sel.id === p.id;
-            add('at-tag' + (ghost ? ' ghost' : '') + (on ? ' on' : ''), `<b>${esc(p.name)}</b><small>${p.depth} mm · ${p.brakes === 'rim' ? 'patins' : 'disques'}${ghost ? ` · <em>sur ${esc(bikeOf(p.bikeId)?.name || '')}</em>` : ''}</small>`, at, 'pair:' + p.id); } }
+            add('at-tag' + (ghost ? ' ghost' : '') + (on ? ' on' : ''), `<b>${esc(p.name)}</b><small>${depthTxt(p)} · ${p.brakes === 'rim' ? 'patins' : 'disques'}${ghost ? ` · <em>sur ${esc(bikeOf(p.bikeId)?.name || '')}</em>` : ''}</small>`, at, 'pair:' + p.id); } }
         for (const p of a.wheels.filter(x => x.slot == null)) add('at-tag ghost flat', `<b>${esc(p.name)}</b><small>sur ${esc(bikeOf(p.bikeId)?.name || '')}</small>`, () => wp(A.groups.wheels, .1, .55, 0), 'pair:' + p.id);
       } else if (st.zone === 'pegs') {
         const onWall = a.cass.filter(c => c.loc === 'wall'), fp = freePeg();
@@ -812,7 +815,7 @@ const Atelier = (() => {
     if (b && vOf(b).speeds !== c.speeds) setTimeout(() => say(`${c.speeds} v sur un vélo ${vOf(b).speeds} v : à vérifier`, 'warn'), 3000);
   }
   function addPair(slot){ if (slot < 0 || G().wheels.some(p => needSlot(p) && p.slot === slot)) return;
-    const b0 = bikeOf(htId()) || bikesIn()[0], p = { id: rid(), name: 'Nouvelle paire', depth: 50, brakes: b0 ? vOf(b0).brakes : 'disc', tire: 28, bikeId: null, slot, since: null, km0: 0, wear: 0 };
+    const b0 = bikeOf(htId()) || bikesIn()[0], p = { id: rid(), name: 'Nouvelle paire', depth: 50, wall: 'noir', brakes: b0 ? vOf(b0).brakes : 'disc', tire: 28, bikeId: null, slot, since: null, km0: 0, wear: 0 };
     G().wheels.push(p); save(); makePair(p);
     for (const o of [A.W[p.id].front, A.W[p.id].rear]) o.position.copy(A.cam.position).add(V3(0, -.6, 0)).addScaledVector(A.cam.getWorldDirection(V3()), 1.2);
     layout(true); select({ kind: 'pair', id: p.id, part: 'rear' }); say('Nouvelle paire : donnez-lui un nom et sa hauteur de jante'); updateTop(); }
@@ -950,6 +953,8 @@ const Atelier = (() => {
       case 'pickcass': return pickCassSheet(x);
       case 'pickpair': return pickPairSheet(x);
       case 'depth': return editPair(x, { depth: +y });
+      case 'depthr': return editPair(x, { depthR: +y });
+      case 'wall': return editPair(x, { wall: y === 'beige' ? 'beige' : 'noir' });
       case 'brk': return editPair(x, { brakes: y });
       case 'tire': return editPair(x, { tire: +y });
       case 'range': return editCass(x, { range: y });
