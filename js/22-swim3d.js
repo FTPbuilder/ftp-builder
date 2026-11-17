@@ -1140,5 +1140,13 @@ const Swim3D = (() => {
     get R(){ return R; }, V3: (...a) => V3(...a), plan, spoken, DRILLS,
   };
   Object.assign(debug, { D, skip, goto, beatsOf, buildSim, seekDive(tt){ if (D.dive) Object.assign(D.dive, { t: tt, tt, spl: tt > 2.2 ? 1 : 0 }); }, set rate(v){ D.rate = v; }, get rate(){ return D.rate || 1; } });
-  return { plan, spoken, DRILLS, debug, open, close, available: () => PUBLIC || !!(typeof Garage !== 'undefined' && Garage.Adm?.is) };
+  const available = () => PUBLIC || !!(typeof Garage !== 'undefined' && Garage.Adm?.is);
+  // bouton de la fiche : si le statut admin n'est pas encore vérifié (il ne l'est qu'à l'ouverture du Profil), on le vérifie et on rouvre la fiche
+  function button(id){
+    if (available()) return `<button class="btn primary" data-swim3d="${id}">🏊 Comprendre la séance</button>`;
+    const A = typeof Garage !== 'undefined' && Garage.Adm, u = typeof Cloud !== 'undefined' && Cloud.user;
+    if (A && u && A.uid !== u.id && Garage.admCheck) Garage.admCheck().then(() => { if (available() && typeof dlg !== 'undefined' && dlg.open && document.querySelector(`[data-swim3d-slot="${id}"]`)) triDlg(id); });
+    return `<span data-swim3d-slot="${id}" hidden></span>`;
+  }
+  return { plan, spoken, DRILLS, debug, open, close, available, button };
 })();
