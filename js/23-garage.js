@@ -299,7 +299,7 @@ const Garage = (() => {
     return `<div class="gr-sec"><div class="row between"><div class="seg gr-per">${[['30', '30 j'], ['365', '12 mois'], ['all', 'Tout']].map(([k, l]) => `<button type="button" class="${spendP === k ? 'on' : ''}" data-gr="per" data-v="${k}">${l}</button>`).join('')}</div><button class="btn sm primary" data-gr="log">+ Ajouter</button></div>
       <div class="gr-spend"><b class="num">${n0(tot)} €</b><span class="tiny muted">${spendP === 'all' && km > 100 ? `soit ${f1(tot/km*100)} € / 100 km` : 'sur la période'}</span></div>
       ${Object.entries(byC).sort((x, y) => y[1] - x[1]).map(([c, v]) => `<div class="gr-cat"><span>${CATS[c]}</span><span class="gr-cb"><i style="width:${v/mx*100}%"></i></span><b class="num">${n0(v)} €</b></div>`).join('')}</div>
-      <div class="gr-sec"><h3>Historique</h3>${log.length ? log.slice(0, 60).map(e => `<button type="button" class="gr-le" data-gr="logopen" data-id="${e.id}"><span>${KIND[e.kind]?.[0] || '•'}</span><span style="flex:1;min-width:0"><b>${esc(e.label || P(e.part)?.l || KIND[e.kind]?.[1] || '')}</b><span class="tiny muted" style="display:block">${fmtShort(e.date)} · ${KIND[e.kind]?.[1] || ''}${e.part && P(e.part) && e.label ? ' · ' + esc(P(e.part).l) : ''}${e.supplier ? ' · ' + esc(e.supplier) : ''}${e.value != null && e.value !== '' ? ` · ${f1(+e.value)} %` : ''}${e.kind === 'replace' ? ` · pose à ${n0(odo(b, e.date, rs))} km` : ''}</span></span>${+e.price ? `<b class="num">${n0(e.price)} €</b>` : ''}</button>`).join('') : '<p class="small muted">Chaînes, pneus, patins, lubrifiant, produits de nettoyage, révisions : tout s\'enregistre ici avec le prix, pour connaître le coût d\'usage du vélo.</p>'}</div>`;
+      <div class="gr-sec"><h3>Historique</h3>${log.length ? log.slice(0, 60).map(e => `<div class="gr-lw"><button type="button" class="gr-le" data-gr="logopen" data-id="${e.id}"><span>${KIND[e.kind]?.[0] || '•'}</span><span style="flex:1;min-width:0"><b>${esc(e.label || P(e.part)?.l || KIND[e.kind]?.[1] || '')}</b><span class="tiny muted" style="display:block">${fmtShort(e.date)} · ${KIND[e.kind]?.[1] || ''}${e.part && P(e.part) && e.label ? ' · ' + esc(P(e.part).l) : ''}${e.supplier ? ' · ' + esc(e.supplier) : ''}${e.value != null && e.value !== '' ? ` · ${f1(+e.value)} %` : ''}${e.kind === 'replace' ? ` · pose à ${n0(odo(b, e.date, rs))} km` : ''}</span></span>${+e.price ? `<b class="num">${n0(e.price)} €</b>` : ''}</button>${delX(e)}</div>`).join('') : '<p class="small muted">Chaînes, pneus, patins, lubrifiant, produits de nettoyage, révisions : tout s\'enregistre ici avec le prix, pour connaître le coût d\'usage du vélo.</p>'}</div>`;
   }
   /* --- onglet Pression --- */
   function pressTab(b){
@@ -459,7 +459,7 @@ const Garage = (() => {
         <button class="btn primary" data-gr="replace" data-k="${k}" style="width:100%;margin-top:10px">Enregistrer la pose (compteur à zéro)</button></details>
       <details class="more"><summary>Seuil d'usure</summary><label class="f">Durée de vie (${i.unit === 'j' ? 'jours' : i.unit === 'h' ? 'heures par charge' : i.charge ? 'km par charge' : 'km'})</label><div class="row"><input type="number" inputmode="numeric" min="1" id="grLife" value="${i.life}" style="flex:1"><button class="btn" data-gr="life" data-k="${k}">OK</button></div></details>
       ${hist.length ? `<h4>Historique</h4>${hist.map(e => { const nx = e.kind === 'replace' ? replaces[replaces.indexOf(e) - 1] : null;
-        return `<div class="gr-h"><span>${KIND[e.kind]?.[0] || '•'}</span><span style="flex:1"><b>${KIND[e.kind]?.[1] || ''}</b>${e.label ? ' · ' + esc(e.label) : ''}<span class="tiny muted" style="display:block">${fmtShort(e.date)}${e.kind === 'replace' ? ` · pose à ${n0(odo(b, e.date, rs))} km${nx ? ` · utilisée ${n0(odo(b, nx.date, rs) - odo(b, e.date, rs))} km (${diffDays(e.date, nx.date)} j)` : ''}` : ''}${e.value != null && e.value !== '' ? ` · ${f1(+e.value)} %` : ''}${e.supplier ? ' · ' + esc(e.supplier) : ''}</span></span>${+e.price ? `<b class="num">${n0(e.price)} €</b>` : ''}</div>`; }).join('')}` : ''}</div>`;
+        return `<div class="gr-h"><span>${KIND[e.kind]?.[0] || '•'}</span><span style="flex:1"><b>${KIND[e.kind]?.[1] || ''}</b>${e.label ? ' · ' + esc(e.label) : ''}<span class="tiny muted" style="display:block">${fmtShort(e.date)}${e.kind === 'replace' ? ` · pose à ${n0(odo(b, e.date, rs))} km${nx ? ` · utilisée ${n0(odo(b, nx.date, rs) - odo(b, e.date, rs))} km (${diffDays(e.date, nx.date)} j)` : ''}` : ''}${e.value != null && e.value !== '' ? ` · ${f1(+e.value)} %` : ''}${e.supplier ? ' · ' + esc(e.supplier) : ''}</span></span>${+e.price ? `<b class="num">${n0(e.price)} €</b>` : ''}${delX(e, k)}</div>`; }).join('')}` : ''}</div>`;
     if (!el.open) el.showModal();
     if (explode()) Bike3D.select(p.g);
   }
@@ -604,6 +604,15 @@ const Garage = (() => {
   }
   const KIND = { replace: ['🔧', 'Remplacement'], buy: ['🛒', 'Achat'], inspect: ['🔍', 'Inspection'], check: ['📏', 'Mesure de chaîne'], charge: ["🔋", "Recharge / niveau lu"], lube: ['💧', 'Lubrification'],
     degrease: ['🧴', 'Dégraissage'], clean: ['🧽', 'Nettoyage transmission'], jockey: ['⚙️', 'Inspection des galets'], wipe: ['🧻', 'Sueur essuyée'], service: ['🛠️', 'Révision / contrôle'] };
+  const delX = (e, k) => `<button type="button" class="gr-x" data-gr="logx" data-id="${e.id}"${k ? ` data-k="${k}"` : ''} aria-label="Supprimer cette entrée" title="Supprimer">×</button>`;
+  // supprime une entrée du carnet ; si c'était la dernière pose d'un composant, son compteur revient à la pose précédente (ou à l'origine)
+  function delLog(b, id){
+    const g = G(), e = g.log.find(y => y.id === id); if (!e) return null; g.log = g.log.filter(y => y !== e);
+    const st = e.kind === 'replace' && e.part && b.parts?.[e.part];
+    if (st && st.at === e.date) { const prev = logOf(b, y => y.part === e.part && y.kind === 'replace')[0];
+      if (prev) b.parts[e.part] = { ...st, at: prev.date, atTs: prev.ts || Date.now(), spec: prev.label || '' }; else { delete st.at; delete st.atTs; } }
+    return e;
+  }
   function setPart(b, k, at, spec, price, supplier){
     b.parts ||= {}; b.parts[k] = { ...(b.parts[k] || {}), at, atTs: Date.now(), spec: spec || b.parts[k]?.spec || '' };
     G().log.push({ id: rid(), ts: Date.now(), bikeId: b.id, date: at, part: k, kind: 'replace', label: spec || '', price: +price || 0, supplier: supplier || '' });
@@ -686,7 +695,10 @@ const Garage = (() => {
       if (id) Object.assign(g.log.find(y => y.id === id), en); else g.log.push({ id: rid(), ts: Date.now(), bikeId: b.id, ...en });
       if (en.kind === 'replace' && en.part) { b.parts ||= {}; b.parts[en.part] = { ...(b.parts[en.part] || {}), at: en.date, atTs: Date.now(), spec: [en.label, en.ref].filter(Boolean).join(' · ') || b.parts[en.part]?.spec || '' }; }
       done('Enregistré'); }
-    else if (a === 'logdel') { g.log = g.log.filter(y => y.id !== x.dataset.id); done('Supprimé'); }
+    else if (a === 'logdel') { delLog(b, x.dataset.id); done('Supprimé'); }
+    else if (a === 'logx') { const e = g.log.find(y => y.id === x.dataset.id); if (!e) return;
+      if (!confirm(`Supprimer « ${e.label || P(e.part)?.l || KIND[e.kind]?.[1] || 'cette entrée'} » du ${fmtShort(e.date)} ?`)) return;
+      delLog(b, e.id); if (x.dataset.k) refreshSheet(x.dataset.k); else { save(); render(); } toast('Entrée supprimée'); }
     else if (a === 'main') { g.bikes = [b, ...g.bikes.filter(y => y !== b)]; done('Vélo principal'); }
     else if (a === 'retire') retireDlg(b);
     else if (a === 'wzframe') wzOpen('frame');

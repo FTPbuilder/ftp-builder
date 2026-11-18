@@ -79,6 +79,13 @@ await pg.tap('.gr-tabs [data-v="buy"]'); await pg.tap('[data-gr="log"]'); await 
 await pg.selectOption('#grLK', 'buy'); await pg.fill('#grLL', 'Lubrifiant cire'); await pg.selectOption('#grLC', 'produits'); await pg.fill('#grLPr', '18'); await pg.tap('#grSheet [data-gr="logsave"]'); await pg.waitForTimeout(200);
 const sp = (await pg.locator('.gr-panel').innerText()).replace(/\s+/g, ' '); console.log('achats', sp.slice(0, 160));
 assert(/50 €/.test(sp) && /Transmission/.test(sp) && /Produits/.test(sp), 'dépenses : 50 € sur 12 mois, par catégorie');
+// croix : supprimer une entrée saisie par erreur (annuler la confirmation ne supprime rien)
+await pg.tap('[data-gr="log"]'); await pg.waitForTimeout(200); await pg.selectOption('#grLK', 'lube'); await pg.fill('#grLL', 'Erreur de saisie'); await pg.tap('#grSheet [data-gr="logsave"]'); await pg.waitForTimeout(200);
+const nLog = await ev(() => S.garage.log.length), xSel = '.gr-lw:has-text("Erreur de saisie") [data-gr="logx"]';
+pg.once('dialog', d => d.dismiss()); await pg.tap(xSel); await pg.waitForTimeout(150);
+assert(await ev(() => S.garage.log.length) === nLog, 'croix : annuler garde l\'entrée');
+pg.once('dialog', d => d.accept()); await pg.tap(xSel); await pg.waitForTimeout(200);
+assert(await ev(() => S.garage.log.length) === nLog - 1 && !/Erreur de saisie/.test(await pg.locator('.gr-panel').innerText()), 'croix : entrée supprimée de l\'historique');
 // pression : estimation + valeur SILCA saisie, plafonds
 await pg.tap('.gr-tabs [data-v="pressure"]'); await pg.waitForTimeout(150);
 let pr = await ev(() => Garage.pressure(S.garage.bikes[0])); console.log('pression', pr.f, pr.r);
