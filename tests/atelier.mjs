@@ -42,6 +42,14 @@ let w = await ev(([id, p]) => { const A = Atelier.debug.A; return { front: A.W[p
 assert(w.front && w.rear[0] < -2.3 && w.htCass, 'home trainer direct : roue AV sur le vélo, roue AR accrochée au mur, chaîne sur la cassette du home trainer');
 await shot('accueil');
 
+// télé : kilomètres de chaque vélo (route + home trainer), sur l'écran et dans sa fiche
+await ev(() => Atelier.debug.act('zone:tv')); await settle(); await shot('tele');
+let tv = await ev(() => { const r = Atelier.debug.tvRows(), A = Atelier.debug.A; return { r, sig: A.tv.sig, wall: Atelier.debug.world(A.groups.tv), free: Atelier.debug.valid('tv', Atelier.debug.lay('tv')), chip: !!document.querySelector('.at-zones [data-z="tv"]') }; });
+assert(tv.r.length === 1 && Math.round(tv.r[0].road) === 182 && Math.round(tv.r[0].ht) === 36 && Math.round(tv.r[0].total) === 218 && tv.sig.includes('182') && tv.free && tv.chip, 'télé au mur du fond : km route, home trainer et total du vélo');
+await pg.locator('.at-tag', { hasText: 'Détail par vélo' }).click(); 
+assert(await until(() => Atelier.debug.st.sel?.kind === 'tv' && /218\skm/.test(document.querySelector('.at-sheet').innerText) && /182 route/.test(document.querySelector('.at-sheet').innerText)), 'toucher la télé → détail des kilomètres par vélo');
+await ev(() => Atelier.debug.act('close')); await ev(() => Atelier.debug.act('zone:home')); await settle();
+
 // toucher le vélo → sa fiche
 await ev(() => Atelier.debug.act('zone:trainer')); await settle();
 // point du cadre qui n'est caché par aucune étiquette
@@ -123,7 +131,7 @@ assert(w.ht === bikeId && !w.expo && w.seat && w.rear, 'retour sur le home train
 
 // aménagement : glisser, tourner, collisions, sauvegarde
 await ev(() => Atelier.debug.act('arrange')); await settle();
-assert(await ev(() => Atelier.debug.st.mode === 'arrange' && !Atelier.debug.A.ceil.visible && document.querySelectorAll('.at-tag.at-mv').length === 8), 'aménager : vue de dessus, 8 meubles à déplacer');
+assert(await ev(() => Atelier.debug.st.mode === 'arrange' && !Atelier.debug.A.ceil.visible && document.querySelectorAll('.at-tag.at-mv').length === 9), 'aménager : vue de dessus, 9 meubles à déplacer');
 const x0 = await ev(id => Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], bikeId);
 assert(await ev(() => Atelier.debug.move('ht', { x: -.9, z: 1.25 })), 'tapis du home trainer déplacé');
 w = await ev(id => ({ x: Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], saved: S.garage.atelier.layout.ht }), bikeId);

@@ -1,6 +1,6 @@
 "use strict";
 // FTP Builder · Garage › Atelier 3D : la pièce où vivent les vélos du Garage — tapis + home trainer, rack mural, podium d'exposition, mur des roues, panneau à cassettes,
-// étagère à pièces détachées, pied d'atelier ; roues et cassettes nommées qui se montent d'un geste, entretien guidé, vue éclatée, aménagement libre
+// étagère à pièces détachées, pied d'atelier, télé des kilomètres par vélo ; roues et cassettes nommées qui se montent d'un geste, entretien guidé, vue éclatée, aménagement libre
 /* ============ Atelier ============
    S.garage.atelier = { v, wheels:[Paire], cass:[Cassette], stock:[Pièce], layout:{ clé → position }, spots:{ ht, racks:[], expo }, seeded:[id de vélo] }
    - Paire = { id, name, depth (mm, jante avant), depthR (mm, jante arrière si différente), wall 'noir'|'beige' (flancs), brakes 'rim'|'disc', tire (mm), bikeId|null, slot (0-3 sur le mur des roues)|null, since (pose)|null, km0, wear }
@@ -29,12 +29,12 @@ const Atelier = (() => {
   const ROOM = { x0: -2.6, x1: 2.6, zb: -2.2, zf: 2.8, h: 2.7 };
   const CAMBOX = { x: [-2.42, 2.42], y: [.25, 2.5], z: [-2.04, 2.66] };
   const LAY0 = { ht: { x: -1.32, z: .55, r: 0 }, stand: { x: .45, z: .25, r: 0 }, expo: { x: 1.75, z: 1.52, r: -90 }, pump: { x: 2.05, z: .4, r: 0 },
-    wheels: { z: -1.05 }, bench: { x: -.15 }, rack: { x: 1.66 }, shelf: { z: -.55 } };
+    wheels: { z: -1.05 }, bench: { x: -.15 }, rack: { x: 1.66 }, shelf: { z: -.55 }, tv: { x: -1.61 } };
   const ITEMS = { // meubles déplaçables : au sol (glissent et tournent) ou au mur (glissent le long de leur mur) ; empreinte au sol en repère local
     ht: { l: 'Home trainer', floor: true, w: 1.95, d: .95, cx: 0, cz: 0 }, stand: { l: "Pied d'atelier", floor: true, w: 1.4, d: 1.06, cx: -.06, cz: -.08 },
     expo: { l: 'Exposition', floor: true, w: 1.95, d: .8, cx: 0, cz: 0 }, pump: { l: 'Pompe', floor: true, w: .3, d: .24, cx: 0, cz: 0 },
     wheels: { l: 'Mur des roues', wall: 'left', w: 2.2, d: .45 }, bench: { l: 'Établi', wall: 'back', w: 1.84, d: .64 }, rack: { l: 'Rack', wall: 'back', w: 1.75, d: .5 },
-    shelf: { l: 'Étagère', wall: 'right', w: 1.84, d: .4 } };
+    shelf: { l: 'Étagère', wall: 'right', w: 1.84, d: .4 }, tv: { l: 'Télé', wall: 'back', w: 1, d: .1 } };
   const FIXED = [{ x: -2.5, z: 2.1, hw: .1, hd: .42, r: 0 }]; // obstacles fixes : la pile de pneus neufs contre le mur de gauche, près de la porte
   const SPOT = { ht: { l: 'Home trainer', in: 'sur le home trainer', z: 'trainer', chip: 'Home trainer' }, rack: { l: 'Rack mural', in: 'sur le rack mural', z: 'rack', chip: 'Rack' },
     expo: { l: 'Exposition', in: 'en exposition', z: 'expo', chip: 'Exposition' } };
@@ -43,6 +43,7 @@ const Atelier = (() => {
   const PANEL = { w: 2.0, h: 2.45, z: .7, y: 1.325, hide: 4.1 };
   const RANGES = { Shimano: ['11-25', '11-28', '11-30', '11-32', '11-34', '11-36'], SRAM: ['10-26', '10-28', '10-30', '10-33', '10-36'] }, DEPTHS = [35, 45, 50, 62, 80];
   const rangeOk = v => { const m = String(v || '').trim().match(/^(9|1[0-4])\s*[-–/ ]\s*(2[0-9]|3[0-9]|4[0-9]|5[0-2])$/); return m ? `${m[1]}-${m[2]}` : null; }; // étagement libre (Campagnolo, Ekar…)
+  const TV = { w: 1, h: .58, y: 1.58, cw: 1280, ch: 720, road: '#e0642a', ht: '#4a8ae8' }; // télé du mur du fond : écran 16/9, couleurs des barres route / home trainer
   const QUICK = ['Pneu', 'Chambre à air', 'Chaîne', 'Patins / plaquettes', 'Câble', 'Lubrifiant'];
 
   /* ---------- données (S.garage.atelier) ---------- */
@@ -344,6 +345,37 @@ const Atelier = (() => {
     g.userData.pick = { kind: 'pump' };
   }
 
+  /* ---------- télé : kilomètres de chaque vélo en service (mur du fond) ---------- */
+  function tvRows(){ if (!hasG()) return []; let all; try { all = Garage.rides(); } catch (e) { return []; }
+    return bikesOn().map(b => { const s = Garage.stats(b, Garage.ridesOf(b, all)); return { id: b.id, name: b.name || 'Vélo', road: s.road, ht: s.ht, total: s.total, month: s.month, est: s.est }; }).sort((a, b) => b.total - a.total); }
+  const kmN = n => Math.round(n).toLocaleString('fr-FR').replace(/\s/g, ' ');
+  function buildTV(g){
+    const m = M(), c = document.createElement('canvas'); c.width = TV.cw; c.height = TV.ch;
+    const map = new T.CanvasTexture(c); map.encoding = T.sRGBEncoding; map.anisotropy = A.aniso;
+    box(.42, .24, .025, m.steel, g, 0, TV.y, .0125); A.occ.push(box(TV.w, TV.h, .03, m.blk, g, 0, TV.y, .04));
+    const sc = mesh(new T.PlaneGeometry(TV.w - .024, (TV.w - .024)*9/16), new T.MeshBasicMaterial({ map, toneMapped: false }), g, 0, TV.y + .004, .0556, false); sc.receiveShadow = false;
+    box(.008, TV.y - TV.h/2 - .3, .006, m.blk, g, .3, (TV.y - TV.h/2 + .3)/2, .006, false); box(.08, .08, .01, std('prise', { color: '#ece8e0', roughness: .5 }), g, .3, .28, .005, false); // câble et prise
+    g.userData.pick = { kind: 'tv' }; return { map, sig: null };
+  }
+  function tvDraw(){ const tv = A.tv; if (!tv) return; const rows = tvRows(), sig = JSON.stringify(rows.map(r => [r.name, Math.round(r.road), Math.round(r.ht)])); if (tv.sig === sig) return; tv.sig = sig;
+    const x = tv.map.image.getContext('2d'), W = TV.cw, H = TV.ch, F = Bike3D.FONTS, L = 56, Rt = W - 56, INK = '#f4f4f2', MUTED = '#a3abb8';
+    const rr = (px, y, w, h, r) => { r = Math.min(r, w/2, h/2); x.beginPath(); x.moveTo(px + r, y); x.arcTo(px + w, y, px + w, y + h, r); x.arcTo(px + w, y + h, px, y + h, r); x.arcTo(px, y + h, px, y, r); x.arcTo(px, y, px + w, y, r); x.closePath(); x.fill(); };
+    const fit = (txt, f, px, max, min = px*.55) => { x.font = font(f, px); while (x.measureText(txt).width > max && px > min) x.font = font(f, px -= 2); if (x.measureText(txt).width <= max) return txt; let t = txt; while (t && x.measureText(t + '…').width > max) t = t.slice(0, -1); return t + '…'; };
+    x.fillStyle = '#12141a'; x.fillRect(0, 0, W, H); x.textBaseline = 'alphabetic'; x.textAlign = 'left';
+    x.fillStyle = MUTED; x.font = font(F.tech, 30); x.fillText('K I L O M È T R E S', L, 70);
+    const sum = rows.reduce((s, r) => s + r.total, 0), hero = kmN(sum); x.fillStyle = INK; x.font = font(F.sport, 108); x.fillText(hero, L, 168); const hw = x.measureText(hero).width; x.font = font(F.sport, 50); x.fillText('km', L + hw + 16, 168);
+    x.textAlign = 'right'; x.font = font(F.tech, 28); let lx = Rt; for (const [t, c] of [['HOME TRAINER', TV.ht], ['ROUTE', TV.road]]) { x.fillStyle = MUTED; x.fillText(t, lx, 70); lx -= x.measureText(t).width + 16; x.fillStyle = c; rr(lx - 26, 48, 26, 22, 5); lx -= 62; }
+    x.textAlign = 'left';
+    if (!rows.length) { x.fillStyle = MUTED; x.font = font(F.sport, 54); x.fillText('Aucun vélo au garage', L, 340); tv.map.needsUpdate = true; A.shadows = true; return wake(); }
+    const more = rows.length > 4 ? rows.length - 4 : 0, shown = rows.slice(0, 4), y0 = 214, yEnd = more ? 650 : 694, rh = Math.min(240, (yEnd - y0)/shown.length), big = rh >= 140, huge = rh >= 200, max = Math.max(1, rows[0].total), bw = Rt - L;
+    shown.forEach((r, i) => { const y = y0 + i*rh, px = huge ? 62 : big ? 52 : 42, base = y + px, tot = kmN(r.total) + ' km', bh = huge ? 34 : big ? 26 : 20, by = base + 14;
+      x.textAlign = 'right'; x.fillStyle = INK; x.font = font(F.sport, px); x.fillText(tot, Rt, base); const tw = x.measureText(tot).width; x.textAlign = 'left'; x.fillText(fit(r.name, F.sport, px, bw - tw - 40), L, base);
+      x.fillStyle = '#23272f'; rr(L, by, bw, bh, 7); const seg = [[r.road, TV.road], [r.ht, TV.ht]].filter(a => a[0] > 0), gap = seg.length > 1 ? 4 : 0, full = bw*r.total/max; let sx = L;
+      for (const [km, c] of seg) { const w = Math.max(10, (full - gap)*km/r.total); x.fillStyle = c; rr(sx, by, w, bh, 7); sx += w + gap; }
+      if (big) { x.fillStyle = MUTED; x.font = font(F.sport, huge ? 34 : 30); x.fillText(`${kmN(r.road)} route   ·   ${r.est ? '≈ ' : ''}${kmN(r.ht)} home trainer`, L, by + bh + 36); } });
+    if (more) { x.fillStyle = MUTED; x.font = font(F.tech, 27); x.fillText(`+ ${more} autre${more > 1 ? 's' : ''} vélo${more > 1 ? 's' : ''}`, L, 692); }
+    tv.map.needsUpdate = true; wake(); }
+
   /* ---------- position des meubles ---------- */
   function setGroup(k, L = lay(k)){ const g = A.groups[k], it = ITEMS[k];
     if (it.floor) { g.position.set(L.x, 0, L.z); g.rotation.y = (L.r || 0)*D2R; }
@@ -363,9 +395,10 @@ const Atelier = (() => {
   const inside = R => corners(R).every(([x, z]) => x >= ROOM.x0 - 1e-6 && x <= ROOM.x1 + 1e-6 && z >= ROOM.zb - 1e-6 && z <= ROOM.zf - .3);
   function valid(k, L){ const R = rectOf(k, L); if (!inside(R) || FIXED.some(F => overlap(R, F))) return false; for (const o in ITEMS) if (o !== k && overlap(R, rectOf(o))) return false; return true; }
   // meuble arrivé avec une mise à jour (podium d'exposition) : si sa place par défaut est prise par un meuble déplacé, la place libre la plus proche
-  function ensureFree(k){ if (G().layout[k] || valid(k, lay(k))) return; const L0 = lay(k), C = [];
+  function ensureFree(k){ if (G().layout[k] || valid(k, lay(k))) return; const L0 = lay(k), it = ITEMS[k], C = [];
     for (let x = ROOM.x0; x <= ROOM.x1; x += .1) for (let z = ROOM.zb; z <= ROOM.zf; z += .1) for (const r of [L0.r || 0, ((L0.r || 0) + 450) % 360]) C.push({ x: +x.toFixed(2), z: +z.toFixed(2), r });
-    const ok = C.sort((a, b) => Math.hypot(a.x - L0.x, a.z - L0.z) - Math.hypot(b.x - L0.x, b.z - L0.z)).find(L => valid(k, L)); if (ok) { G().layout[k] = ok; save(); } }
+    const dist = L => Math.hypot(L.x - (L0.x ?? L.x), L.z - (L0.z ?? L.z)), ok = C.sort((a, b) => dist(a) - dist(b)).find(L => valid(k, L)); // meuble mural : seule sa position le long du mur compte
+    if (ok) { G().layout[k] = it.floor ? ok : it.wall === 'back' ? { x: ok.x } : { z: ok.z }; save(); } }
 
   /* ---------- rendu, envols, effets ---------- */
   const flights = new Map(), tweens = [];
@@ -416,6 +449,7 @@ const Atelier = (() => {
     home:    { l: 'Ensemble', s: () => { const h = wp(A.groups.ht, .35, .85, -.55), bz = wp(A.groups.bench, 0, .85, .9); return { t: h.lerp(bz, .3), az: 24, el: 15, w: 2.5, h: 2.2, look: true }; } },
     trainer: { l: 'Home trainer', s: () => ({ t: wp(A.groups.ht, 0, .56, 0), az: 36 + (lay('ht').r || 0), el: 20, w: 1.95, h: 1.15 }) },
     rack:    { l: 'Rack', s: () => { const ys = rackYs(); return { t: wp(A.groups.rack, 0, ys.length > 1 ? 1.25 : 1.45, .28), az: -16, el: 6, w: 1.95, h: ys.length > 1 ? 2.3 : 1.45 }; } },
+    tv:      { l: 'Télé', s: () => ({ t: wp(A.groups.tv, 0, TV.y, .05), az: 0, el: 2, w: 1.12, h: .68 }) },
     expo:    { l: 'Exposition', s: () => ({ t: wp(A.groups.expo, 0, .6, 0), az: 8 + (lay('expo').r || 0), el: 9, w: 2.05, h: 1.25 }) }, // de profil, côté transmission
     wheels:  { l: 'Roues', s: () => ({ t: wp(A.groups.wheels, 0, 1.6, 0), az: 90, el: 2, w: 2.3, h: 1.8, maxD: 2.2 }) },
     pegs:    { l: 'Cassettes', s: () => ({ t: wp(A.groups.bench, -.07, 1.5, 0), az: 0, el: 6, w: 1.75, h: .75 }) },
@@ -511,7 +545,7 @@ const Atelier = (() => {
     if (c.peg == null) return null; const b = A.C[c.id].userData.box; return { parent: A.groups.bench, pos: V3(PEGS[c.peg], PEG_Y - .012, .024 - b.min.z), quat: Q() };
   }
   function layout(anim = true){
-    if (!A?.R || st.mode === 'explode') return; fixSlots(); fixPegs(); trainerKind(); expoPlate();
+    if (!A?.R || st.mode === 'explode') return; fixSlots(); fixPegs(); trainerKind(); expoPlate(); tvDraw();
     const AN = anim ? { dur: 1050, lift: .3 } : null; let moved = false, i = 0;
     for (const id in A.B) { const seat = st.onStand === id ? A.stand.seat : homeSeat(id); if (!seat) { A.B[id].holder.visible = false; continue; } if (place(A.B[id].holder, seat, V3(), Q(), AN && { dur: 1500, lift: .3, pop: false })) moved = true; }
     const d0 = moved ? 700 : 0;
@@ -558,7 +592,7 @@ const Atelier = (() => {
     pg.hidden = !['maint', 'explode'].includes(st.mode); if (!pg.hidden) { const pts = points(st.onStand); pg.textContent = `${pts.filter(x => x.done).length}/${pts.length}`; }
   }
   function renderDock(){
-    const z = q('.at-zones'); if (!z.childElementCount) z.innerHTML = ['home', 'trainer', 'rack', 'expo', 'wheels', 'pegs', 'shelf'].map(k => `<button type="button" data-at="zone:${k}" data-z="${k}">${ZONES[k].l}</button>`).join('');
+    const z = q('.at-zones'); if (!z.childElementCount) z.innerHTML = ['home', 'tv', 'trainer', 'rack', 'expo', 'wheels', 'pegs', 'shelf'].map(k => `<button type="button" data-at="zone:${k}" data-z="${k}">${ZONES[k].l}</button>`).join('');
     for (const b of z.children) { const on = b.dataset.z === st.zone; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
     // « Faire un entretien » : le vélo qu'on regarde, sinon celui du home trainer, de l'exposition, puis du rack
     const mb = q('.at-dock [data-at^="maint"]'); if (mb) { const zid = st.zone === 'expo' ? expoId() : st.zone === 'rack' ? G().spots.racks[0] : null, id = zid || htId() || expoId() || G().spots.racks[0];
@@ -620,6 +654,10 @@ const Atelier = (() => {
       ${Object.keys(SPOT).some(k => k !== sp && busy(k)) ? '<p class="at-why">Place déjà prise : les deux vélos échangent leur place.</p>' : ''}
       <div class="at-acts"><button type="button" class="at-primary" data-at="maint:${id}">Faire un entretien</button></div>`);
   }
+  function tvSheet(){ tvDraw(); const rows = tvRows(), n = rows.length, sum = rows.reduce((s, r) => s + r.total, 0);
+    openSheet(head('Télé · kilomètres', `<h3 class="at-name">${fmtKm(sum)}</h3>`) + `<p class="at-meta">${n} vélo${n > 1 ? 's' : ''} en service · route + home trainer</p><div class="at-list">` +
+      (rows.map(r => `<div class="at-li"><div><b>${esc(r.name)}</b><small>${kmN(r.road)} route · ${r.est ? '≈ ' : ''}${kmN(r.ht)} home trainer · ${kmN(r.month)} ce mois</small></div><strong class="at-km">${fmtKm(r.total)}</strong></div>`).join('') || '<p class="at-why">Ajoutez un vélo au Garage pour suivre ses kilomètres.</p>') + '</div>' +
+      (rows.some(r => r.est) ? '<p class="at-why">≈ : home trainer sans distance enregistrée, estimée à 30 km/h.</p>' : '')); }
   // choisir le vélo d'une place (podium, rack, home trainer) : place prise → échange ; un vélo hors de l'atelier peut y entrer
   const SPOT_GO = { ht: ['Installer un vélo', 'Installer'], rack: ['Ranger un vélo', 'Ranger'], expo: ['Exposer un vélo', 'Exposer'] };
   const SPOT_TXT = { ht: 'Le vélo du home trainer ; sur un home trainer direct, sa roue arrière attend au mur.', rack: 'Deux places, l\'une au-dessus de l\'autre ; le vélo garde ses roues.',
@@ -727,6 +765,7 @@ const Atelier = (() => {
         add('at-tag', `<b>Mur des roues</b><small>${a.wheels.length} paire${a.wheels.length > 1 ? 's' : ''}</small>`, () => wp(A.groups.wheels, .1, 2.52, 0), 'zone:wheels');
         add('at-tag', `<b>Cassettes</b><small>${a.cass.length} nommée${a.cass.length > 1 ? 's' : ''}</small>`, () => wp(A.groups.bench, -.07, 1.64, .08), 'zone:pegs');
         add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'zone:shelf');
+        add('at-tag', `<b>Télé</b><small>${fmtKm(tvRows().reduce((s, r) => s + r.total, 0))}</small>`, () => wp(A.groups.tv, 0, TV.y + TV.h/2 + .02, .05), 'zone:tv');
         for (const b of bikesIn()) if (A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${SPOT[spotOf(b.id)].l}</small>`, () => A.B[b.id].holder.localToWorld(V3(0, 1.08, 0)), 'zone:' + zoneOf(b.id));
       } else if (st.zone === 'wheels') {
         for (let s = 0; s < SLOTS.length; s++) { const p = a.wheels.find(x => x.slot === s), at = () => wp(A.groups.wheels, .1, SLOTS[s][1] + .4, SLOTS[s][0]);
@@ -749,7 +788,8 @@ const Atelier = (() => {
       } else if (st.zone === 'expo') { const b = bikeOf(expoId());
         if (b && A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${esc(pairOnBike(b.id)?.name || 'sans roues')}</small>`, () => A.B[b.id].holder.localToWorld(V3(.2, 1.08, 0)), 'bike:' + b.id);
         else add('at-tag add', `${PLUS}<b>Exposer un vélo</b>`, () => wp(A.groups.expo, 0, .55, 0), 'spotpick:expo', { label: 'Choisir le vélo à exposer' });
-      } else if (st.zone === 'shelf') add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock · voir</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'shelf');
+      } else if (st.zone === 'tv') add('at-tag', `<b>Détail par vélo</b><small>route, home trainer, ce mois</small>`, () => wp(A.groups.tv, 0, TV.y + TV.h/2 + .02, .05), 'tv');
+      else if (st.zone === 'shelf') add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock · voir</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'shelf');
     } else if (st.mode === 'maint' && !sheetOpen) {
       points(st.onStand).forEach((t, i) => add('at-dot' + (t.done ? ' done' : ''), `<span>${t.done ? '✓' : i + 1}</span>`, () => anchorOf(st.onStand, t.at), 'pcard:' + t.key, { c: t.done ? '#5ad19a' : t.col, ay: -50, dy: 0, label: `${t.l} : ${t.done ? 'vérifié' : t.txt}` }));
     } else if (st.mode === 'explode') {
@@ -786,6 +826,7 @@ const Atelier = (() => {
     else if (p.kind === 'bike') { go(zoneOf(p.id)); bikeSheet(p.id); }
     else if (p.kind === 'expo') { go('expo'); spotSheet('expo'); }
     else if (p.kind === 'shelf') { go('shelf'); shelfSheet(); }
+    else if (p.kind === 'tv') { go('tv'); tvSheet(); }
     else if (p.kind === 'pump') { st.sel = null; say('Pression des pneus : onglet Pression du Garage (méthode SILCA)'); }
   }
   function mountPair(pid, target){
@@ -947,6 +988,7 @@ const Atelier = (() => {
       case 'cassette': return select({ kind: 'cassette', id: x });
       case 'bike': return select({ kind: 'bike', id: x });
       case 'shelf': return select({ kind: 'shelf' });
+      case 'tv': return select({ kind: 'tv' });
       case 'casslist': return cassListSheet();
       case 'mount': return mountPair(x, y);
       case 'cass': return mountCass(x, y);
@@ -1038,8 +1080,8 @@ const Atelier = (() => {
     A.halo = new T.Mesh(new T.RingGeometry(.965, 1, 72), new T.MeshBasicMaterial({ color: col('#ff8a4c'), transparent: true, opacity: .6, depthTest: false, side: T.DoubleSide })); A.halo.renderOrder = 997; A.halo.visible = false; scene.add(A.halo);
     buildRoom();
     for (const k of Object.keys(ITEMS)) { const g = new T.Group(); g.userData.item = k; scene.add(g); A.groups[k] = g; }
-    buildBench(A.groups.bench); A.panelSeat = A.panel; buildWheelWall(A.groups.wheels); A.trainer = buildTrainer(A.groups.ht); A.stand = buildStand(A.groups.stand); A.expo = buildExpo(A.groups.expo); A.seats.rack = buildRack(A.groups.rack); buildShelf(A.groups.shelf); buildPump(A.groups.pump);
-    A.pick.push(A.groups.shelf, A.groups.pump, A.groups.expo); ensureFree('expo'); for (const k in ITEMS) setGroup(k); buildFoot();
+    buildBench(A.groups.bench); A.panelSeat = A.panel; buildWheelWall(A.groups.wheels); A.trainer = buildTrainer(A.groups.ht); A.stand = buildStand(A.groups.stand); A.expo = buildExpo(A.groups.expo); A.seats.rack = buildRack(A.groups.rack); buildShelf(A.groups.shelf); buildPump(A.groups.pump); A.tv = buildTV(A.groups.tv);
+    A.pick.push(A.groups.shelf, A.groups.pump, A.groups.expo, A.groups.tv); ensureFree('expo'); ensureFree('tv'); for (const k in ITEMS) setGroup(k); buildFoot();
     for (const b of bikesOn()) if (placed(b.id)) makeBike(b);
     for (const p of G().wheels) makePair(p);
     for (const c of G().cass) makeCass(c);
@@ -1057,7 +1099,7 @@ const Atelier = (() => {
   }
   document.addEventListener('click', e => { const b = e.target.closest('[data-atelier]'); if (b) { e.preventDefault(); open(); } });
   // accès pour le développement et les tests
-  const debug = { get A(){ return A; }, st, G, act, go, rectOf, valid, lay, points, get ready(){ return ready; }, get flights(){ return flights.size + tweens.length; },
+  const debug = { get A(){ return A; }, st, G, act, go, rectOf, valid, lay, points, tvRows, get ready(){ return ready; }, get flights(){ return flights.size + tweens.length; },
     snap(){ if (rig.goal) { rig.cur = { ...rig.goal, tgt: rig.goal.tgt.clone() }; wake(); } },
     move(k, L){ const ok = tryMove(k, { ...lay(k), ...L }); if (ok) { setLay(k, ok); save(); } return !!ok; },
     world: o => o.getWorldPosition(V3()).toArray().map(v => +v.toFixed(3)) };
