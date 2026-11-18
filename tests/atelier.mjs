@@ -50,6 +50,18 @@ await pg.locator('.at-tag', { hasText: 'Détail par vélo' }).click();
 assert(await until(() => Atelier.debug.st.sel?.kind === 'tv' && /218\skm/.test(document.querySelector('.at-sheet').innerText) && /182 route/.test(document.querySelector('.at-sheet').innerText)), 'toucher la télé → détail des kilomètres par vélo');
 await ev(() => Atelier.debug.act('close')); await ev(() => Atelier.debug.act('zone:home')); await settle();
 
+// pompe : toucher l'objet ouvre la pression conseillée et les réglages de l'estimation, un réglage recalcule la fiche
+await ev(() => Atelier.debug.go({ t: Atelier.debug.A.groups.pump.localToWorld(new THREE.Vector3(0, .42, 0)), az: -80, el: 10, w: 1.4, h: 1.4 })); await settle();
+const pp = await ev(() => { const A = Atelier.debug.A, v = A.groups.pump.localToWorld(new THREE.Vector3(0, .4, 0)).project(A.cam); return [(v.x*.5 + .5)*innerWidth, (-v.y*.5 + .5)*innerHeight]; });
+await pg.mouse.click(pp[0], pp[1]);
+assert(await until(() => Atelier.debug.st.sel?.kind === 'pump' && /Avant/.test(document.querySelector('.at-sheet').innerText) && !!document.querySelector('.at-press [data-grt="surface"]')), 'toucher la pompe → pression conseillée et estimation');
+await settle(); await shot('pompe');
+const bar0 = await ev(() => Garage.pressure(S.garage.bikes[0]).f.bar);
+await pg.selectOption('.at-press [data-grt="surface"]', 'cobble');
+assert(await until(b => { const v = Garage.pressure(S.garage.bikes[0]).f.bar; return v < b && document.querySelector('.at-press .gr-prout b').textContent === String(v).replace('.', ',') && document.querySelector('.at-press [data-grt="surface"]').value === 'cobble'; }, bar0), 'réglage de la route : pression recalculée dans la fiche');
+await pg.selectOption('.at-press [data-grt="surface"]', 'worn'); await pg.waitForTimeout(100);
+await ev(() => Atelier.debug.act('close')); await ev(() => Atelier.debug.act('zone:home')); await settle();
+
 // toucher le vélo → sa fiche
 await ev(() => Atelier.debug.act('zone:trainer')); await settle();
 // point du cadre qui n'est caché par aucune étiquette
