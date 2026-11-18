@@ -108,7 +108,7 @@ const Atelier = (() => {
 
   /* ---------- état d'une ouverture ---------- */
   let A = null; // scène : { el, R, scene, cam, groups, seats, B (vélos), W (paires), C (cassettes), trainer, panel, rig… }
-  const st = { mode: 'atelier', zone: 'home', onStand: null, sel: null, done: {}, logged: [], arrSel: null };
+  const st = { mode: 'atelier', zone: 'home', onStand: null, sel: null, done: {}, logged: [], arrSel: null, press: null };
 
   /* ---------- textures dessinées ---------- */
   function ctex(w, h, draw, { rep = [1, 1], rot = 0 } = {}){
@@ -342,6 +342,7 @@ const Atelier = (() => {
     const m = M(); box(.22, .02, .09, m.blk, g, 0, .01, 0); cyl(.024, .024, .6, m.acc, g, 0, .32, 0, 16); cyl(.006, .006, .12, m.chrome, g, 0, .68, 0, 8); box(.24, .028, .028, m.blk, g, 0, .74, 0);
     cyl(.045, .045, .02, std('gauge', { color: '#f4f1ea', roughness: .4 }), g, .04, .08, 0, 24).rotation.z = Math.PI/2;
     const hose = new T.Mesh(new T.TubeGeometry(new T.CatmullRomCurve3([V3(0, .05, .03), V3(.05, .2, .09), V3(.03, .5, .07), V3(0, .68, .03)]), 24, .006, 8), m.blk); hose.castShadow = true; g.add(hose);
+    box(.3, .82, .24, HIT(), g, 0, .41, 0, false).userData.hit = true; // zone tactile : la pompe est fine
     g.userData.pick = { kind: 'pump' };
   }
 
@@ -658,6 +659,21 @@ const Atelier = (() => {
     openSheet(head('Télé · kilomètres', `<h3 class="at-name">${fmtKm(sum)}</h3>`) + `<p class="at-meta">${n} vélo${n > 1 ? 's' : ''} en service · route + home trainer</p><div class="at-list">` +
       (rows.map(r => `<div class="at-li"><div><b>${esc(r.name)}</b><small>${kmN(r.road)} route · ${r.est ? '≈ ' : ''}${kmN(r.ht)} home trainer · ${kmN(r.month)} ce mois</small></div><strong class="at-km">${fmtKm(r.total)}</strong></div>`).join('') || '<p class="at-why">Ajoutez un vélo au Garage pour suivre ses kilomètres.</p>') + '</div>' +
       (rows.some(r => r.est) ? '<p class="at-why">≈ : home trainer sans distance enregistrée, estimée à 30 km/h.</p>' : '')); }
+  // pompe : pression conseillée et réglages de l'estimation, ceux de l'onglet Pression du Garage (mêmes champs, enregistrés sur le vélo choisi)
+  function pumpBike(){ const on = bikesOn(), ok = id => on.some(b => b.id === id) && id, z = st.zone === 'expo' ? expoId() : st.zone === 'rack' ? G().spots.racks[0] : st.zone === 'trainer' ? htId() : null;
+    return ok(st.press) || ok(z) || ok(S.garage?.sel) || ok(htId()) || on[0]?.id || null; }
+  function pressSheet(id, keep){
+    const b = bikeOf(id), on = bikesOn(); if (!b || !hasG()) return openSheet(head('Pompe', '<h3 class="at-name">Pression des pneus</h3>') + '<p class="at-why">Ajoutez un vélo au Garage pour calculer sa pression.</p>');
+    st.press = id; S.garage.sel = id; // les champs de pression s'appliquent au vélo sélectionné du Garage
+    const p = pairOnBike(id), w = +p?.tire || 0, t = Garage.pressure(b).t, diff = w && (+t.f !== w || +t.r !== w);
+    const html = head('Pompe · pression des pneus', `<h3 class="at-name">${esc(b.name)}</h3>`) +
+      (on.length > 1 ? `<div class="at-chips at-press-bikes">${on.map(x => `<button type="button" class="${x.id === id ? 'on' : ''}" data-at="pressbike:${x.id}" aria-pressed="${x.id === id}">${esc(x.name)}</button>`).join('')}</div>` : '') +
+      (diff ? `<div class="at-li"><div><b>${esc(p.name)} : pneus de ${w} mm</b><small>L'estimation utilise ${t.f} / ${t.r} mm</small></div><button type="button" class="at-mini" data-at="presstire:${id}">Utiliser ${w} mm</button></div>` : '') +
+      `<div class="at-press">${Garage.pressTab(b)}</div>`;
+    if (!keep) return openSheet(html);
+    const sh = q('.at-sheet'), top = sh.scrollTop, f = document.activeElement?.dataset?.grt; sh.innerHTML = html; sh.scrollTop = top; if (f) sh.querySelector(`[data-grt="${f}"]`)?.focus({ preventScroll: true });
+  }
+  const pumpSpec = () => { const o = A.groups.pump.position; return { t: wp(A.groups.pump, 0, .42, 0), az: Math.atan2(-o.x, .5 - o.z)/D2R, el: 10, w: .8, h: 1 }; };
   // choisir le vélo d'une place (podium, rack, home trainer) : place prise → échange ; un vélo hors de l'atelier peut y entrer
   const SPOT_GO = { ht: ['Installer un vélo', 'Installer'], rack: ['Ranger un vélo', 'Ranger'], expo: ['Exposer un vélo', 'Exposer'] };
   const SPOT_TXT = { ht: 'Le vélo du home trainer ; sur un home trainer direct, sa roue arrière attend au mur.', rack: 'Deux places, l\'une au-dessus de l\'autre ; le vélo garde ses roues.',
@@ -827,7 +843,7 @@ const Atelier = (() => {
     else if (p.kind === 'expo') { go('expo'); spotSheet('expo'); }
     else if (p.kind === 'shelf') { go('shelf'); shelfSheet(); }
     else if (p.kind === 'tv') { go('tv'); tvSheet(); }
-    else if (p.kind === 'pump') { st.sel = null; say('Pression des pneus : onglet Pression du Garage (méthode SILCA)'); }
+    else if (p.kind === 'pump') { go(pumpSpec()); pressSheet(pumpBike()); }
   }
   function mountPair(pid, target){
     const p = pairOf(pid); if (!p) return; let old = null;
@@ -989,6 +1005,9 @@ const Atelier = (() => {
       case 'bike': return select({ kind: 'bike', id: x });
       case 'shelf': return select({ kind: 'shelf' });
       case 'tv': return select({ kind: 'tv' });
+      case 'pump': return select({ kind: 'pump' });
+      case 'pressbike': return pressSheet(x, true);
+      case 'presstire': { const b = bikeOf(x), w = +pairOnBike(x)?.tire; if (!b || !w) return; b.tires = { ...(b.tires || {}), f: w, r: w }; save(); say(`Estimation sur des pneus de ${w} mm`); return pressSheet(x, true); }
       case 'casslist': return cassListSheet();
       case 'mount': return mountPair(x, y);
       case 'cass': return mountCass(x, y);
@@ -1046,7 +1065,8 @@ const Atelier = (() => {
       <section class="at-maint at-panel" hidden aria-label="Entretien"></section><section class="at-arr at-panel" hidden aria-label="Aménagement"></section><section class="at-sheet at-panel" hidden aria-label="Fiche"></section>
       <div class="at-load"><div class="at-spin"></div><b>Ouverture de l'atelier</b><small>Chargement de la maquette 3D…</small></div>`;
     el.addEventListener('click', e => { const b = e.target.closest('[data-at]'); if (!b || b.disabled) return; e.preventDefault(); act(b.dataset.at); });
-    el.addEventListener('change', e => { const t = e.target.closest('[data-atname]'); if (t) rename(t.dataset.atname, t.value); });
+    el.addEventListener('change', e => { const t = e.target.closest('[data-atname]'); if (t) rename(t.dataset.atname, t.value);
+      if (e.target.closest('.at-press [data-grt]')) setTimeout(() => { if (A && st.sel?.kind === 'pump') pressSheet(st.press, true); }); }); // le Garage enregistre d'abord la valeur (écouteur du document)
     el.addEventListener('toggle', () => { measureUI(); refocus(); }, true);
     el.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches?.('[data-atname]')) e.target.blur(); if (e.key === 'Escape') { e.preventDefault(); back(); } });
     // poignées des meubles (mode Aménager) : on les fait glisser directement

@@ -784,6 +784,6 @@ const Garage = (() => {
     else if (a === 'copyall') copy((Adm.list || []).filter(y => y.status === 'nouveau').map(reqTxt).join('\n'));
     else if (a === 'set' && r) { const { error } = await Cloud.sb.from('bike_requests').update({ status: x.dataset.s }).eq('id', r.id); if (error) return toast('Échec : ' + error.message); r.status = x.dataset.s; render(); toast(RSTAT[r.status][1]); }
   });
-  return { reqTileHTML, reqPane, Adm, admCheck, tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet, variant, model, col,
+  return { reqTileHTML, reqPane, Adm, admCheck, tileHTML, pane, mount, readFit, FIT, fitAdvice, setZone, ZONES, rides, ridesOf, bikeIdOf, partInfo, allParts, stats, summary, pressure, pressTab, careInfo, careAll, CARE, MODELS, PARTS, newBike, Media, setMode, partSheet, closeSheet, variant, model, col,
     wipeLocal: () => Media.wipe(), get mode(){ return mode; }, get explode(){ return explode(); } };
 })();
