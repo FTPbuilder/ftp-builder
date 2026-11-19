@@ -738,6 +738,7 @@ html.at-open,html.at-open body{overflow:hidden}
 .at-chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 4px}
 .at-chips button{min-height:36px;min-width:44px;padding:0 12px;border-radius:18px;border:1px solid #3a4150;background:transparent;color:var(--at-text);font-size:13px;font-weight:600}
 .at-chips button.on{background:var(--at-text);color:#12141a;border-color:var(--at-text)}
+.at-chips button.at-sw{min-width:36px;width:36px;padding:0;background:var(--sw);border-color:rgba(255,255,255,.25)}.at-chips button.at-sw.on{background:var(--sw);outline:2px solid var(--at-acc);outline-offset:2px}
 .at-lbl{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--at-muted)}
 .at-add{display:flex;gap:8px;align-items:center;margin-top:8px}
 .at3d details{border-top:1px solid var(--at-line);margin-top:2px}
@@ -805,34 +806,34 @@ html.at-open,html.at-open body{overflow:hidden}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.51.1';</script>
-<script src="js/00-schema.js?v=0.51.1"></script>
-<script src="js/01-core.js?v=0.51.1"></script>
-<script src="js/02-plan.js?v=0.51.1"></script>
-<script src="js/03-fit-metrics.js?v=0.51.1"></script>
-<script src="js/04-fit-write-coach.js?v=0.51.1"></script>
-<script src="js/05-charts.js?v=0.51.1"></script>
-<script src="js/06-render.js?v=0.51.1"></script>
-<script src="js/07-health-import.js?v=0.51.1"></script>
-<script src="js/08-explain-challenges.js?v=0.51.1"></script>
-<script src="js/09-mobility.js?v=0.51.1"></script>
-<script src="js/10-test-absences.js?v=0.51.1"></script>
-<script src="js/11-session-chart.js?v=0.51.1"></script>
-<script src="js/12-tracks.js?v=0.51.1"></script>
-<script src="js/13-climbs.js?v=0.51.1"></script>
-<script src="js/14-adjust.js?v=0.51.1"></script>
-<script src="js/15-dialogs.js?v=0.51.1"></script>
-<script src="js/16-clicks.js?v=0.51.1"></script>
-<script src="js/17-cloud.js?v=0.51.1"></script>
-<script src="js/18-social.js?v=0.51.1"></script>
-<script src="js/19-onboarding.js?v=0.51.1"></script>
-<script src="js/20-health-shortcut.js?v=0.51.1"></script>
-<script src="js/21-library.js?v=0.51.1"></script>
-<script src="js/22-bike3d.js?v=0.51.1"></script>
-<script src="js/22-swim3d.js?v=0.51.1"></script>
-<script src="js/23-garage-catalog.js?v=0.51.1"></script>
-<script src="js/23-garage.js?v=0.51.1"></script>
-<script src="js/23-atelier.js?v=0.51.1"></script>
-<script src="js/24-boot.js?v=0.51.1"></script>
+<script>"use strict"; const APP_VERSION = '0.52.0';</script>
+<script src="js/00-schema.js?v=0.52.0"></script>
+<script src="js/01-core.js?v=0.52.0"></script>
+<script src="js/02-plan.js?v=0.52.0"></script>
+<script src="js/03-fit-metrics.js?v=0.52.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.52.0"></script>
+<script src="js/05-charts.js?v=0.52.0"></script>
+<script src="js/06-render.js?v=0.52.0"></script>
+<script src="js/07-health-import.js?v=0.52.0"></script>
+<script src="js/08-explain-challenges.js?v=0.52.0"></script>
+<script src="js/09-mobility.js?v=0.52.0"></script>
+<script src="js/10-test-absences.js?v=0.52.0"></script>
+<script src="js/11-session-chart.js?v=0.52.0"></script>
+<script src="js/12-tracks.js?v=0.52.0"></script>
+<script src="js/13-climbs.js?v=0.52.0"></script>
+<script src="js/14-adjust.js?v=0.52.0"></script>
+<script src="js/15-dialogs.js?v=0.52.0"></script>
+<script src="js/16-clicks.js?v=0.52.0"></script>
+<script src="js/17-cloud.js?v=0.52.0"></script>
+<script src="js/18-social.js?v=0.52.0"></script>
+<script src="js/19-onboarding.js?v=0.52.0"></script>
+<script src="js/20-health-shortcut.js?v=0.52.0"></script>
+<script src="js/21-library.js?v=0.52.0"></script>
+<script src="js/22-bike3d.js?v=0.52.0"></script>
+<script src="js/22-swim3d.js?v=0.52.0"></script>
+<script src="js/23-garage-catalog.js?v=0.52.0"></script>
+<script src="js/23-garage.js?v=0.52.0"></script>
+<script src="js/23-atelier.js?v=0.52.0"></script>
+<script src="js/24-boot.js?v=0.52.0"></script>
 </body>
 </html>
