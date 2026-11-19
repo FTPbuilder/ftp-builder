@@ -17,6 +17,8 @@ await pg.addInitScript(() => {
     { id:'o1', date:'2026-11-08', name:'Longchamp', durationS:9000, indoor:false, hasPower:false, tss:150, source:'strava', startTs:ts('2026-11-08T09:00:00+01:00'), distanceKm:80 },
     { id:'o2', date:'2026-10-25', name:'Vallée de Chevreuse', durationS:12600, indoor:false, hasPower:false, tss:170, source:'intervals', startTs:ts('2026-10-25T09:00:00+02:00'), distanceKm:102 },
   ];
+  const W = (start, km) => ({ start_at:start, type:'Course à pied', duration_min:km*5.5, distance_km:km, avg_hr:150, source:'Intervals.icu' });
+  localStorage.setItem('ftpb_health_v1', JSON.stringify({ daily:[], sleep:[], workouts:[W('2026-11-05T12:10:00+01:00', 8), W('2026-11-13T07:30:00+01:00', 10)] }));
   localStorage.setItem('ftpb_state_v1', JSON.stringify({ version:2, updatedAt:Date.now(), profile:{ name:'A', sex:'M', age:30, weightKg:84, heightCm:181, ftp:250, hrMax:195, goalFtp:300, goalDate:'2027-03-05', endDate:'2027-03-15', minSessions:35, startDate:'2026-10-21', days, keyPerWeek:2, optionalPerWeek:0, testProtocol:'ramp', intensityAdj:1, ctl0:40 }, plan:[], activities, ftpHistory:[{date:'2026-10-20',ftp:250,source:'initial'}], settings:{theme:'dark'} }));
 });
 await pg.goto(new URL('../index.html', import.meta.url).href); await pg.waitForTimeout(300);
@@ -49,6 +51,38 @@ assert(tv.r.length === 1 && Math.round(tv.r[0].road) === 182 && Math.round(tv.r[
 await pg.locator('.at-tag', { hasText: 'Détail par vélo' }).click(); 
 assert(await until(() => Atelier.debug.st.sel?.kind === 'tv' && /218\skm/.test(document.querySelector('.at-sheet').innerText) && /182 route/.test(document.querySelector('.at-sheet').innerText)), 'toucher la télé → détail des kilomètres par vélo');
 await ev(() => Atelier.debug.act('close')); await ev(() => Atelier.debug.act('zone:home')); await settle();
+
+// meuble à chaussures (mur de gauche) et penderie (mur de droite) : tenue de base, paire de course en cours qui compte les sorties course
+const at = (o, x = 0, y = 0, z = 0) => ev(([o, x, y, z]) => { const A = Atelier.debug.A, v = (typeof o === 'string' ? A.K[o] : A.groups[o.g]).localToWorld(new THREE.Vector3(x, y, z)).project(A.cam); return [(v.x*.5 + .5)*innerWidth, (-v.y*.5 + .5)*innerHeight]; }, [o, x, y, z]);
+let k = await ev(() => { const K = Atelier.debug.K(), A = Atelier.debug.A; return { run: K.run.map(s => ({ id: s.id, a: s.active, km: Atelier.debug.runKm(s) })), wear: K.wear.map(x => x.type), h: K.helmets.length, bs: K.bshoes.length,
+  objs: Object.keys(A.K).length, inShoes: !!K.run[0] && A.K[K.run[0].id]?.parent === A.shoes.inner, free: ['shoes', 'wardrobe'].every(i => Atelier.debug.valid(i, Atelier.debug.lay(i))),
+  chips: ['shoes', 'wardrobe'].every(z => !!document.querySelector(`.at-zones [data-z="${z}"]`)) }; });
+console.log('kit', JSON.stringify(k));
+assert(k.run.length === 1 && k.run[0].a && Math.round(k.run[0].km) === 10 && k.inShoes, 'meuble à chaussures : paire de course en cours, comptée depuis sa mise en service (sortie du jour : 10 km)');
+assert(k.wear.join() === 'maillot,cuissard' && k.h === 1 && k.bs === 1 && k.objs === 5 && k.free && k.chips, 'penderie : maillot, cuissard, casque et chaussures vélo en 3D ; meubles sans collision');
+await ev(() => Atelier.debug.act('zone:shoes')); await settle(); await shot('chaussures');
+let pt = await at(k.run[0].id, .15, .08, 0); await pg.mouse.click(pt[0], pt[1]);
+assert(await until(() => Atelier.debug.st.sel?.kind === 'kit' && /Chaussures de course/i.test(document.querySelector('.at-sheet').innerText) && /10\skm/.test(document.querySelector('.at-sheet').innerText)), 'toucher la paire → fiche avec ses kilomètres et son usure');
+await ev(() => document.querySelector('.at-sheet details').open = true); await pg.fill('#atKmTot', '250'); await ev(id => Atelier.debug.act('kitkm:' + id), k.run[0].id);
+assert(await ev(() => Math.round(Atelier.debug.runKm(Atelier.debug.K().run[0])) === 250), 'kilomètres réels de la paire corrigés à la main');
+await ev(() => Atelier.debug.act('kitadd:run')); const r2 = await ev(() => Atelier.debug.K().run[1]?.id);
+await ev(id => Atelier.debug.act('kitrun:' + id), r2);
+k = await ev(() => Atelier.debug.K().run.map(s => ({ a: s.active, km: Math.round(Atelier.debug.runKm(s)) })));
+assert(k.length === 2 && !k[0].a && k[0].km === 250 && k[1].a && k[1].km === 10, 'nouvelle paire en cours : l\'ancienne garde ses 250 km');
+await ev(() => Atelier.debug.act('close')); await ev(() => Atelier.debug.act('zone:wardrobe')); await settle(); await shot('penderie');
+await ev(() => Atelier.debug.act('kitadd:wear:trifonction')); await settle();
+const tri = await ev(() => Atelier.debug.K().wear[2]?.id);
+assert(!!tri && await ev(id => !!Atelier.debug.A.K[id] && /Trifonction/.test(document.querySelector('.at-sheet').innerText), tri), 'penderie : trifonction ajoutée sur la tringle');
+await ev(id => Atelier.debug.act(`kitcol:wear:${id}:1`), tri);
+assert(await ev(id => Atelier.debug.K().wear[2].color === '#2f66d6' && !!Atelier.debug.A.K[id], tri), 'couleur de la tenue changée (maquette refaite)');
+await ev(() => Atelier.debug.act('close')); await ev(() => Atelier.debug.act('zone:wardrobe')); await settle();
+const hid = await ev(() => Atelier.debug.K().helmets[0].id); pt = await at(hid, 0, .07, 0); await pg.mouse.click(pt[0], pt[1]);
+assert(await until(() => Atelier.debug.st.sel?.kind === 'kit' && Atelier.debug.st.sel.list === 'helmets' && !/Bon état|%/.test(document.querySelector('.at-sheet').innerText)), 'toucher le casque → sa fiche, sans témoin d\'usure');
+await ev(() => Atelier.debug.act('kit:bshoes:' + Atelier.debug.K().bshoes[0].id));
+assert(await until(() => /Cales/.test(document.querySelector('.at-sheet').innerText)), 'chaussures vélo : kilomètres des cales');
+await ev(id => Atelier.debug.act('kitdel:wear:' + id), tri);
+assert(await ev(() => Atelier.debug.K().wear.length === 2 && Object.keys(Atelier.debug.A.K).length === 6), 'tenue retirée de la penderie');
+await ev(() => Atelier.debug.act('zone:home')); await settle();
 
 // pompe : toucher l'objet ouvre la pression conseillée et les réglages de l'estimation, un réglage recalcule la fiche
 await ev(() => Atelier.debug.go({ t: Atelier.debug.A.groups.pump.localToWorld(new THREE.Vector3(0, .42, 0)), az: -80, el: 10, w: 1.4, h: 1.4 })); await settle();
@@ -143,7 +177,7 @@ assert(w.ht === bikeId && !w.expo && w.seat && w.rear, 'retour sur le home train
 
 // aménagement : glisser, tourner, collisions, sauvegarde
 await ev(() => Atelier.debug.act('arrange')); await settle();
-assert(await ev(() => Atelier.debug.st.mode === 'arrange' && !Atelier.debug.A.ceil.visible && document.querySelectorAll('.at-tag.at-mv').length === 9), 'aménager : vue de dessus, 9 meubles à déplacer');
+assert(await ev(() => Atelier.debug.st.mode === 'arrange' && !Atelier.debug.A.ceil.visible && document.querySelectorAll('.at-tag.at-mv').length === 11), 'aménager : vue de dessus, 11 meubles à déplacer');
 const x0 = await ev(id => Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], bikeId);
 assert(await ev(() => Atelier.debug.move('ht', { x: -.9, z: 1.25 })), 'tapis du home trainer déplacé');
 w = await ev(id => ({ x: Atelier.debug.world(Atelier.debug.A.B[id].holder)[0], saved: S.garage.atelier.layout.ht }), bikeId);
@@ -169,7 +203,7 @@ assert(await ev(() => Atelier.debug.st.mode === 'atelier' && Atelier.debug.A.cei
 await ev(() => Atelier.close()); await pg.waitForTimeout(300);
 assert(await ev(() => !document.querySelector('.at3d') && !Atelier.debug.A), 'atelier fermé, retour au Garage');
 w = await ev(() => JSON.parse(localStorage.getItem('ftpb_state_v1')).garage.atelier);
-assert(w.layout?.ht?.r === 90 && w.layout?.expo?.x === 1.6 && w.wheels.length === 2 && w.cass.some(c => c.name === 'Cassette Alpes'), 'atelier enregistré dans l\'état local (disposition, roues, cassettes)');
+assert(w.layout?.ht?.r === 90 && w.layout?.expo?.x === 1.6 && w.wheels.length === 2 && w.cass.some(c => c.name === 'Cassette Alpes') && w.kit?.run?.length === 2 && w.kit.wear.length === 2, 'atelier enregistré dans l\'état local (disposition, roues, cassettes)');
 await pg.tap('[data-atelier]'); await pg.waitForFunction(() => Atelier.debug.A?.R && !document.querySelector('.at-load'), null, { timeout: 90000 }); await settle();
 w = await ev(([id, p, c]) => { const A = Atelier.debug.A, G = Atelier.debug.G(); return { ht: S.garage.atelier.layout.ht, pair: G.wheels.find(x => x.bikeId === id)?.id, cass: G.cass.find(x => x.id === c)?.loc, wheels: G.wheels.length, front: A.W[p].front.parent === A.B[id].anchorF, q: A.B[id].holder.getWorldQuaternion(new THREE.Quaternion()).y }; }, [bikeId, p1, c1]);
 assert(w.ht?.r === 90 && Math.abs(Math.abs(w.q) - Math.SQRT1_2) < .02 && w.pair === p1 && w.cass === p1 && w.wheels === 2 && w.front, 'réouverture : disposition, roues et cassettes retrouvées');

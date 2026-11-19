@@ -13,6 +13,10 @@
      depuis leur fiche (la place visée est occupée → échange). Home trainer direct : la roue AR attend au mur, la chaîne tourne sur la
      cassette du home trainer ; au rack et en exposition, le vélo garde ses deux roues.
    - L'entretien sur le pied d'atelier écrit dans le carnet du Garage (lubrification, dégraissage, nettoyage, mesure de chaîne, galets, sueur).
+   - kit = { run:[Paire de course], wear:[Tenue], helmets:[Casque], bshoes:[Chaussures vélo] } : meuble à chaussures (mur de gauche) et penderie (mur de droite).
+       Paire de course = { id, name, color, active, since, km0, life } : les sorties course à pied (sportSessions) comptent pour la paire en cours depuis sa mise en service ;
+       Tenue = { id, name, type 'maillot'|'cuissard'|'veste'|'trifonction', color } et Casque = { id, name, color } : sans usure ;
+       Chaussures vélo = { id, name, color, since (pose des cales), km0 } : km des sorties route (hors vélotaf) depuis la pose des cales.
    - Rien de la 3D n'est chargé tant que l'atelier n'est pas ouvert ; sans WebGL le Garage reste entier. */
 const Atelier = (() => {
   let T = null, V3 = null, Q = null; // three.js : chargé à l'ouverture
@@ -29,12 +33,13 @@ const Atelier = (() => {
   const ROOM = { x0: -2.6, x1: 2.6, zb: -2.2, zf: 2.8, h: 2.7 };
   const CAMBOX = { x: [-2.42, 2.42], y: [.25, 2.5], z: [-2.04, 2.66] };
   const LAY0 = { ht: { x: -1.32, z: .55, r: 0 }, stand: { x: .45, z: .25, r: 0 }, expo: { x: 1.75, z: 1.52, r: -90 }, pump: { x: 2.05, z: .4, r: 0 },
-    wheels: { z: -1.05 }, bench: { x: -.15 }, rack: { x: 1.66 }, shelf: { z: -.55 }, tv: { x: -1.61 } };
+    wheels: { z: -1.05 }, bench: { x: -.15 }, rack: { x: 1.66 }, shelf: { z: -.55 }, tv: { x: -1.61 }, shoes: { z: 1.35 }, wardrobe: { z: 1.5 } };
   const ITEMS = { // meubles déplaçables : au sol (glissent et tournent) ou au mur (glissent le long de leur mur) ; empreinte au sol en repère local
     ht: { l: 'Home trainer', floor: true, w: 1.95, d: .95, cx: 0, cz: 0 }, stand: { l: "Pied d'atelier", floor: true, w: 1.4, d: 1.06, cx: -.06, cz: -.08 },
     expo: { l: 'Exposition', floor: true, w: 1.95, d: .8, cx: 0, cz: 0 }, pump: { l: 'Pompe', floor: true, w: .3, d: .24, cx: 0, cz: 0 },
     wheels: { l: 'Mur des roues', wall: 'left', w: 2.2, d: .45 }, bench: { l: 'Établi', wall: 'back', w: 1.84, d: .64 }, rack: { l: 'Rack', wall: 'back', w: 1.75, d: .5 },
-    shelf: { l: 'Étagère', wall: 'right', w: 1.84, d: .4 }, tv: { l: 'Télé', wall: 'back', w: 1, d: .1 } };
+    shelf: { l: 'Étagère', wall: 'right', w: 1.84, d: .4 }, tv: { l: 'Télé', wall: 'back', w: 1, d: .1 },
+    shoes: { l: 'Meuble à chaussures', wall: 'left', w: .62, d: .32 }, wardrobe: { l: 'Penderie', wall: 'right', w: 1.7, d: .42 } };
   const FIXED = [{ x: -2.5, z: 2.1, hw: .1, hd: .42, r: 0 }]; // obstacles fixes : la pile de pneus neufs contre le mur de gauche, près de la porte
   const SPOT = { ht: { l: 'Home trainer', in: 'sur le home trainer', z: 'trainer', chip: 'Home trainer' }, rack: { l: 'Rack mural', in: 'sur le rack mural', z: 'rack', chip: 'Rack' },
     expo: { l: 'Exposition', in: 'en exposition', z: 'expo', chip: 'Exposition' } };
@@ -90,7 +95,7 @@ const Atelier = (() => {
       if (a.spots.ht === b.id && direct(b) && !cassOnHT()) a.cass.push({ id: rid(), name: 'Cassette du home trainer', range: r, speeds: V.speeds, tint: '#3d4047', loc: 'ht', peg: null, since, km0: 0, wear: 0 }); }
     for (const p of a.wheels) if (p.bikeId && !ids.includes(p.bikeId)) unmountPair(p); // vélo vendu ou supprimé : ses roues reviennent au mur
     for (const c of a.cass) if (c.loc !== 'wall' && c.loc !== 'ht' && !pairOf(c.loc)) { c.loc = 'wall'; c.peg = null; }
-    fixSlots(); fixPegs();
+    fixSlots(); fixPegs(); seedKit();
   }
   // kilométrage et usure : calculés à partir des sorties du vélo qui les porte (Garage) ; mémorisés quand on les démonte
   const roadKm = (b, from) => { try { return Garage.ridesOf(b).filter(r => !r.ht && r.date >= from).reduce((s, r) => s + r.km, 0); } catch (e) { return 0; } };
@@ -105,6 +110,26 @@ const Atelier = (() => {
   function moveCass(c, loc){ if (cassBike(c)) { c.km0 = cassKm(c); c.wear = cassWear(c); } c.loc = loc; c.since = loc === 'wall' ? null : todayISO(); }
   const wearCol = w => w >= .65 ? '#ff8a4c' : w >= .4 ? '#f5c542' : '#5ad19a', wearTxt = w => w >= .65 ? 'À remplacer bientôt' : w >= .4 ? 'À surveiller' : 'Bon état';
   const stockCount = () => G().stock.reduce((s, x) => s + (+x.qty || 0), 0);
+  // meuble à chaussures et penderie
+  const KITCOL = [['#ff8a4c', 'Orange'], ['#2f66d6', 'Bleu'], ['#e63946', 'Rouge'], ['#2a9d8f', 'Vert'], ['#f5c542', 'Jaune'], ['#f4f1ea', 'Blanc'], ['#1d1f24', 'Noir'], ['#8e5bd6', 'Violet']];
+  const WEAR_T = { maillot: 'Maillot', cuissard: 'Cuissard', veste: 'Veste', trifonction: 'Trifonction' };
+  const KMAX = { run: 6, wear: 8, helmets: 3, bshoes: 3 }, LIVES = [500, 700, 900], CLEAT_KM = 4000;
+  const RUN_SLOTS = [[.68, -.15], [.68, .15], [.36, -.15], [.36, .15], [.06, -.15], [.06, .15]]; // meuble à chaussures : [dessus de l'étagère, z], du haut vers le bas
+  const KIT3 = n => [[0], [-.28, .28], [-.5, 0, .5]][Math.min(n, 3) - 1] || [0]; // penderie : places des casques (étagère du haut) et des chaussures vélo (étagère du bas), centrées
+  function K(){ const k = (G().kit ||= {}); for (const l of ['run', 'wear', 'helmets', 'bshoes']) k[l] ||= []; return k; }
+  const kitOf = (l, id) => K()[l]?.find(x => x.id === id), kitZone = l => l === 'run' ? 'shoes' : 'wardrobe';
+  const runsSince = from => { try { return sportSessions().filter(x => x.sport === 'run' && x.date >= from); } catch (e) { return []; } };
+  const runKm = s => (+s.km0 || 0) + (s.active && s.since ? runsSince(s.since).reduce((t, x) => t + (+x.km || 0), 0) : 0);
+  const runWear = s => Math.min(1, runKm(s)/(+s.life || 700));
+  const runTxt = s => `${fmtKm(runKm(s))} · ${s.active ? 'paire en cours' : 'au repos'}`;
+  function cleatKm(s){ const k0 = +s.km0 || 0; if (!s.since || !hasG()) return k0; try { return k0 + Garage.rides().filter(r => !r.ht && !r.taf && r.date >= s.since).reduce((t, r) => t + r.km, 0); } catch (e) { return k0; } }
+  const cleatWear = s => Math.min(1, cleatKm(s)/CLEAT_KM);
+  // première ouverture : une tenue de base dans la penderie, et une paire de course si l'app voit déjà des sorties course
+  function seedKit(){ const a = G(); if (a.kitSeeded) return; a.kitSeeded = 1; const k = K(), t = todayISO();
+    if (!k.wear.length) k.wear.push({ id: rid(), name: 'Maillot FTP builder', type: 'maillot', color: '#ff8a4c' }, { id: rid(), name: 'Cuissard', type: 'cuissard', color: '#1d1f24' });
+    if (!k.helmets.length) k.helmets.push({ id: rid(), name: 'Casque', color: '#f4f1ea' });
+    if (!k.bshoes.length) k.bshoes.push({ id: rid(), name: 'Chaussures vélo', color: '#1d1f24', since: t, km0: 0 });
+    if (!k.run.length && runsSince('0000').length) k.run.push({ id: rid(), name: 'Chaussures de course', color: '#2f66d6', active: true, since: t, km0: 0, life: 700 }); }
 
   /* ---------- état d'une ouverture ---------- */
   let A = null; // scène : { el, R, scene, cam, groups, seats, B (vélos), W (paires), C (cassettes), trainer, panel, rig… }
@@ -346,6 +371,79 @@ const Atelier = (() => {
     g.userData.pick = { kind: 'pump' };
   }
 
+  /* ---------- meuble à chaussures (mur de gauche), penderie (mur de droite) et ce qu'on y range ---------- */
+  function soleShape(L, W, m){ const s = new T.Shape(), y = v => v*W*m; // contour de semelle vu de dessus : talon en x = 0, pointe en x = L ; m = ±1 (pied droit / gauche)
+    s.moveTo(0, 0); s.bezierCurveTo(0, y(.44), L*.2, y(.48), L*.4, y(.42)); s.bezierCurveTo(L*.62, y(.36), L*.8, y(.54), L*.95, y(.36));
+    s.bezierCurveTo(L*1.02, y(.2), L*1.02, y(-.18), L*.95, y(-.34)); s.bezierCurveTo(L*.8, y(-.5), L*.56, y(-.36), L*.4, y(-.38)); s.bezierCurveTo(L*.2, y(-.46), 0, y(-.42), 0, 0); return s; }
+  const light = c => { const n = parseInt(c.slice(1), 16); return ((n >> 16)*.3 + (n >> 8 & 255)*.59 + (n & 255)*.11) > 150; };
+  function shoe(color, bike, m){ // chaussure de course (semelle épaisse, lacets) ou de vélo (semelle carbone, molette, cale) ; pointe vers +x
+    const g = new T.Group(), L = bike ? .27 : .285, W = bike ? .095 : .105, sh = soleShape(L, W, m), up = std('k' + color, { color, roughness: .55 }), acc = light(color) ? M().blk : std('kwhite', { color: '#f4f1ea', roughness: .6 });
+    const ext = (h, b) => { const geo = new T.ExtrudeGeometry(sh, { depth: h, bevelEnabled: true, bevelThickness: b, bevelSize: b, bevelSegments: 2, curveSegments: 10 }); geo.rotateX(-Math.PI/2); return geo; };
+    let y0;
+    if (bike) { mesh(ext(.008, .003), M().blk, g, 0, .003, 0); box(.06, .01, .06, std('cleat', { color: '#e63946', roughness: .5 }), g, L*.64, .002, 0); y0 = .016; }
+    else { mesh(ext(.006, .002), M().rub, g, 0, .002, 0); mesh(ext(.026, .005), std('midsole', { color: '#eeeae2', roughness: .7 }), g, 0, .012, 0); y0 = .044; }
+    const h = bike ? .07 : .085, cx = L*.5, a = L*.5, tilt = .1, top = (x, dz = 0) => y0 - .004 + h*Math.sqrt(Math.max(0, 1 - ((x - cx)/a)**2 - (dz/(W*.43))**2)) + (cx - x)*tilt;
+    const u = mesh(new T.SphereGeometry(1, 24, 12, 0, Math.PI*2, 0, Math.PI/2), up, g, cx, y0 - .004, 0); u.scale.set(a, h, W*.43); u.rotation.z = -tilt;
+    const neck = mesh(new T.CylinderGeometry(1, 1, .004, 20), M().blk, g, L*.25, top(L*.25) - .002, 0, false); neck.scale.set(L*.12, 1, W*.27); neck.rotation.z = -tilt; // ouverture du col
+    box(.022, .045, .03, acc, g, .006, y0 + .03, 0); // languette de talon
+    if (bike) { cyl(.016, .016, .012, M().blk, g, L*.56, top(L*.56) + .003, 0, 20).rotation.z = -tilt*2; box(.008, .006, W*.8, acc, g, L*.7, top(L*.7) - .002, 0).rotation.z = -tilt*3; }
+    else for (let i = 0; i < 4; i++) { const x = L*(.5 + i*.07); box(.008, .004, W*.42, std('lace', { color: '#f4f1ea', roughness: .8 }), g, x, top(x) + .001, 0).rotation.z = -tilt*(1 + i); }
+    return g;
+  }
+  function shoePair(color, bike){ const g = new T.Group(), a = shoe(color, bike, 1), b = shoe(color, bike, -1); a.position.set(0, 0, -.055); b.position.set(.015, 0, .055); g.add(a, b);
+    box(.3, .14, .23, HIT(), g, .15, .07, 0, false).userData.hit = true; return g; }
+  function helmet(color){ // casque route : coque allongée, aérations, liseré du calotin ; avant vers +x
+    const g = new T.Group(), r = .13, sx = 1.2, sz = .95, sh = mesh(new T.SphereGeometry(r, 32, 16, 0, Math.PI*2, 0, Math.PI*.55), std('kh' + color, { color, roughness: .3, metalness: .05 }), g); sh.scale.set(sx, .8, sz);
+    const y = (x, z) => .8*Math.sqrt(Math.max(0, r*r - (x/sx)**2 - (z/sz)**2));
+    for (const dz of [-.055, 0, .055]) for (const dx of [-.06, .045]) box(.055, .012, .016, M().blk, g, dx, y(dx, dz) - .003, dz);
+    const rim = tor(r, .007, M().blk, g, 0, .005, 0, 48); rim.rotation.x = Math.PI/2; rim.scale.set(sx, sz, 1);
+    box(.3, .15, .24, HIT(), g, 0, .06, 0, false).userData.hit = true; return g; }
+  const WEAR_PTS = { // silhouettes vues de face, cintre en (0, 0)
+    maillot: [[-.07, 0], [-.19, -.03], [-.3, -.15], [-.245, -.215], [-.2, -.175], [-.2, -.6], [.2, -.6], [.2, -.175], [.245, -.215], [.3, -.15], [.19, -.03], [.07, 0]],
+    veste: [[-.07, 0], [-.19, -.03], [-.27, -.12], [-.3, -.56], [-.24, -.575], [-.215, -.2], [-.21, -.63], [.21, -.63], [.215, -.2], [.24, -.575], [.3, -.56], [.27, -.12], [.19, -.03], [.07, 0]],
+    cuissard: [[-.13, -.005], [-.08, -.005], [-.06, -.24], [.06, -.24], [.08, -.005], [.13, -.005], [.17, -.3], [.19, -.58], [.04, -.6], [0, -.46], [-.04, -.6], [-.19, -.58], [-.17, -.3]],
+    trifonction: [[-.07, 0], [-.14, -.01], [-.17, -.12], [-.155, -.4], [-.18, -.76], [-.04, -.78], [0, -.62], [.04, -.78], [.18, -.76], [.155, -.4], [.17, -.12], [.14, -.01], [.07, 0]] };
+  const BAND = { maillot: [.4, -.26], veste: [.42, -.28], trifonction: [.31, -.22], cuissard: [.2, -.28] }; // bande de poitrine (ceinture du cuissard) : largeur, hauteur
+  function garment(x){ // tenue sur son cintre, face avant vers +z
+    const g = new T.Group(), type = WEAR_PTS[x.type] ? x.type : 'maillot', P = WEAR_PTS[type], s = new T.Shape(); s.moveTo(...P[0]); for (const p of P.slice(1)) s.lineTo(...p);
+    if (type === 'cuissard') s.lineTo(...P[0]); else s.quadraticCurveTo(0, -.07, ...P[0]);
+    const geo = new T.ExtrudeGeometry(s, { depth: .02, bevelEnabled: true, bevelThickness: .008, bevelSize: .006, bevelSegments: 2, curveSegments: 6 }); geo.translate(0, 0, -.01);
+    mesh(geo, std('kw' + x.color, { color: x.color, roughness: .75 }), g); const [bw, by] = BAND[type];
+    box(bw, type === 'cuissard' ? .03 : .05, .004, light(x.color) ? std('kband', { color: '#2b2f36', roughness: .7 }) : std('kwhite', { color: '#f4f1ea', roughness: .6 }), g, 0, by, .0195);
+    const wood = std('hanger', { color: '#8a6a45', roughness: .55 }), bar = (x0, y0, x1, y1) => { const o = box(Math.hypot(x1 - x0, y1 - y0), .016, .02, wood, g, (x0 + x1)/2, (y0 + y1)/2, 0); o.rotation.z = Math.atan2(y1 - y0, x1 - x0); };
+    bar(-.2, -.035, 0, .015); bar(0, .015, .2, -.035); cyl(.003, .003, .05, M().chrome, g, 0, .045, 0, 8); const hk = tor(.016, .003, M().chrome, g, -.016, .075, 0, 20, Math.PI*1.3); hk.rotation.z = -.4;
+    box(.44, .8, .06, HIT(), g, 0, -.38, 0, false).userData.hit = true; return g; }
+  const woodM = (seed, base) => new T.MeshStandardMaterial({ map: ctex(512, 128, (x, w, h) => planks(x, w, h, { base, n: 2, seed, grain: 14, vary: .03 }), { rot: Math.PI/2 }), roughness: .62, envMapIntensity: .4 });
+  function buildShoeRack(g){ // repère du mur de gauche : x vers la pièce, z le long du mur
+    const wood = woodM(67, [196, 160, 118]), D = .32, W = .62, H = 1.0;
+    A.occ.push(box(.012, H, W, wood, g, .006, H/2, 0, false)); for (const s of [-1, 1]) box(D, H, .02, wood, g, D/2, H/2, s*(W/2 - .01));
+    box(D, .05, W, wood, g, D/2, H - .025, 0); box(D - .01, .06, W - .04, wood, g, D/2, .03, 0); for (const y of [.35, .67]) box(D - .01, .02, W - .04, wood, g, D/2, y, 0);
+    const sg = sign('RUN', .15, .042); sg.rotation.y = Math.PI/2; sg.position.set(D + .002, H - .025, 0); g.add(sg);
+    const inner = new T.Group(); g.add(inner); g.userData.pick = { kind: 'shoes' }; return { inner };
+  }
+  function buildWardrobe(g){ // repère du mur de droite : -x vers la pièce, z le long du mur
+    const m = M(), wood = woodM(71, [226, 214, 196]), D = .42, W = 1.7, H = 2.12;
+    A.occ.push(box(.014, H, W, wood, g, -.007, H/2, 0, false)); for (const s of [-1, 1]) box(D, H, .026, wood, g, -D/2, H/2, s*(W/2 - .013));
+    box(D, .028, W, wood, g, -D/2, H - .014, 0); box(.03, .12, W, wood, g, -D + .015, H - .06, 0); box(D - .02, .06, W - .05, wood, g, -D/2, .03, 0);
+    box(D - .03, .022, W - .05, wood, g, -D/2 + .005, 1.86, 0); box(D - .03, .022, W - .05, wood, g, -D/2 + .005, .33, 0); // étagères des casques et des chaussures
+    cyl(.012, .012, W - .06, m.chrome, g, -.21, 1.78, 0, 16).rotation.x = Math.PI/2; // tringle
+    box(.3, .2, .44, std('carton', { color: '#b98a58', roughness: .9 }), g, -.21, .16, -.5); box(.3, .18, .4, std('bluebox', { color: '#2f5fb8', roughness: .6 }), g, -.21, .15, .05); box(.28, .16, .36, std('whitebox', { color: '#ece8e0', roughness: .8 }), g, -.21, .14, .55);
+    box(.012, .006, W - .1, A.mats.led, g, -D + .045, H - .124, 0, false);
+    const sg = sign('TENUES', .3, .066); sg.rotation.y = -Math.PI/2; sg.position.set(-D - .002, H - .06, 0); g.add(sg);
+    const inner = new T.Group(); g.add(inner); g.userData.pick = { kind: 'wardrobe' }; return { inner };
+  }
+  function kitObj(o, parent, l, id){ o.userData.pick = { kind: 'kit', list: l, id }; parent.add(o); A.K[id] = o; return o; }
+  function fillKit(){
+    if (!A?.shoes) return; const k = K();
+    for (const f of [A.shoes, A.ward]) while (f.inner.children.length) f.inner.remove(f.inner.children[0]); A.K = {};
+    k.run.slice(0, KMAX.run).forEach((s, i) => { const [y, z] = RUN_SLOTS[i]; kitObj(shoePair(s.color, false), A.shoes.inner, 'run', s.id).position.set(.025, y + .002, z); });
+    const wr = k.wear.slice(0, KMAX.wear), hs = k.helmets.slice(0, KMAX.helmets), bs = k.bshoes.slice(0, KMAX.bshoes);
+    wr.forEach((c, i) => { const o = kitObj(garment(c), A.ward.inner, 'wear', c.id); o.position.set(-.21, 1.705, (i - (wr.length - 1)/2)*.18 - .04); o.rotation.y = -.7; }); // tringle : tenues centrées, de biais
+    hs.forEach((h, i) => { const o = kitObj(helmet(h.color), A.ward.inner, 'helmets', h.id); o.position.set(-.2, 1.871, KIT3(hs.length)[i]); o.rotation.y = Math.PI/2; });
+    bs.forEach((s, i) => { const o = kitObj(shoePair(s.color, true), A.ward.inner, 'bshoes', s.id); o.position.set(-.1, .343, KIT3(bs.length)[i] + .08); o.rotation.y = Math.PI*.75; }); // de trois quarts
+    A.shadows = true; wake();
+  }
+
   /* ---------- télé : kilomètres de chaque vélo en service (mur du fond) ---------- */
   function tvRows(){ if (!hasG()) return []; let all; try { all = Garage.rides(); } catch (e) { return []; }
     return bikesOn().map(b => { const s = Garage.stats(b, Garage.ridesOf(b, all)); return { id: b.id, name: b.name || 'Vélo', road: s.road, ht: s.ht, total: s.total, month: s.month, est: s.est }; }).sort((a, b) => b.total - a.total); }
@@ -428,7 +526,7 @@ const Atelier = (() => {
   function stepBursts(now){ for (let i = A.bursts.length - 1; i >= 0; i--) { const m = A.bursts[i], k = (now - m.userData.t0)/560;
       if (k >= 1) { A.scene.remove(m); m.material.dispose(); A.bursts.splice(i, 1); continue; } m.scale.setScalar(m.userData.r*(1 + .45*ease(k))); m.material.opacity = .85*(1 - k); m.quaternion.copy(A.cam.quaternion); }
     return A.bursts.length > 0; }
-  function haloObj(){ const s = st.sel; if (st.mode !== 'atelier' || !s) return null; if (s.kind === 'pair') return A.W[s.id]?.[s.part || 'rear']; if (s.kind === 'cassette') return A.C[s.id]; return null; }
+  function haloObj(){ const s = st.sel; if (st.mode !== 'atelier' || !s) return null; if (s.kind === 'pair') return A.W[s.id]?.[s.part || 'rear']; if (s.kind === 'cassette') return A.C[s.id]; if (s.kind === 'kit') return A.K[s.id]; return null; }
   let raf = 0, last = 0, busyUntil = 0, dragging = false;
   function wake(ms = 300){ if (!A) return; busyUntil = Math.max(busyUntil, performance.now() + (FAST ? 0 : ms)); if (!raf) raf = requestAnimationFrame(loop); }
   function loop(now){
@@ -455,6 +553,8 @@ const Atelier = (() => {
     wheels:  { l: 'Roues', s: () => ({ t: wp(A.groups.wheels, 0, 1.6, 0), az: 90, el: 2, w: 2.3, h: 1.8, maxD: 2.2 }) },
     pegs:    { l: 'Cassettes', s: () => ({ t: wp(A.groups.bench, -.07, 1.5, 0), az: 0, el: 6, w: 1.75, h: .75 }) },
     shelf:   { l: 'Pièces', s: () => ({ t: wp(A.groups.shelf, 0, 1.42, 0), az: -90, el: 6, w: 2.0, h: 1.65 }) },
+    wardrobe: { l: 'Penderie', s: () => ({ t: wp(A.groups.wardrobe, -.21, 1.12, 0), az: -90, el: 10, w: 1.85, h: 2.2, maxD: 2.6 }) },
+    shoes:   { l: 'Chaussures', s: () => ({ t: wp(A.groups.shoes, .16, .55, 0), az: 90, el: 12, w: .95, h: 1.15, maxD: 2.0 }) },
     stand:   { s: () => ({ t: wp(A.groups.stand, 0, .84, 0), az: 12 + (lay('stand').r || 0), el: 14, w: 1.9, h: 1.25 }) },
     explode: { s: () => ({ t: A.panel.localToWorld(V3(0, 0, 0)).setY(PANEL.y), az: 0, el: 0, w: 2.08, h: 2.5 }) },
     plan:    { s: () => ({ t: V3(0, .8, -.1), az: 0, el: 66, w: 5.75, h: 4.6, free: true }) },
@@ -499,7 +599,10 @@ const Atelier = (() => {
   const ptrs = new Map(); let drag = null, pinch = null, hoverT = 0;
   function rayAt(x, y){ const r = A.cv.getBoundingClientRect(); A.ndc.set((x - r.left)/r.width*2 - 1, -((y - r.top)/r.height)*2 + 1); A.ray.setFromCamera(A.ndc, A.cam); return A.ray; }
   function hitsAt(x, y, list){ return rayAt(x, y).intersectObjects(list, true).filter(h => { for (let o = h.object; o; o = o.parent) if (!o.visible) return false; return !h.object.isLine; }); }
-  function pickAt(x, y){ for (const h of hitsAt(x, y, [...A.pick, ...A.occ])) { let o = h.object; while (o && !o.userData.pick) o = o.parent; return o ? o.userData.pick : null; } return null; }
+  const pickOf = o => { while (o && !o.userData.pick) o = o.parent; return o ? o.userData.pick : null; };
+  function pickAt(x, y){ const hs = hitsAt(x, y, [...A.pick, ...A.occ]);
+    if (st.zone === 'wardrobe' || st.zone === 'shoes') for (const h of hs) { const p = pickOf(h.object); if (p && ['kit', 'wardrobe', 'shoes'].includes(p.kind)) return p; } // devant la penderie : le vélo exposé ne cache pas les tenues
+    return hs.length ? pickOf(hs[0].object) : null; }
   function partAt(x, y){
     const id = st.onStand; if (!id || !A.B[id]) return null; const list = st.mode === 'explode' ? A.exp.map(e => e.obj) : [A.B[id].holder];
     for (const h of hitsAt(x, y, [...list, ...A.occ])) { if (h.object.userData.bikeHit) continue; for (let o = h.object; o; o = o.parent) { if (o.userData.g) return o.userData.g; const p = o.userData.pick;
@@ -593,7 +696,7 @@ const Atelier = (() => {
     pg.hidden = !['maint', 'explode'].includes(st.mode); if (!pg.hidden) { const pts = points(st.onStand); pg.textContent = `${pts.filter(x => x.done).length}/${pts.length}`; }
   }
   function renderDock(){
-    const z = q('.at-zones'); if (!z.childElementCount) z.innerHTML = ['home', 'tv', 'trainer', 'rack', 'expo', 'wheels', 'pegs', 'shelf'].map(k => `<button type="button" data-at="zone:${k}" data-z="${k}">${ZONES[k].l}</button>`).join('');
+    const z = q('.at-zones'); if (!z.childElementCount) z.innerHTML = ['home', 'tv', 'trainer', 'rack', 'expo', 'wardrobe', 'shoes', 'wheels', 'pegs', 'shelf'].map(k => `<button type="button" data-at="zone:${k}" data-z="${k}">${ZONES[k].l}</button>`).join('');
     for (const b of z.children) { const on = b.dataset.z === st.zone; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); }
     // « Faire un entretien » : le vélo qu'on regarde, sinon celui du home trainer, de l'exposition, puis du rack
     const mb = q('.at-dock [data-at^="maint"]'); if (mb) { const zid = st.zone === 'expo' ? expoId() : st.zone === 'rack' ? G().spots.racks[0] : null, id = zid || htId() || expoId() || G().spots.racks[0];
@@ -708,6 +811,46 @@ const Atelier = (() => {
       <div class="at-add"><input type="text" class="at-name at-small" id="atStockN" placeholder="Autre pièce…" maxlength="34" aria-label="Nom de la pièce"><button type="button" class="at-mini" data-at="stockadd">Ajouter</button></div>`);
   }
 
+  function shoesSheet(){ const k = K();
+    openSheet(head('Meuble à chaussures', '<h3 class="at-name">Chaussures de course</h3>') + '<p class="at-meta">Les sorties course à pied comptent pour la paire en cours, à partir de sa mise en service.</p><div class="at-list">' +
+      (k.run.map(s => `<div class="at-li"><div><b>${esc(s.name)}</b><small>${esc(runTxt(s))}</small></div><span class="at-pct" style="color:${wearCol(runWear(s))}">${Math.round(runWear(s)*100)} %</span><button type="button" class="at-mini" data-at="kit:run:${s.id}">Voir</button></div>`).join('') || '<p class="at-meta">Aucune paire pour l\'instant.</p>') + '</div>' +
+      (k.run.length < KMAX.run ? '<div class="at-acts"><button type="button" class="at-sec" data-at="kitadd:run">+ Ajouter une paire</button></div>' : `<p class="at-why">Meuble plein : ${KMAX.run} paires.</p>`)); }
+  function wardrobeSheet(){ const k = K();
+    const sec = (l, title, sub, add) => `<div class="at-lbl" style="margin-top:12px">${title} · ${k[l].length}/${KMAX[l]}</div><div class="at-list">` +
+      (k[l].map(x => `<div class="at-li"><div><b>${esc(x.name)}</b><small>${esc(sub(x))}</small></div><button type="button" class="at-mini" data-at="kit:${l}:${x.id}">Voir</button></div>`).join('') || '<p class="at-meta">Rien pour l\'instant.</p>') + '</div>' +
+      (k[l].length < KMAX[l] ? `<div class="at-chips">${add}</div>` : '');
+    openSheet(head('Penderie', '<h3 class="at-name">Tenues, casques, chaussures</h3>') +
+      sec('wear', 'Tenues', x => WEAR_T[x.type] || 'Tenue', Object.entries(WEAR_T).map(([t, n]) => `<button type="button" data-at="kitadd:wear:${t}">+ ${n}</button>`).join('')) +
+      sec('helmets', 'Casques', () => 'Casque', '<button type="button" data-at="kitadd:helmets">+ Casque</button>') +
+      sec('bshoes', 'Chaussures vélo', x => `cales : ${fmtKm(cleatKm(x))} de sorties`, '<button type="button" data-at="kitadd:bshoes">+ Paire</button>')); }
+  function kitSheet(l, id){
+    const x = kitOf(l, id); if (!x) return; const nm = nameInput(`kit:${l}:${id}`, x.name, 'Nom');
+    const colors = `<div class="at-kv at-wrap"><span>Couleur</span><div class="at-chips">${KITCOL.map(([c, n], i) => `<button type="button" class="at-sw${c === x.color ? ' on' : ''}" style="--sw:${c}" data-at="kitcol:${l}:${id}:${i}" aria-label="${n}" aria-pressed="${c === x.color}"></button>`).join('')}</div></div>`;
+    const del = `<div class="at-kv"><span>Inventaire</span><b></b><button type="button" class="at-danger" data-at="kitdel:${l}:${id}">Je n'en ai plus</button></div>`;
+    if (l === 'run') { const life = +x.life || 700;
+      return openSheet(head('Chaussures de course', nm) + wearHTML(runWear(x), esc(runTxt(x))) +
+        `<p class="at-why">Repère indicatif : ${life} km. Changez-les plus tôt si l'amorti est tassé ou la semelle lisse.</p>` +
+        (x.active ? '' : `<div class="at-acts"><button type="button" class="at-primary" data-at="kitrun:${id}">Courir avec cette paire</button></div>`) +
+        `<details${runKm(x) ? '' : ' open'}><summary>Réglages de la paire</summary>${colors}
+        <div class="at-kv at-wrap"><span>Durée de vie</span><div class="at-chips">${LIVES.map(n => `<button type="button" class="${n === life ? 'on' : ''}" data-at="kitlife:${id}:${n}" aria-pressed="${n === life}">${n} km</button>`).join('')}</div></div>
+        <div class="at-lbl" style="margin-top:8px">Kilomètres réels de la paire</div><div class="at-add"><input type="number" class="at-name at-small" id="atKmTot" inputmode="numeric" min="0" max="5000" value="${Math.round(runKm(x)) || ''}" placeholder="Ex. 250" aria-label="Kilomètres réels de la paire"><button type="button" class="at-mini" data-at="kitkm:${id}">OK</button></div>${del}</details>`); }
+    if (l === 'bshoes') return openSheet(head('Chaussures vélo', nm) + wearHTML(cleatWear(x), `Cales : ${fmtKm(cleatKm(x))} de sorties route${x.since ? ' depuis le ' + fmtShort(x.since) : ''}`) +
+      `<p class="at-why">Repère indicatif : ${kmN(CLEAT_KM)} km environ. Changez les cales plus tôt si elles ont du jeu ou déclipsent mal.</p>
+      <div class="at-acts"><button type="button" class="at-sec" data-at="kitcleat:${id}">Cales changées aujourd'hui</button></div><details><summary>Réglages</summary>${colors}${del}</details>`);
+    const types = l === 'wear' ? `<div class="at-kv at-wrap"><span>Type</span><div class="at-chips">${Object.entries(WEAR_T).map(([t, n]) => `<button type="button" class="${t === x.type ? 'on' : ''}" data-at="kittype:${id}:${t}" aria-pressed="${t === x.type}">${n}</button>`).join('')}</div></div>` : '';
+    openSheet(head(l === 'wear' ? 'Penderie · tenue' : 'Penderie · casque', nm) + types + colors + del);
+  }
+  function kitAdd(l, type){ const k = K(); if (!k[l]) return; if (k[l].length >= KMAX[l]) return say('Plus de place ici', 'err');
+    const t = todayISO(), c0 = KITCOL[k[l].length % KITCOL.length][0];
+    const x = l === 'run' ? { id: rid(), name: 'Nouvelle paire', color: c0, active: !k.run.some(s => s.active), since: null, km0: 0, life: 700 }
+      : l === 'wear' ? { id: rid(), name: WEAR_T[type] || 'Maillot', type: WEAR_T[type] ? type : 'maillot', color: c0 }
+      : l === 'helmets' ? { id: rid(), name: 'Casque', color: c0 } : { id: rid(), name: 'Chaussures vélo', color: '#1d1f24', since: t, km0: 0 };
+    if (x.active) x.since = t; k[l].push(x); save(); fillKit(); select({ kind: 'kit', list: l, id: x.id }); say('Donnez-lui un nom et sa couleur'); }
+  function kitEdit(l, id, ch){ const x = kitOf(l, id); if (!x) return; Object.assign(x, ch); save(); fillKit(); kitSheet(l, id); tagsRebuild(); }
+  function kitRun(id){ const s = kitOf('run', id); if (!s) return; for (const o of K().run) if (o.active && o !== s) { o.km0 = runKm(o); o.active = false; o.since = null; }
+    s.km0 = runKm(s); s.active = true; s.since = todayISO(); save(); kitSheet('run', id); tagsRebuild(); say(`${s.name} : vos prochaines sorties course comptent pour elle`); }
+  function kitDel(l, id){ const k = K(), x = kitOf(l, id); if (!x) return; k[l] = k[l].filter(o => o !== x); save(); hideSheet(); fillKit(); go(kitZone(l)); say(`${x.name} retiré de l'atelier`); }
+
   /* ---------- entretien sur le pied d'atelier : les points de contrôle écrivent dans le carnet du Garage ---------- */
   const POINTS = [
     { key: 'chain', l: 'Chaîne', parts: ['chain'], care: ['lube', 'degrease', 'check'], at: 'chain', exp: 'chain' },
@@ -782,6 +925,8 @@ const Atelier = (() => {
         add('at-tag', `<b>Cassettes</b><small>${a.cass.length} nommée${a.cass.length > 1 ? 's' : ''}</small>`, () => wp(A.groups.bench, -.07, 1.64, .08), 'zone:pegs');
         add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'zone:shelf');
         add('at-tag', `<b>Télé</b><small>${fmtKm(tvRows().reduce((s, r) => s + r.total, 0))}</small>`, () => wp(A.groups.tv, 0, TV.y + TV.h/2 + .02, .05), 'zone:tv');
+        add('at-tag', `<b>Chaussures</b><small>${K().run.length} paire${K().run.length > 1 ? 's' : ''} de course</small>`, () => wp(A.groups.shoes, .16, 1.12, 0), 'zone:shoes');
+        add('at-tag', `<b>Penderie</b><small>${K().wear.length} tenue${K().wear.length > 1 ? 's' : ''}</small>`, () => wp(A.groups.wardrobe, -.21, 2.2, 0), 'zone:wardrobe');
         for (const b of bikesIn()) if (A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${SPOT[spotOf(b.id)].l}</small>`, () => A.B[b.id].holder.localToWorld(V3(0, 1.08, 0)), 'zone:' + zoneOf(b.id));
       } else if (st.zone === 'wheels') {
         for (let s = 0; s < SLOTS.length; s++) { const p = a.wheels.find(x => x.slot === s), at = () => wp(A.groups.wheels, .1, SLOTS[s][1] + .4, SLOTS[s][0]);
@@ -805,6 +950,14 @@ const Atelier = (() => {
         if (b && A.B[b.id]) add('at-tag', `<b>${esc(b.name)}</b><small>${esc(pairOnBike(b.id)?.name || 'sans roues')}</small>`, () => A.B[b.id].holder.localToWorld(V3(.2, 1.08, 0)), 'bike:' + b.id);
         else add('at-tag add', `${PLUS}<b>Exposer un vélo</b>`, () => wp(A.groups.expo, 0, .55, 0), 'spotpick:expo', { label: 'Choisir le vélo à exposer' });
       } else if (st.zone === 'tv') add('at-tag', `<b>Détail par vélo</b><small>route, home trainer, ce mois</small>`, () => wp(A.groups.tv, 0, TV.y + TV.h/2 + .02, .05), 'tv');
+      else if (st.zone === 'shoes') { const k = K().run, on = id => sel?.kind === 'kit' && sel.id === id;
+        RUN_SLOTS.forEach(([y, z], i) => { const s = k[i], at = () => wp(A.groups.shoes, .3, y + .19, z), o = { ay: 0, dy: 0 };
+          if (s) add('at-tag flat' + (on(s.id) ? ' on' : '') + (s.active ? '' : ' ghost'), `<b>${esc(s.name)}</b><small>${fmtKm(runKm(s))}${s.active ? ' · en cours' : ''}</small>`, at, `kit:run:${s.id}`, o);
+          else if (i === k.length) add('at-tag add flat', `${PLUS}<b>Paire</b>`, at, 'kitadd:run', { ...o, label: 'Ajouter une paire de course' }); }); }
+      else if (st.zone === 'wardrobe') { const k = K();
+        add('at-tag', `<b>Casques</b><small>${k.helmets.length}/${KMAX.helmets}</small>`, () => wp(A.groups.wardrobe, -.42, 1.84, .62), 'kitlist:wardrobe');
+        add('at-tag', `<b>Tenues</b><small>${k.wear.length}/${KMAX.wear}</small>`, () => wp(A.groups.wardrobe, -.42, 1.05, -.6), 'kitlist:wardrobe');
+        add('at-tag', `<b>Chaussures vélo</b><small>${k.bshoes.length}/${KMAX.bshoes}</small>`, () => wp(A.groups.wardrobe, -.42, .32, .5), 'kitlist:wardrobe'); }
       else if (st.zone === 'shelf') add('at-tag', `<b>Pièces détachées</b><small>${stockCount()} en stock · voir</small>`, () => wp(A.groups.shelf, -.18, 2.15, 0), 'shelf');
     } else if (st.mode === 'maint' && !sheetOpen) {
       points(st.onStand).forEach((t, i) => add('at-dot' + (t.done ? ' done' : ''), `<span>${t.done ? '✓' : i + 1}</span>`, () => anchorOf(st.onStand, t.at), 'pcard:' + t.key, { c: t.done ? '#5ad19a' : t.col, ay: -50, dy: 0, label: `${t.l} : ${t.done ? 'vérifié' : t.txt}` }));
@@ -844,6 +997,11 @@ const Atelier = (() => {
     else if (p.kind === 'shelf') { go('shelf'); shelfSheet(); }
     else if (p.kind === 'tv') { go('tv'); tvSheet(); }
     else if (p.kind === 'pump') { go(pumpSpec()); pressSheet(pumpBike()); }
+    else if (p.kind === 'shoes') { go('shoes'); shoesSheet(); }
+    else if (p.kind === 'wardrobe') { go('wardrobe'); wardrobeSheet(); }
+    else if (p.kind === 'kit') { const x = kitOf(p.list, p.id), o = A.K[p.id]; if (!x) return; st.zone = kitZone(p.list);
+      if (o) { const s = sphereOf(o), r = Math.max(.16, s.radius); go({ t: s.center, az: p.list === 'run' ? 90 : -90, el: p.list === 'bshoes' ? 30 : 14, w: r*3.4, h: r*2.8 }); } else go(st.zone);
+      kitSheet(p.list, p.id); }
   }
   function mountPair(pid, target){
     const p = pairOf(pid); if (!p) return; let old = null;
@@ -889,7 +1047,7 @@ const Atelier = (() => {
     a.wheels = a.wheels.filter(x => x !== p); fixPegs(); save(); const w = A.W[pid]; if (w) { for (const ch of [...w.rear.children]) if (ch.userData.pick?.kind === 'cassette') A.scene.attach(ch); dropObj(w.front); dropObj(w.rear); delete A.W[pid]; }
     hideSheet(); layout(true); go('wheels'); say(`${p.name} retirée de l'atelier`); updateTop(); }
   function delCass(cid){ const c = cassOf(cid); if (!c) return; G().cass = G().cass.filter(x => x !== c); save(); dropObj(A.C[cid]); delete A.C[cid]; hideSheet(); layout(true); go('pegs'); say(`${c.name} retirée de l'atelier`); updateTop(); }
-  function rename(key, v){ const [k, id] = key.split(':'), o = k === 'pair' ? pairOf(id) : cassOf(id); v = String(v || '').trim().slice(0, 34); if (!o || !v) return; o.name = v; save(); tagsRebuild(); }
+  function rename(key, v){ const [k, id, id2] = key.split(':'), o = k === 'pair' ? pairOf(id) : k === 'kit' ? kitOf(id, id2) : cassOf(id); v = String(v || '').trim().slice(0, 34); if (!o || !v) return; o.name = v; save(); tagsRebuild(); }
   // changer un vélo de place (home trainer, rack, exposition) : si la place visée est prise, l'occupant prend la place libérée ;
   // un vélo resté hors de l'atelier (plus de 4 vélos) peut y entrer, l'occupant délogé en sort alors
   function moveBike(id, to){
@@ -993,7 +1151,7 @@ const Atelier = (() => {
 
   /* ---------- actions de l'interface ---------- */
   function act(s){
-    const [a, x, y] = s.split(':');
+    const [a, x, y, z] = s.split(':');
     switch (a) {
       case 'close': return closeSheet();
       case 'back': return back();
@@ -1009,6 +1167,17 @@ const Atelier = (() => {
       case 'pressbike': return pressSheet(x, true);
       case 'presstire': { const b = bikeOf(x), w = +pairOnBike(x)?.tire; if (!b || !w) return; b.tires = { ...(b.tires || {}), f: w, r: w }; save(); say(`Estimation sur des pneus de ${w} mm`); return pressSheet(x, true); }
       case 'casslist': return cassListSheet();
+      case 'kitlist': return select({ kind: x });
+      case 'kit': return select({ kind: 'kit', list: x, id: y });
+      case 'kitadd': return kitAdd(x, y);
+      case 'kitdel': return kitDel(x, y);
+      case 'kitcol': { const c = KITCOL[+z]; return c && kitEdit(x, y, { color: c[0] }); }
+      case 'kittype': return WEAR_T[y] && kitEdit('wear', x, { type: y });
+      case 'kitlife': return kitEdit('run', x, { life: +y });
+      case 'kitrun': return kitRun(x);
+      case 'kitkm': { const o = kitOf('run', x), v = parseFloat(String(q('#atKmTot')?.value || '').replace(',', '.')); if (!o) return; if (!(v >= 0 && v <= 5000)) return say('Entre 0 et 5 000 km', 'err');
+        kitEdit('run', x, { km0: Math.round(v - (runKm(o) - (+o.km0 || 0))) }); return say('Kilomètres de la paire mis à jour'); }
+      case 'kitcleat': { kitEdit('bshoes', x, { since: todayISO(), km0: 0 }); return say('Cales neuves : compteur remis à zéro'); }
       case 'mount': return mountPair(x, y);
       case 'cass': return mountCass(x, y);
       case 'pickcass': return pickCassSheet(x);
@@ -1080,7 +1249,7 @@ const Atelier = (() => {
     if (A) return ready; if (!bikesOn().length) { toast('Ajoute d\'abord ton vélo au Garage'); return; }
     if (typeof dlg !== 'undefined' && dlg.open) dlg.close();
     seed(); save(); Object.assign(st, { mode: 'atelier', zone: 'home', onStand: null, sel: null, done: {}, logged: [], arrSel: null });
-    A = { el: uiEl(), mats: {}, occ: [], pick: [], B: {}, W: {}, C: {}, exp: [], bursts: [], groups: {}, seats: {} }; document.documentElement.classList.add('at-open');
+    A = { el: uiEl(), mats: {}, occ: [], pick: [], B: {}, W: {}, C: {}, K: {}, exp: [], bursts: [], groups: {}, seats: {} }; document.documentElement.classList.add('at-open');
     return ready = (async () => {
       try { await Bike3D.atelier.kit(); } catch (e) { if (A) A.el.querySelector('.at-load small').textContent = "L'atelier 3D n'a pas pu se charger (connexion ?). Le reste du Garage fonctionne."; if (typeof Errors !== 'undefined') Errors.report?.(e, 'atelier'); return false; }
       if (!A) return false; T = THREE; V3 = (x = 0, y = 0, z = 0) => new T.Vector3(x, y, z); Q = () => new T.Quaternion();
@@ -1101,7 +1270,8 @@ const Atelier = (() => {
     buildRoom();
     for (const k of Object.keys(ITEMS)) { const g = new T.Group(); g.userData.item = k; scene.add(g); A.groups[k] = g; }
     buildBench(A.groups.bench); A.panelSeat = A.panel; buildWheelWall(A.groups.wheels); A.trainer = buildTrainer(A.groups.ht); A.stand = buildStand(A.groups.stand); A.expo = buildExpo(A.groups.expo); A.seats.rack = buildRack(A.groups.rack); buildShelf(A.groups.shelf); buildPump(A.groups.pump); A.tv = buildTV(A.groups.tv);
-    A.pick.push(A.groups.shelf, A.groups.pump, A.groups.expo, A.groups.tv); ensureFree('expo'); ensureFree('tv'); for (const k in ITEMS) setGroup(k); buildFoot();
+    A.shoes = buildShoeRack(A.groups.shoes); A.ward = buildWardrobe(A.groups.wardrobe); fillKit();
+    A.pick.push(A.groups.shelf, A.groups.pump, A.groups.expo, A.groups.tv, A.groups.shoes, A.groups.wardrobe); for (const k of ['expo', 'tv', 'shoes', 'wardrobe']) ensureFree(k); for (const k in ITEMS) setGroup(k); buildFoot();
     for (const b of bikesOn()) if (placed(b.id)) makeBike(b);
     for (const p of G().wheels) makePair(p);
     for (const c of G().cass) makeCass(c);
@@ -1119,9 +1289,9 @@ const Atelier = (() => {
   }
   document.addEventListener('click', e => { const b = e.target.closest('[data-atelier]'); if (b) { e.preventDefault(); open(); } });
   // accès pour le développement et les tests
-  const debug = { get A(){ return A; }, st, G, act, go, rectOf, valid, lay, points, tvRows, get ready(){ return ready; }, get flights(){ return flights.size + tweens.length; },
+  const debug = { get A(){ return A; }, st, G, K, act, runKm, cleatKm, go, rectOf, valid, lay, points, tvRows, get ready(){ return ready; }, get flights(){ return flights.size + tweens.length; },
     snap(){ if (rig.goal) { rig.cur = { ...rig.goal, tgt: rig.goal.tgt.clone() }; wake(); } },
     move(k, L){ const ok = tryMove(k, { ...lay(k), ...L }); if (ok) { setLay(k, ok); save(); } return !!ok; },
     world: o => o.getWorldPosition(V3()).toArray().map(v => +v.toFixed(3)) };
-  return { open, close, debug, button: () => `<button type="button" class="btn gr-atelier" data-atelier>🛠️ <b>Mon atelier 3D</b><span class="tiny muted">roues, cassettes, entretien, aménagement</span></button>` };
+  return { open, close, debug, button: () => `<button type="button" class="btn gr-atelier" data-atelier>🛠️ <b>Mon atelier 3D</b><span class="tiny muted">roues, cassettes, tenues, chaussures, entretien</span></button>` };
 })();
