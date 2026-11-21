@@ -160,6 +160,50 @@ const Atelier = (() => {
       x.fillStyle = 'rgba(70,66,60,.5)'; x.fillRect(i*bw, 0, 2, h); x.fillStyle = 'rgba(255,255,255,.4)'; x.fillRect(i*bw + 2, 0, 1, h); }
   }
 
+  // béton ciré brut : nuages de teinte, passes de lisseuse, pores et micro-fissures (couleur + relief)
+  function concrete(x, w, h, { seed = 7, bump = false } = {}){
+    const r = mkRnd(seed), b = bump ? [128, 128, 128] : [108, 106, 103];
+    x.fillStyle = rgb(b); x.fillRect(0, 0, w, h);
+    const blot = (cx, cy, rad, a, dark) => { for (const ox of [-w, 0, w]) for (const oy of [-h, 0, h]) { const g = x.createRadialGradient(cx + ox, cy + oy, 0, cx + ox, cy + oy, rad);
+      const c = dark ? '40,38,36' : '235,232,226'; g.addColorStop(0, `rgba(${c},${a})`); g.addColorStop(1, `rgba(${c},0)`); x.fillStyle = g; x.fillRect(cx + ox - rad, cy + oy - rad, rad*2, rad*2); } };
+    for (let i = 0; i < 70; i++) blot(r()*w, r()*h, w*(.05 + r()*.22), bump ? .03 : .05 + r()*.08, r() < .5);
+    for (let i = 0; i < 46; i++) { const cx = r()*w, cy = r()*h, R = w*(.08 + r()*.2), a0 = r()*7; // passes de lisseuse
+      x.strokeStyle = r() < .4 ? `rgba(225,222,216,${(bump ? .02 : .02 + r()*.03).toFixed(3)})` : `rgba(50,48,45,${(bump ? .02 : .03 + r()*.04).toFixed(3)})`; x.lineWidth = 10 + r()*30;
+      x.beginPath(); x.arc(cx, cy, R, a0, a0 + .5 + r()*1.1); x.stroke(); }
+    const img = x.getImageData(0, 0, w, h), d = img.data; // grain fin
+    for (let i = 0; i < d.length; i += 4) { const n = (r() - .5)*(bump ? 18 : 10); d[i] += n; d[i + 1] += n; d[i + 2] += n; } x.putImageData(img, 0, 0);
+    for (let i = 0; i < 900; i++) { x.fillStyle = `rgba(30,28,26,${(bump ? .5 : .18 + r()*.3).toFixed(3)})`; x.beginPath(); x.arc(r()*w, r()*h, .5 + r()*1.6, 0, 7); x.fill(); } // pores
+    x.lineWidth = 1; for (let i = 0; i < 5; i++) { let px = r()*w, py = r()*h; x.strokeStyle = `rgba(40,38,35,${bump ? .5 : .22})`; x.beginPath(); x.moveTo(px, py);
+      for (let k = 0; k < 14; k++) { px += (r() - .5)*34; py += (r() - .3)*26; x.lineTo(px, py); } x.stroke(); }
+  }
+  // brique pleine en appareil à la française (demi-décalage), joints ciment légèrement creux
+  const BRICK = { cols: 4, rows: 12 }; // un motif = 0,9 m × 0,9 m → brique ≈ 22,5 × 7,5 cm joint compris
+  function bricks(x, w, h, { seed = 3, bump = false } = {}){
+    const r = mkRnd(seed), bw = w/BRICK.cols, bh = h/BRICK.rows, j = Math.max(3, Math.round(bh*.13));
+    x.fillStyle = bump ? '#3a3a3a' : rgb([176, 168, 156]); x.fillRect(0, 0, w, h);
+    if (!bump) for (let i = 0; i < 2600; i++) { x.fillStyle = `rgba(${r() < .5 ? '90,84,76' : '220,214,204'},.35)`; x.fillRect(r()*w, r()*h, 1.5, 1.5); }
+    const pal = [[156, 74, 50], [142, 64, 44], [168, 86, 58], [124, 56, 40], [150, 82, 60], [110, 50, 38], [176, 98, 68]];
+    for (let row = 0; row < BRICK.rows; row++) { const off = row % 2 ? bw/2 : 0;
+      for (let c = -1; c <= BRICK.cols; c++) { const bx = c*bw + off + j/2, by = row*bh + j/2, ww = bw - j, hh = bh - j, k = r();
+        const base = pal[Math.floor(r()*pal.length)], v = 1 + (r() - .5)*.16;
+        if (bump) { x.fillStyle = `rgb(${Math.round(190 + r()*30)},${Math.round(190 + r()*30)},${Math.round(190 + r()*30)})`; x.fillRect(bx, by, ww, hh); }
+        else { const g = x.createLinearGradient(bx, by, bx + ww, by + hh); g.addColorStop(0, rgb(base, v*1.04)); g.addColorStop(1, rgb(base, v*.9)); x.fillStyle = g; x.fillRect(bx, by, ww, hh);
+          if (k < .18) { x.fillStyle = 'rgba(40,20,14,.28)'; x.fillRect(bx, by, ww*(.3 + r()*.5), hh); } // tête de brique plus cuite
+          if (k > .86) { x.fillStyle = 'rgba(230,220,205,.16)'; x.fillRect(bx, by, ww, hh); } // efflorescence légère
+          x.fillStyle = 'rgba(255,220,190,.10)'; x.fillRect(bx, by, ww, 1.5); x.fillStyle = 'rgba(30,14,8,.22)'; x.fillRect(bx, by + hh - 1.5, ww, 1.5); }
+        for (let s = 0; s < 70; s++) { x.fillStyle = bump ? `rgba(0,0,0,${(r()*.35).toFixed(3)})` : `rgba(${r() < .5 ? '30,14,8' : '235,190,160'},${(r()*.2).toFixed(3)})`; x.fillRect(bx + r()*ww, by + r()*hh, 1 + r()*2.5, 1 + r()*2); }
+        if (r() < .3) { x.fillStyle = bump ? '#606060' : 'rgba(40,20,12,.3)'; x.beginPath(); x.ellipse(bx + r()*ww, by + r()*hh, 2 + r()*5, 1.5 + r()*3, 0, 0, 7); x.fill(); } } } // éclats
+  }
+  // aluminium brossé : stries horizontales fines, reflets froids
+  function brushed(x, w, h, { seed = 9, bump = false } = {}){
+    const r = mkRnd(seed); x.fillStyle = bump ? '#808080' : rgb([212, 215, 219]); x.fillRect(0, 0, w, h);
+    for (let i = 0; i < h*4; i++) { const y = r()*h, l = r(); x.fillStyle = l < .5 ? `rgba(255,255,255,${(r()*(bump ? .2 : .05)).toFixed(3)})` : `rgba(60,64,70,${(r()*(bump ? .2 : .045)).toFixed(3)})`; x.fillRect(0, y, w, .3 + r()*.8); }
+    for (let i = 0; i < 200; i++) { const y = r()*h, x0 = r()*w; x.fillStyle = `rgba(${r() < .5 ? '255,255,255' : '40,44,50'},${(r()*.06).toFixed(3)})`; x.fillRect(x0, y, w*(.1 + r()*.5), .5); }
+    if (!bump) { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(255,255,255,.04)'); g.addColorStop(.5, 'rgba(0,0,0,.03)'); g.addColorStop(1, 'rgba(255,255,255,.04)'); x.fillStyle = g; x.fillRect(0, 0, w, h); }
+  }
+  // couleur + carte de relief tirées du même motif (mêmes graines)
+  const ctexPair = (w, h, draw, o) => { const b = ctex(w, h, (x, W, H) => draw(x, W, H, true), o); b.encoding = T.LinearEncoding; return [ctex(w, h, (x, W, H) => draw(x, W, H, false), o), b]; };
+
   /* ---------- petites briques ---------- */
   const std = (key, o) => A.mats[key] ||= new T.MeshStandardMaterial({ envMapIntensity: .55, ...o, ...(typeof o.color === 'string' ? { color: col(o.color) } : {}) });
   const mesh = (geo, m, parent, x = 0, y = 0, z = 0, cast = true) => { const o = new T.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = cast; o.receiveShadow = true; parent.add(o); return o; };
@@ -180,24 +224,32 @@ const Atelier = (() => {
   /* ---------- murs, sol, plafond, lumières ---------- */
   function buildRoom(){
     const { x0, x1, zb, zf, h: H } = ROOM, W = x1 - x0, Dz = zf - zb, cz = (zb + zf)/2, g = new T.Group(), s = A.scene; s.add(g);
-    const floor = mesh(new T.PlaneGeometry(W, Dz), new T.MeshStandardMaterial({ map: ctex(1024, 1024, (x, w, h) => planks(x, w, h, { base: [196, 158, 110], n: 9, seed: 11 }), { rep: [W/1.6, Dz/1.6] }), roughness: .58, envMapIntensity: .4 }), g, 0, 0, cz, false);
+    // sol : béton ciré brut
+    const [cMap, cBump] = ctexPair(1024, 1024, (x, w, h, b) => concrete(x, w, h, { seed: 11, bump: b }), { rep: [W/2.4, Dz/2.4] });
+    const floor = mesh(new T.PlaneGeometry(W, Dz), new T.MeshStandardMaterial({ map: cMap, bumpMap: cBump, bumpScale: .25, roughness: .5, metalness: 0, envMapIntensity: .4 }), g, 0, 0, cz, false);
     floor.rotation.x = -Math.PI/2;
     const wallM = rep => new T.MeshStandardMaterial({ map: ctex(512, 512, (x, w, h) => boards(x, w, h, { base: [214, 211, 205] }), { rep }), roughness: .9, envMapIntensity: .35 });
-    const back = mesh(new T.PlaneGeometry(W, H), wallM([W, H]), g, 0, H/2, zb, false);
-    const left = mesh(new T.PlaneGeometry(Dz, H), wallM([Dz, H]), g, x0, H/2, cz, false); left.rotation.y = Math.PI/2;
-    const woodT = ctex(1024, 1024, (x, w, h) => planks(x, w, h, { base: [208, 178, 136], n: 7, seed: 23, vary: .07 }), { rep: [H/1.4, Dz/1.4], rot: Math.PI/2 });
-    const right = mesh(new T.PlaneGeometry(Dz, H), new T.MeshStandardMaterial({ map: woodT, roughness: .72, envMapIntensity: .35 }), g, x1, H/2, cz, false); right.rotation.y = -Math.PI/2;
+    // mur du fond : grand panneau d'aluminium chromé brossé
+    const [aMap, aBump] = ctexPair(1024, 1024, (x, w, h, b) => brushed(x, w, h, { seed: 9, bump: b }), { rep: [W/1.3, H/1.3] });
+    const back = mesh(new T.PlaneGeometry(W, H), new T.MeshStandardMaterial({ color: col('#e6e9ed'), map: aMap, bumpMap: aBump, bumpScale: .03, metalness: 1, roughness: .3, envMapIntensity: .95 }), g, 0, H/2, zb, false);
+    // murs de côté : brique
+    const brickM = seed => { const [m, b] = ctexPair(1024, 1024, (x, w, h, bb) => bricks(x, w, h, { seed, bump: bb }), { rep: [Dz/.9, H/.9] }); return new T.MeshStandardMaterial({ map: m, bumpMap: b, bumpScale: 1.1, roughness: .88, envMapIntensity: .3 }); };
+    const left = mesh(new T.PlaneGeometry(Dz, H), brickM(3), g, x0, H/2, cz, false); left.rotation.y = Math.PI/2;
+    const right = mesh(new T.PlaneGeometry(Dz, H), brickM(17), g, x1, H/2, cz, false); right.rotation.y = -Math.PI/2;
     const front = new T.Group(); g.add(front); mesh(new T.PlaneGeometry(W, H), wallM([W, H]), front, 0, H/2, zf, false).rotation.y = Math.PI;
     box(.9, 2.05, .04, std('door', { color: '#3a3f47', roughness: .6 }), front, -1.2, 1.025, zf - .02, false);
     const ceil = new T.Group(); g.add(ceil);
     mesh(new T.PlaneGeometry(W, Dz), new T.MeshStandardMaterial({ map: ctex(1024, 1024, (x, w, h) => planks(x, w, h, { base: [222, 204, 170], n: 8, seed: 31, vary: .05, grain: 10 }), { rep: [Dz/1.6, W/1.6], rot: Math.PI/2 }), roughness: .8, envMapIntensity: .3 }), ceil, 0, H, cz, false).rotation.x = Math.PI/2;
-    const base = std('plinthe', { color: '#d4cfc6', roughness: .7 });
-    box(W, .07, .014, base, g, 0, .035, zb + .007, false); box(.014, .07, Dz, base, g, x0 + .007, .035, cz, false); box(.014, .07, Dz, base, g, x1 - .007, .035, cz, false);
+    // finitions du panneau alu : cornières dans les angles brique/alu, profil bas et haut, vis inox
+    const trim = std('alutrim', { color: '#a9aeb5', roughness: .3, metalness: 1 }), screw = std('screw', { color: '#cfd3d8', roughness: .22, metalness: 1 });
+    box(W, .05, .02, trim, g, 0, .025, zb + .01, false); box(W, .03, .02, trim, g, 0, H - .015, zb + .01, false);
+    for (const sx of [1, -1]) { const ex = sx > 0 ? x1 : x0; box(.04, H, .006, trim, g, ex - sx*.02, H/2, zb + .003, false); box(.006, H, .04, trim, g, ex - sx*.003, H/2, zb + .02, false); }
+    for (let xi = x0 + .25; xi < x1 - .1; xi += .6) for (const y of [.1, H - .08]) { const sc = cyl(.007, .007, .004, screw, g, xi, y, zb + .002, 12); sc.rotation.x = Math.PI/2; sc.castShadow = false; }
     const led = A.mats.led = new T.MeshBasicMaterial({ color: col('#fff6e2') }), ring = std('spotring', { color: '#e8e3d9', roughness: .5 });
     for (const x of [-1.5, 0, 1.5]) for (const z of [-1.3, .4, 2.0]) { cyl(.07, .07, .01, ring, ceil, x, H - .004, z, 32).castShadow = false; cyl(.05, .05, .012, led, ceil, x, H - .006, z, 32).castShadow = false; }
     for (let i = 0; i < 4; i++) { const t = tor(.33, .016, M().rub, g, -2.555 + i*.032, .335, 2.05 + i*.035, 64); t.rotation.y = Math.PI/2; } // pneus neufs contre le mur (hors du champ du podium)
     Object.assign(A, { ceil, front, walls: { back, left, right, floor } }); A.occ.push(floor, back, left, right, ...front.children, ...ceil.children);
-    s.add(new T.HemisphereLight(col('#fff3df'), col('#5e4731'), .62));
+    s.add(new T.HemisphereLight(col('#fff3df'), col('#6b6864'), .62));
     const key = new T.DirectionalLight(col('#fff0d8'), 1.05); key.position.set(.9, 2.6, 1.7); key.target.position.set(-.2, 0, -.9); key.castShadow = true;
     key.shadow.mapSize.set(2048, 2048); Object.assign(key.shadow.camera, { left: -3.6, right: 3.6, top: 3.6, bottom: -3.6, near: .1, far: 9 }); key.shadow.bias = -.0004; key.shadow.normalBias = .015; s.add(key, key.target);
     for (const [x, y, z, i] of [[-.2, 2.3, -1.4, .55], [-1.3, 2.3, .6, .45], [1.6, 2.35, -1.3, .45], [1.9, 2.3, -.3, .35], [0, 2.4, 1.6, .3]]) { const p = new T.PointLight(col('#ffe4c2'), i, 4.2, 2); p.position.set(x, y, z); s.add(p); }
