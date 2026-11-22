@@ -4,10 +4,10 @@
 const Survey = (() => {
   const ID = 'ux-2026-11';
   const QS = [
-    ['nav', 'Trouver ce que tu cherches', "Menus, onglets, boutons : on s'y retrouve facilement ?"],
-    ['read', 'Lisibilité', 'Taille des textes, contrastes, boutons assez grands sur ton téléphone ?'],
-    ['smooth', 'Fluidité', "Ouverture de l'app, chargements, animations et vues 3D sans à-coups ?"],
-    ['daily', 'Au quotidien', 'Importer une séance, consulter le plan, saisir une info : simple et rapide ?'],
+    ['nav', 'Trouver ce que tu cherches', "Menus, onglets, boutons : on s'y retrouve facilement ?", 'Navigation'],
+    ['read', 'Lisibilité', 'Taille des textes, contrastes, boutons assez grands sur ton téléphone ?', 'Lisibilité'],
+    ['smooth', 'Fluidité', "Ouverture de l'app, chargements, animations et vues 3D sans à-coups ?", 'Fluidité'],
+    ['daily', 'Au quotidien', 'Importer une séance, consulter le plan, saisir une info : simple et rapide ?', 'Quotidien'],
   ];
   const SCALE = [[1, 'Pas du tout'], [2, 'Plutôt pas'], [3, 'Moyen'], [4, 'Plutôt oui'], [5, 'Tout à fait']];
   let ans = {};
@@ -31,7 +31,7 @@ const Survey = (() => {
   }
   async function send(){
     const miss = QS.filter(([k]) => !ans[k]); if (miss.length) return toast(`Il manque une réponse : ${miss[0][1]}`);
-    const row = { survey: ID, ...Object.fromEntries(QS.map(([k]) => [k, ans[k]])), comment: ($('#svTxt')?.value || '').trim().slice(0, 1500) || null, app_version: APP_VERSION,
+    const row = { survey: ID, ...Object.fromEntries(QS.map(([k]) => [k, ans[k]])), comment: ($('#svTxt')?.value || '').trim().slice(0, 1500) || null, who: (S.profile?.name || '').trim().slice(0, 60) || null, app_version: APP_VERSION,
       device: `${innerWidth}×${innerHeight} · ${matchMedia('(display-mode: standalone)').matches ? 'app' : 'navigateur'} · ${navigator.userAgent.slice(0, 160)}` };
     const b = $('[data-svgo="send"]'); if (b) b.disabled = true;
     const { error } = await Cloud.sb.from('feedback_surveys').insert(row);
@@ -45,5 +45,5 @@ const Survey = (() => {
     if (g.dataset.svgo === 'send') return send();
     st()[ID] = g.dataset.svgo === 'no' ? 'no' : todayISO(); save(); closeDlg(); if (g.dataset.svgo === 'later') toast('Je te le reproposerai demain');
   });
-  return { maybe, show, due, ID };
+  return { maybe, show, due, ID, QS };
 })();

@@ -746,7 +746,7 @@ const Garage = (() => {
       save(); render(); }
   });
   /* ---------- admin : demandes d'ajout au catalogue (📮 dans le Profil) ---------- */
-  const Adm = { is: false, uid: null, list: null, err: '' };
+  const Adm = { is: false, uid: null, list: null, err: '', fb: [], tab: 'req' }; // demandes d'ajout au catalogue + avis du questionnaire
   async function admCheck(){
     const u = Cloud.user; if (!Cloud.sb || !u || Adm.uid === u.id) return; Adm.uid = u.id;
     try { const { data } = await Cloud.sb.rpc('is_admin'); Adm.is = data === true; if (Adm.is) { await admLoad(); render(); } } catch (e) { Adm.is = false; }
@@ -754,26 +754,44 @@ const Garage = (() => {
   async function admLoad(){
     const { data, error } = await Cloud.sb.from('bike_requests').select('*').order('at', { ascending: false }).limit(200);
     Adm.err = error ? error.message : ''; if (!error) Adm.list = data || [];
+    try { const r = await Cloud.sb.from('feedback_surveys').select('*').order('at', { ascending: false }).limit(300); if (!r.error) Adm.fb = r.data || []; } catch (e) {} // table absente : pas d'onglet Avis
   }
   const RSTAT = { nouveau: ['📮', 'Nouvelle'], ajoute: ['✅', 'Ajoutée'], refuse: ['✖️', 'Refusée'] };
   const reqTxt = r => `Ajoute au catalogue du garage FTP Builder : ${r.brand} ${r.model}${r.year ? ` (${r.year})` : ''}${r.groupset ? ` — transmission : ${r.groupset}` : ''}${r.note ? ` — précisions : ${r.note}` : ''} (demande n° ${r.id})`;
   function reqTileHTML(){
     if (Cloud.user && Adm.uid !== Cloud.user.id) setTimeout(admCheck, 0);
     if (!Adm.is) return '';
-    const n = (Adm.list || []).filter(r => r.status === 'nouveau').length;
-    return `<button class="card set-mail" data-req="open" aria-label="Demandes d'ajout au catalogue${n ? ` : ${n} nouvelle${n > 1 ? 's' : ''}` : ''}"><span class="set-mail-ic" aria-hidden="true">📮</span><span class="tiny">Demandes</span>${n ? `<span class="set-dot">${n}</span>` : ''}</button>`;
+    const n = (Adm.list || []).filter(r => r.status === 'nouveau').length + (Adm.fb || []).filter(f => !f.seen).length;
+    return `<button class="card set-mail" data-req="open" aria-label="Boîte aux lettres : demandes et avis${n ? ` : ${n} nouvelle${n > 1 ? 's' : ''}` : ''}"><span class="set-mail-ic" aria-hidden="true">📮</span><span class="tiny">Demandes</span>${n ? `<span class="set-dot">${n}</span>` : ''}</button>`;
   }
   function reqPane(){
+    const nf = (Adm.fb || []).filter(f => !f.seen).length, nr = (Adm.list || []).filter(r => r.status === 'nouveau').length;
+    const tabs = `<div class="seg" style="margin:4px 0 12px"><button type="button" class="${Adm.tab !== 'fb' ? 'on' : ''}" data-req="tab" data-t="req">Catalogue${nr ? ` (${nr})` : ''}</button><button type="button" class="${Adm.tab === 'fb' ? 'on' : ''}" data-req="tab" data-t="fb">Avis${nf ? ` (${nf})` : ''}</button></div>`;
     const L = Adm.list || [], nw = L.filter(r => r.status === 'nouveau'), old = L.filter(r => r.status !== 'nouveau');
     const card = r => `<div class="card gr-req"><div class="row between" style="gap:8px"><b>${esc(r.brand)} ${esc(r.model)}${r.year ? ` <span class="muted">· ${esc(r.year)}</span>` : ''}</b><span class="tiny">${RSTAT[r.status]?.[0] || ''} ${RSTAT[r.status]?.[1] || esc(r.status)}</span></div>
       ${r.groupset ? `<div class="small">⚙️ ${esc(r.groupset)}</div>` : ''}${r.note ? `<div class="small muted">${esc(r.note)}</div>` : ''}<div class="tiny muted">Reçue le ${dfr(String(r.at).slice(0, 10))} · n° ${r.id}</div>
       <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-req="copy" data-id="${r.id}">📋 Copier pour Claude</button>${r.status === 'nouveau' ? `<button class="btn sm" data-req="set" data-s="ajoute" data-id="${r.id}">✓ Ajoutée</button><button class="btn sm ghost" data-req="set" data-s="refuse" data-id="${r.id}">Refuser</button>` : `<button class="btn sm ghost" data-req="set" data-s="nouveau" data-id="${r.id}">Rouvrir</button>`}</div></div>`;
     return `<div class="pane-in"><div class="pane-head"><button class="pane-back" data-settings="back" aria-label="Retour au profil"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><h2>Demandes</h2><span class="pane-num num">${nw.length}</span></div>
-      <p class="small muted">Vélos et groupes que les membres ne trouvent pas au catalogue. Copie une demande et colle-la à Claude pour qu'il l'ajoute, puis marque-la « Ajoutée ».</p>
+      ${tabs}${Adm.tab === 'fb' ? fbView() : `<p class="small muted">Vélos et groupes que les membres ne trouvent pas au catalogue. Copie une demande et colle-la à Claude pour qu'il l'ajoute, puis marque-la « Ajoutée ».</p>
       <div class="row" style="gap:8px;margin:8px 0">${nw.length > 1 ? '<button class="btn sm" data-req="copyall">📋 Tout copier</button>' : ''}<button class="btn sm ghost" data-req="reload">↻ Actualiser</button></div>
       ${Adm.err ? `<p class="note warn small">${esc(Adm.err)}</p>` : ''}
       ${nw.length ? nw.map(card).join('') : '<div class="card"><p class="small muted" style="margin:0">Aucune nouvelle demande 📭</p></div>'}
-      ${old.length ? `<h3 style="margin:16px 0 6px">Traitées</h3>${old.map(card).join('')}` : ''}</div>`;
+      ${old.length ? `<h3 style="margin:16px 0 6px">Traitées</h3>${old.map(card).join('')}` : ''}`}</div>`;
+  }
+  // avis du questionnaire (table feedback_surveys) : moyennes, puis réponses non lues / lues
+  const fbTxt = f => `Avis FTP Builder (${f.survey}, v${f.app_version || '?'}) de ${f.who || 'un membre'} : ${Survey.QS.map(([k, t]) => `${t} ${f[k]}/5`).join(', ')}${f.comment ? ` — « ${f.comment} »` : ''}`;
+  function fbView(){
+    const F = Adm.fb || [], QS = Survey.QS; if (!F.length) return '<div class="card"><p class="small muted" style="margin:0">Aucun avis reçu pour l\'instant 📭</p></div>';
+    const avg = k => F.reduce((a, f) => a + (+f[k] || 0), 0)/F.length, col = v => v >= 4 ? 'var(--good, #2fbf71)' : v >= 3 ? 'var(--warn, #f2b134)' : 'var(--bad, #e5484d)';
+    const sum = `<div class="card"><b>${F.length} réponse${F.length > 1 ? 's' : ''}</b>${QS.map(([k, t]) => { const v = avg(k); return `<div style="margin-top:8px"><div class="row between small"><span>${t}</span><b>${v.toFixed(1).replace('.', ',')} / 5</b></div>
+      <div style="height:6px;border-radius:3px;background:var(--bg2);overflow:hidden;margin-top:3px"><div style="height:100%;width:${v/5*100}%;background:${col(v)}"></div></div></div>`; }).join('')}</div>`;
+    const card = f => `<div class="card gr-req"><div class="row between" style="gap:8px"><b>${esc(f.who || 'Membre')}</b><span class="tiny muted">${dfr(String(f.at).slice(0, 10))}${f.app_version ? ' · v' + esc(f.app_version) : ''}</span></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0">${QS.map(([k, t, , sh]) => `<span class="chip" title="${esc(t)}" style="border-color:${col(+f[k])}">${esc(sh)} <b>${f[k]}</b></span>`).join('')}</div>
+      ${f.comment ? `<div class="small" style="white-space:pre-wrap">${esc(f.comment)}</div>` : '<div class="small muted">Pas de commentaire</div>'}${f.device ? `<div class="tiny muted" style="margin-top:4px">${esc(f.device.split(' · ').slice(0, 2).join(' · '))}</div>` : ''}
+      <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-req="fbcopy" data-fid="${f.id}">📋 Copier pour Claude</button>${f.seen ? '' : `<button class="btn sm" data-req="fbseen" data-fid="${f.id}">✓ Lu</button>`}</div></div>`;
+    const nw = F.filter(f => !f.seen), old = F.filter(f => f.seen);
+    return sum + `<div class="row" style="gap:8px;margin:10px 0">${nw.length > 1 ? '<button class="btn sm" data-req="fbcopyall">📋 Tout copier</button>' : ''}<button class="btn sm ghost" data-req="reload">↻ Actualiser</button></div>` +
+      (nw.length ? nw.map(card).join('') : '<div class="card"><p class="small muted" style="margin:0">Aucun nouvel avis</p></div>') + (old.length ? `<h3 style="margin:16px 0 6px">Lus</h3>${old.map(card).join('')}` : '');
   }
   document.addEventListener('click', async e => {
     const x = e.target.closest('[data-req]'); if (!x) return; const a = x.dataset.req, r = (Adm.list || []).find(y => String(y.id) === x.dataset.id);
@@ -781,6 +799,10 @@ const Garage = (() => {
     if (a === 'open') { PROFILE_PANE = 'requests'; TAB = 'profile'; render(); window.scrollTo(0, 0); admLoad().then(render); }
     else if (a === 'reload') { await admLoad(); render(); toast('Demandes à jour'); }
     else if (a === 'copy' && r) copy(reqTxt(r));
+    else if (a === 'tab') { Adm.tab = x.dataset.t; render(); }
+    else if (a === 'fbcopy' || a === 'fbcopyall' || a === 'fbseen') { const f = (Adm.fb || []).find(y => String(y.id) === x.dataset.fid);
+      if (a === 'fbcopy' && f) return copy(fbTxt(f)); if (a === 'fbcopyall') return copy(Adm.fb.filter(y => !y.seen).map(fbTxt).join('\n'));
+      if (f) { const { error } = await Cloud.sb.from('feedback_surveys').update({ seen: true }).eq('id', f.id); if (error) return toast('Échec : ' + error.message); f.seen = true; render(); toast('Avis marqué lu'); } }
     else if (a === 'copyall') copy((Adm.list || []).filter(y => y.status === 'nouveau').map(reqTxt).join('\n'));
     else if (a === 'set' && r) { const { error } = await Cloud.sb.from('bike_requests').update({ status: x.dataset.s }).eq('id', r.id); if (error) return toast('Échec : ' + error.message); r.status = x.dataset.s; render(); toast(RSTAT[r.status][1]); }
   });
