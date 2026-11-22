@@ -778,19 +778,16 @@ const Garage = (() => {
       ${nw.length ? nw.map(card).join('') : '<div class="card"><p class="small muted" style="margin:0">Aucune nouvelle demande 📭</p></div>'}
       ${old.length ? `<h3 style="margin:16px 0 6px">Traitées</h3>${old.map(card).join('')}` : ''}`}</div>`;
   }
-  // avis du questionnaire (table feedback_surveys) : moyennes, puis réponses non lues / lues
-  const fbTxt = f => `Avis FTP Builder (${f.survey}, v${f.app_version || '?'}) de ${f.who || 'un membre'} : ${Survey.QS.map(([k, t]) => `${t} ${f[k]}/5`).join(', ')}${f.comment ? ` — « ${f.comment} »` : ''}`;
+  // avis du questionnaire (table feedback_surveys) : synthèse, puis réponses non lues / lues (questions et libellés : Survey)
+  const fbTxt = f => Survey.text(f);
   function fbView(){
-    const F = Adm.fb || [], QS = Survey.QS; if (!F.length) return '<div class="card"><p class="small muted" style="margin:0">Aucun avis reçu pour l\'instant 📭</p></div>';
-    const avg = k => F.reduce((a, f) => a + (+f[k] || 0), 0)/F.length, col = v => v >= 4 ? 'var(--good, #2fbf71)' : v >= 3 ? 'var(--warn, #f2b134)' : 'var(--bad, #e5484d)';
-    const sum = `<div class="card"><b>${F.length} réponse${F.length > 1 ? 's' : ''}</b>${QS.map(([k, t]) => { const v = avg(k); return `<div style="margin-top:8px"><div class="row between small"><span>${t}</span><b>${v.toFixed(1).replace('.', ',')} / 5</b></div>
-      <div style="height:6px;border-radius:3px;background:var(--bg2);overflow:hidden;margin-top:3px"><div style="height:100%;width:${v/5*100}%;background:${col(v)}"></div></div></div>`; }).join('')}</div>`;
+    const F = (Adm.fb || []).filter(f => f.answers); if (!F.length) return '<div class="card"><p class="small muted" style="margin:0">Aucun avis reçu pour l\'instant 📭</p></div>';
     const card = f => `<div class="card gr-req"><div class="row between" style="gap:8px"><b>${esc(f.who || 'Membre')}</b><span class="tiny muted">${dfr(String(f.at).slice(0, 10))}${f.app_version ? ' · v' + esc(f.app_version) : ''}</span></div>
-      <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0">${QS.map(([k, t, , sh]) => `<span class="chip" title="${esc(t)}" style="border-color:${col(+f[k])}">${esc(sh)} <b>${f[k]}</b></span>`).join('')}</div>
-      ${f.comment ? `<div class="small" style="white-space:pre-wrap">${esc(f.comment)}</div>` : '<div class="small muted">Pas de commentaire</div>'}${f.device ? `<div class="tiny muted" style="margin-top:4px">${esc(f.device.split(' · ').slice(0, 2).join(' · '))}</div>` : ''}
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0">${Survey.chipsHTML(f)}</div>
+      ${f.comment ? `<div class="small" style="white-space:pre-wrap">💡 ${esc(f.comment)}</div>` : '<div class="small muted">Pas de suggestion</div>'}${f.device ? `<div class="tiny muted" style="margin-top:4px">${esc(f.device.split(' · ').slice(0, 2).join(' · '))}</div>` : ''}
       <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button class="btn sm" data-req="fbcopy" data-fid="${f.id}">📋 Copier pour Claude</button>${f.seen ? '' : `<button class="btn sm" data-req="fbseen" data-fid="${f.id}">✓ Lu</button>`}</div></div>`;
     const nw = F.filter(f => !f.seen), old = F.filter(f => f.seen);
-    return sum + `<div class="row" style="gap:8px;margin:10px 0">${nw.length > 1 ? '<button class="btn sm" data-req="fbcopyall">📋 Tout copier</button>' : ''}<button class="btn sm ghost" data-req="reload">↻ Actualiser</button></div>` +
+    return Survey.summaryHTML(F) + `<div class="row" style="gap:8px;margin:10px 0">${nw.length > 1 ? '<button class="btn sm" data-req="fbcopyall">📋 Tout copier</button>' : ''}<button class="btn sm ghost" data-req="reload">↻ Actualiser</button></div>` +
       (nw.length ? nw.map(card).join('') : '<div class="card"><p class="small muted" style="margin:0">Aucun nouvel avis</p></div>') + (old.length ? `<h3 style="margin:16px 0 6px">Lus</h3>${old.map(card).join('')}` : '');
   }
   document.addEventListener('click', async e => {

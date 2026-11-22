@@ -1,19 +1,16 @@
--- Questionnaire d'avis dans l'app (accessibilité, fluidité) : chaque utilisateur envoie ses réponses (notes de 1 à 5 + commentaire libre) ;
--- l'admin les lit dans l'app (Profil › boîte aux lettres 📮, onglet Avis) et les marque lues. Un envoi par questionnaire et par utilisateur.
+-- Questionnaire d'avis dans l'app : chaque utilisateur envoie ses réponses (answers : notes de 1 à 5 et choix, en JSON) et ses suggestions ;
+-- l'admin les lit dans l'app (Profil › boîte aux lettres 📮 › Avis) et les marque lues. Un envoi par questionnaire et par utilisateur.
 create table if not exists public.feedback_surveys (
   id bigint generated always as identity primary key,
   user_id uuid not null default auth.uid() references auth.users(id) on delete cascade,
   at timestamptz not null default now(),
   survey text not null check (char_length(survey) between 1 and 40),
-  nav smallint not null check (nav between 1 and 5),        -- trouver ce qu'on cherche
-  read smallint not null check (read between 1 and 5),      -- lisibilité
-  smooth smallint not null check (smooth between 1 and 5),  -- fluidité
-  daily smallint not null check (daily between 1 and 5),    -- usage au quotidien
-  comment text check (char_length(comment) <= 1500),
+  answers jsonb not null check (jsonb_typeof(answers) = 'object' and pg_column_size(answers) < 2000),
+  comment text check (char_length(comment) <= 1500),          -- suggestions d'amélioration ou de modules
+  who text check (char_length(who) <= 60),                    -- prénom du profil, pour l'admin
   app_version text check (char_length(app_version) <= 20),
   device text check (char_length(device) <= 220),
-  who text check (char_length(who) <= 60),                  -- prénom du profil, pour l'admin
-  seen boolean not null default false,                      -- lu par l'admin
+  seen boolean not null default false,                        -- lu par l'admin
   unique (user_id, survey)
 );
 create index if not exists feedback_surveys_at on public.feedback_surveys (at desc);

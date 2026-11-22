@@ -1,4 +1,4 @@
-// Questionnaire d'avis (accessibilité, fluidité) : proposé après connexion, réponses obligatoires, envoi dans feedback_surveys, « Plus tard » / « Non merci »
+// Questionnaire d'avis (satisfaction, programme, synchro, facilité, social, suggestions) : proposé après connexion, réponses obligatoires, envoi dans feedback_surveys, « Plus tard » / « Non merci »
 const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const out = process.env.SCRATCH || '.';
 const b = await pw.chromium.launch(); const ctx = await b.newContext({ ...pw.devices['iPhone 13'], permissions: ['clipboard-read', 'clipboard-write'] });
@@ -16,16 +16,17 @@ await ev(() => { window._ins = []; const fake = { from: t => ({ insert: async ro
   Object.defineProperty(Cloud, 'sb', { get: () => fake, configurable: true }); Object.defineProperty(Cloud, 'user', { get: () => ({ id: 'usr' }), configurable: true }); });
 assert(await ev(() => Survey.due()), 'à proposer : compte connecté, jamais répondu');
 await ev(() => Survey.show()); await pg.waitForTimeout(200);
-assert(await pg.locator('#dlg [data-sv]').count() === 20 && await pg.locator('#svTxt').count() === 1, '4 questions notées de 1 à 5 + commentaire libre');
+assert(await pg.locator('#dlg [data-sv]').count() === 32 && await pg.locator('#svTxt').count() === 1 && /7\. Des suggestions/.test(await pg.locator('#dlg').innerText()), '6 questions (notes, choix, synchro sur 2 lignes) + suggestions libres');
 await pg.screenshot({ path: out + '/survey.png', fullPage: false });
 await pg.tap('[data-svgo="send"]'); await pg.waitForTimeout(200);
-assert(!(await ev(() => window._ins.length)) && await ev(() => dlg.open), 'envoi refusé tant que les 4 réponses ne sont pas données');
-for (const [k, n] of [['nav', 4], ['read', 5], ['smooth', 2], ['daily', 3]]) await pg.locator(`#dlg [data-sv="${k}"][data-n="${n}"]`).tap();
-assert(await pg.locator('#dlg [data-sv="smooth"][aria-checked="true"]').getAttribute('data-n') === '2', 'choix visible (aria-checked)');
+assert(!(await ev(() => window._ins.length)) && await ev(() => dlg.open), 'envoi refusé tant que toutes les réponses ne sont pas données');
+for (const [k, v] of [['sat', 4], ['follow', 'souvent'], ['fit', 5], ['sync_dev', 'oui'], ['sync_app', 'parfois'], ['ease', 2], ['social', 'inconnu']]) await pg.locator(`#dlg [data-sv="${k}"][data-v="${v}"]`).tap();
+assert(await pg.locator('#dlg [data-sv="ease"][aria-checked="true"]').getAttribute('data-v') === '2', 'choix visible (aria-checked)');
 await pg.fill('#svTxt', "La vue 3D rame un peu sur mon iPhone");
 await pg.tap('[data-svgo="send"]'); await pg.waitForTimeout(300);
 const ins = await ev(() => window._ins);
-assert(ins.length === 1 && ins[0].t === 'feedback_surveys' && ins[0].row.nav === 4 && ins[0].row.read === 5 && ins[0].row.smooth === 2 && ins[0].row.daily === 3 && /rame/.test(ins[0].row.comment) && ins[0].row.survey === 'ux-2026-11', 'réponses envoyées dans feedback_surveys');
+const A = ins[0]?.row.answers || {};
+assert(ins.length === 1 && ins[0].t === 'feedback_surveys' && A.sat === 4 && A.follow === 'souvent' && A.fit === 5 && A.sync_dev === 'oui' && A.sync_app === 'parfois' && A.ease === 2 && A.social === 'inconnu' && /rame/.test(ins[0].row.comment) && ins[0].row.survey === 'avis-2026-11' && ins[0].row.who === 'A', 'réponses envoyées dans feedback_surveys');
 assert(!(await ev(() => dlg.open)) && await ev(() => S.settings.surveys[Survey.ID]) === 'done' && !(await ev(() => Survey.due())), 'répondu : fenêtre fermée, plus reproposé');
 // « Plus tard » : reproposé le lendemain ; « Non merci » : plus jamais
 await ev(() => { S.settings.surveys = {}; Survey.show(); }); await pg.waitForTimeout(200); await pg.tap('[data-svgo="later"]'); await pg.waitForTimeout(200);
