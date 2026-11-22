@@ -29,6 +29,7 @@ const Cloud = (() => {
     render(); window.splashReady?.(); // données là : l'écran d'ouverture peut s'effacer
     Social.load().then(() => { if (TAB === 'today' && TODAY_PANE === 'defis') render(); });
     Tour.maybe(); // visite guidée : une fois, juste après l'authentification
+    Survey.maybe(); // questionnaire d'avis : une fois, si la visite guidée n'est pas en cours
   }
   /* ----- Intervals.icu ----- */
   let icu = { connected:false }, icuBusy = false;
