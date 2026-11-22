@@ -27,7 +27,7 @@ const Survey = (() => {
     const v = st()[ID]; if (!S.profile || !Cloud.user || !Cloud.sb || Tour.open || dlg.open || v === 'done' || v === 'no') return false;
     return !v || v < todayISO();
   }
-  function maybe(){ setTimeout(() => { if (due()) show(); }, 2500); } // laisse l'écran d'ouverture s'effacer
+  function maybe(){ if (!navigator.webdriver) setTimeout(() => { if (due()) show(); }, 2500); } // laisse l'écran d'ouverture s'effacer ; jamais pendant les tests automatiques
   const group = (key, opts, label, grid) => `<div class="seg" role="radiogroup" aria-label="${esc(label)}" style="${grid ? 'display:grid;grid-template-columns:repeat(5,1fr);' : ''}gap:6px;margin-top:8px">${opts.map(([v, l]) =>
     `<button type="button" role="radio" aria-checked="false" aria-label="${esc(l)}" data-sv="${key}" data-v="${v}" style="min-height:44px${grid ? ';padding:0;justify-content:center' : ''}">${grid ? v : esc(l)}</button>`).join('')}</div>`;
   function qHTML(x, i){
