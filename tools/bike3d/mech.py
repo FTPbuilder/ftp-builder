@@ -271,6 +271,20 @@ def chainrings(drive_angle):
     return M(mb.V + T, mb.F, mb.N), M(msm.V + T, msm.F, msm.N)
 
 
+def mono_chainring():
+    """plateau unique (1x, montage direct) : couronne dentée + flasque plein aéro qui couvre l'intérieur jusqu'à la manivelle"""
+    z = BIG_Z; Rp = pitch_r(BIG_T)
+    teeth = sprocket_poly(BIG_T, tip=0.0034, rs=0.0040, spt=12).difference(Point(0, 0).buffer(Rp - 0.0092, 128))
+    mt = extrude(teeth, z - 0.0011, z + 0.0011, angle=40)
+    r1 = Rp - 0.0080
+    # profil (r, z) : face intérieure plate (côté cadre), jante du flasque, face extérieure bombée vers la manivelle
+    prof = [(0.0205, z - 0.0024), (0.050, z - 0.0024), (r1 - 0.004, z - 0.0018), (r1, z - 0.0010), (r1, z - 0.0010), (r1, z + 0.0012), (r1, z + 0.0012),
+            (r1 - 0.004, z + 0.0024), (0.075, z + 0.0052), (0.050, z + 0.0080), (0.030, z + 0.0100), (0.0205, z + 0.0106)]
+    cover = fix_orientation(lathe(np.array(prof), 160))
+    Tr = np.array([BB[0], BB[1], 0.0])
+    return M(mt.V + Tr, mt.F, mt.N), M(cover.V + Tr, cover.F, cover.N)
+
+
 def cassette(cog_list=None, pitch=None):
     cog_list = COGS if cog_list is None else cog_list
     pitch = COG_PITCH if pitch is None else pitch

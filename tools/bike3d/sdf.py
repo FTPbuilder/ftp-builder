@@ -1,4 +1,5 @@
 """Tiny signed-distance-field modelling kernel (numpy) + sparse marching-cubes mesher."""
+import os
 import numpy as np
 from skimage.measure import marching_cubes
 import fast_simplification
@@ -234,13 +235,19 @@ def catmull(P, n):
     return np.stack([np.interp(su, s, out[:, k]) for k in range(3)], 1)
 
 
-PROFILE_KEYS = ('af', 'ab', 'b', 'n', 'cut', 're', 'ou', 'ov')
-DEFAULTS = dict(af=0.01, ab=0.01, b=0.01, n=2.0, cut=1.0, re=0.0015, ou=0.0, ov=0.0)
+# bouts de tube exacts (distance intérieure mesurée jusqu'au plan du bout) : gabarit CLM ; le gabarit aéro garde l'ancien calcul pour rester reproductible
+EXACT_CAPS = os.environ.get('FTPB_MODEL') == 'clm'
+# nb : exposant de la moitié arrière du profil (flancs d'aile plus droits vers la troncature) ; 0 = même exposant que l'avant (n)
+PROFILE_KEYS = ('af', 'ab', 'b', 'n', 'cut', 're', 'ou', 'ov', 'nb')
+DEFAULTS = dict(af=0.01, ab=0.01, b=0.01, n=2.0, cut=1.0, re=0.0015, ou=0.0, ov=0.0, nb=0.0)
 
 
 def profile_sdf(u, v, p):
     a = np.where(u >= 0, p['af'], p['ab'])
     b = p['b']; n = p['n']
+    nb = p.get('nb')
+    if nb is not None and np.any(nb > 0):
+        n = np.where((u < 0) & (nb > 0), nb, n)
     x = np.abs(u) / a + 1e-12
     y = np.abs(v) / b + 1e-12
     xn = x ** n; yn = y ** n
@@ -285,6 +292,7 @@ class Tube(Node):
         self.U, self.V = U, V
         self.par = {}
         keys = sorted(keys, key=lambda kv: kv[0])
+        fills = {}
         for k in PROFILE_KEYS:
             ts = [kt for kt, kd in keys]
             vs = [kd.get(k, None) for kt, kd in keys]
@@ -295,6 +303,9 @@ class Tube(Node):
                 if v_ is None:
                     v_ = last
                 filled.append(v_); last = v_
+            if k == 'nb':   # exposant arrière absent ou nul → celui de l'avant de la même clé (jamais d'exposant intermédiaire invalide)
+                filled = [kd['nb'] if kd.get('nb', 0) > 0 else fills['n'][j] for j, (kt, kd) in enumerate(keys)]
+            fills[k] = filled
             if len(ts) >= 3 and len(set(ts)) == len(ts):
                 from scipy.interpolate import PchipInterpolator
                 self.par[k] = PchipInterpolator(ts, filled, extrapolate=True)(np.clip(tn, ts[0], ts[-1]))
@@ -335,10 +346,16 @@ class Tube(Node):
         d2 = profile_sdf(u, v, p)
         if self.caps:
             ax = np.full(len(P), -1.0)
-            s0 = (i == 0) & (tt <= 0.0)
-            ax[s0] = -(w[s0] @ self.T[0])
-            s1 = (i == M - 2) & (tt >= 1.0)
-            ax[s1] = w[s1] @ self.T[-1]
+            if EXACT_CAPS:   # distance signée au plan de chaque bout, aussi à l'intérieur (sinon le champ saute au ras du bout)
+                s0 = i == 0
+                ax[s0] = -((P[s0] - C[0]) @ self.T[0])
+                s1 = i == M - 2
+                ax[s1] = np.maximum(ax[s1], (P[s1] - C[-1]) @ self.T[-1])
+            else:
+                s0 = (i == 0) & (tt <= 0.0)
+                ax[s0] = -(w[s0] @ self.T[0])
+                s1 = (i == M - 2) & (tt >= 1.0)
+                ax[s1] = w[s1] @ self.T[-1]
             cr = self.caprad
             d2r = d2 + cr; axr = ax + cr
             out = np.sqrt(np.maximum(d2r, 0) ** 2 + np.maximum(axr, 0) ** 2)

@@ -15,6 +15,7 @@ Ouvrir `index.html` dans un navigateur (ou GitHub Pages). Données stockées loc
 Nouvelle version : `node tools/bump.mjs X.Y.Z`.
 `js/23-atelier.js` : atelier 3D du Garage (pièce, home trainer, rack et podium d'exposition, télé des kilomètres, roues et cassettes, meuble à chaussures, penderie, entretien, vue éclatée, aménagement), à partir de la même maquette.
 `models/velo-aero.js` : maquette 3D du Garage (vélo aéro FTP Builder, GLB compressé en base64), générée par `tools/bike3d` (voir son README).
+`models/velo-clm.js` : gabarit CLM / triathlon (prolongateurs, repose-bras, bidons, roue arrière lenticulaire), même chaîne (`FTPB_MODEL=clm`) ; chargé seulement si un vélo du Garage utilise ce gabarit.
 `models/nageurs.js` : nageur et coach 3D de « Comprendre la séance » (natation, `js/22-swim3d.js`), générés par `tools/swim3d` (voir son README).
 
 ## Tests

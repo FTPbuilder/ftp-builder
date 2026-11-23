@@ -3,7 +3,7 @@
 // étagère à pièces détachées, pied d'atelier, télé des kilomètres par vélo ; roues et cassettes nommées qui se montent d'un geste, entretien guidé, vue éclatée, aménagement libre
 /* ============ Atelier ============
    S.garage.atelier = { v, wheels:[Paire], cass:[Cassette], stock:[Pièce], layout:{ clé → position }, spots:{ ht, racks:[], expo }, seeded:[id de vélo] }
-   - Paire = { id, name, depth (mm, jante avant), depthR (mm, jante arrière si différente), wall 'noir'|'beige' (flancs), brakes 'rim'|'disc', tire (mm), bikeId|null, slot (0-3 sur le mur des roues)|null, since (pose)|null, km0, wear }
+   - Paire = { id, name, depth (mm, jante avant), depthR (mm, jante arrière si différente, ou 'disc' : roue arrière lenticulaire), wall 'noir'|'beige' (flancs), brakes 'rim'|'disc', tire (mm), bikeId|null, slot (0-3 sur le mur des roues)|null, since (pose)|null, km0, wear }
        km = km0 + km route du vélo depuis la pose ; usure = celle des pneus du vélo (Garage) quand elle est montée, sinon la dernière connue.
    - Cassette = { id, name, range '11-28', speeds, tint, loc 'wall'|'ht'|id de paire (roue AR), peg (0-4)|null, since, km0, wear }
    - Pièce = { id, name, qty } (étagère) ; layout = position des meubles : tapis du home trainer, pied d'atelier, podium d'exposition, pompe
@@ -64,7 +64,8 @@ const Atelier = (() => {
   const lay = k => ({ ...LAY0[k], ...(G().layout[k] || {}) });
   const pairOf = id => G().wheels.find(p => p.id === id), cassOf = id => G().cass.find(c => c.id === id);
   const pairOnBike = id => G().wheels.find(p => p.bikeId === id), cassOnPair = id => G().cass.find(c => c.loc === id), cassOnHT = () => G().cass.find(c => c.loc === 'ht');
-  const depthR = p => +p.depthR || p.depth, depthTxt = p => depthR(p) !== p.depth ? `${p.depth}/${depthR(p)} mm` : `${p.depth} mm`; // jantes avant / arrière
+  const isDisc = p => p?.depthR === 'disc'; // roue arrière lenticulaire (vélo de CLM / triathlon)
+  const depthR = p => isDisc(p) ? p.depth : +p.depthR || p.depth, depthTxt = p => isDisc(p) ? `${p.depth} mm + lenticulaire` : depthR(p) !== p.depth ? `${p.depth}/${depthR(p)} mm` : `${p.depth} mm`; // jantes avant / arrière
   const bigOf = c => +String(c.range).split('-')[1] || 30;
   const brk = x => x === 'rim' ? 'à patins' : 'à disque';
   const htId = () => G().spots.ht || null, expoId = () => G().spots.expo || null;
@@ -74,7 +75,10 @@ const Atelier = (() => {
   const needSlot = p => !p.bikeId || (htId() === p.bikeId && direct(bikeOf(p.bikeId))); // au mur, ou roue AR qui attend pendant le home trainer direct
   function fixSlots(){ const a = G(), used = new Set();
     for (const p of a.wheels) { if (!needSlot(p)) { p.slot = null; continue; } if (p.slot != null && p.slot >= 0 && p.slot < SLOTS.length && !used.has(p.slot)) used.add(p.slot); else p.slot = null; }
-    for (const p of a.wheels) if (needSlot(p) && p.slot == null) { const s = SLOTS.findIndex((_, i) => !used.has(i)); if (s >= 0) { p.slot = s; used.add(s); } } }
+    // roue lenticulaire : pendue par l'axe du moyeu, elle descend plus bas qu'une roue à rayons → crochet du bas, sans paire au-dessus (0 ↔ 2, 1 ↔ 3)
+    const disc = i => a.wheels.some(p => needSlot(p) && isDisc(p) && p.slot === i), pref = p => isDisc(p) ? [2, 3, 0, 1].sort((x, y) => (x >= 2 && used.has(x - 2)) - (y >= 2 && used.has(y - 2)))
+      : [0, 1, 2, 3].sort((x, y) => (x < 2 && disc(x + 2)) - (y < 2 && disc(y + 2)));
+    for (const p of [...a.wheels].sort((x, y) => isDisc(y) - isDisc(x))) if (needSlot(p) && p.slot == null) { const s = pref(p).find(i => !used.has(i)); if (s != null) { p.slot = s; used.add(s); } } }
   function fixPegs(){ const a = G(), used = new Set();
     for (const c of a.cass) { if (c.loc !== 'wall') { c.peg = null; continue; } if (c.peg != null && c.peg >= 0 && c.peg < PEGS.length && !used.has(c.peg)) used.add(c.peg); else c.peg = null; }
     for (const c of a.cass) if (c.loc === 'wall' && c.peg == null) { const k = PEGS.findIndex((_, i) => !used.has(i)); if (k >= 0) { c.peg = k; used.add(k); } } }
@@ -90,7 +94,8 @@ const Atelier = (() => {
       else if (!a.spots.expo) a.spots.expo = b.id; else if (!a.spots.ht) a.spots.ht = b.id; }
     for (const b of act) { if (a.seeded.includes(b.id)) continue; a.seeded.push(b.id);
       const V = vOf(b), L = Bike3D.lookOf(b.look, b.model), r = rangeOf(b, V.speeds), since = b.since || today;
-      let p = pairOnBike(b.id); if (!p) { p = { id: rid(), name: "Roues d'origine", depth: L.rim, wall: L.wall === 'beige' ? 'beige' : 'noir', brakes: V.brakes, tire: +b.tires?.r || 28, bikeId: b.id, slot: null, since, km0: 0, wear: 0 }; a.wheels.push(p); }
+      let p = pairOnBike(b.id); if (!p) { p = { id: rid(), name: "Roues d'origine", depth: L.rim, wall: L.wall === 'beige' ? 'beige' : 'noir', brakes: V.brakes, tire: +b.tires?.r || 28, bikeId: b.id, slot: null, since, km0: 0, wear: 0 };
+        if (L.disc) { p.depthR = 'disc'; p.name = 'Roues de CLM'; } a.wheels.push(p); }
       if (!cassOnPair(p.id)) a.cass.push({ id: rid(), name: "Cassette d'origine", range: r, speeds: V.speeds, tint: '#c9cbcf', loc: p.id, peg: null, since, km0: 0, wear: 0 });
       if (a.spots.ht === b.id && direct(b) && !cassOnHT()) a.cass.push({ id: rid(), name: 'Cassette du home trainer', range: r, speeds: V.speeds, tint: '#3d4047', loc: 'ht', peg: null, since, km0: 0, wear: 0 }); }
     for (const p of a.wheels) if (p.bikeId && !ids.includes(p.bikeId)) unmountPair(p); // vélo vendu ou supprimé : ses roues reviennent au mur
@@ -311,7 +316,8 @@ const Atelier = (() => {
     for (const [z, y] of SLOTS) for (const dz of [-.19, .19]) { cyl(.006, .006, .17, hk, g, .085, y + .3, z + dz, 10).rotation.z = Math.PI/2; cyl(.006, .006, .035, hk, g, .168, y + .316, z + dz, 10); }
     const sg = sign('ROUES', .26, .065); sg.rotation.y = Math.PI/2; sg.position.set(.02, 2.42, 0); g.add(sg);
   }
-  const slotPose = (p, part) => { const [z, y] = SLOTS[p.slot]; return { pos: V3(part === 'rear' ? .145 : .055, y + .3 - (.3152 - (part === 'rear' ? depthR(p) : p.depth)/1000) + .008, z + (part === 'rear' ? .19 : -.19)), quat: qY(Math.PI/2) }; };
+  const slotPose = (p, part) => { const [z, y] = SLOTS[p.slot], disc = part === 'rear' && isDisc(p); // roue lenticulaire : le crochet passe dans l'axe du moyeu
+    return { pos: V3(part === 'rear' ? .145 : .055, disc ? y + .3 : y + .3 - (.3152 - (part === 'rear' ? depthR(p) : p.depth)/1000) + .008, z + (part === 'rear' ? .19 : -.19)), quat: qY(Math.PI/2) }; };
 
   /* ---------- tapis + home trainer (direct ou à rouleau), cale de roue avant ---------- */
   function buildTrainer(g){
@@ -703,7 +709,7 @@ const Atelier = (() => {
   function layout(anim = true){
     if (!A?.R || st.mode === 'explode') return; fixSlots(); fixPegs(); trainerKind(); expoPlate(); tvDraw();
     const AN = anim ? { dur: 1050, lift: .3 } : null; let moved = false, i = 0;
-    for (const id in A.B) { const seat = st.onStand === id ? A.stand.seat : homeSeat(id); if (!seat) { A.B[id].holder.visible = false; continue; } if (place(A.B[id].holder, seat, V3(), Q(), AN && { dur: 1500, lift: .3, pop: false })) moved = true; }
+    for (const id in A.B) { const on = st.onStand === id, seat = on ? A.stand.seat : homeSeat(id); if (!seat) { A.B[id].holder.visible = false; continue; } if (place(A.B[id].holder, seat, on ? A.B[id].standOff.clone() : V3(), Q(), AN && { dur: 1500, lift: .3, pop: false })) moved = true; }
     const d0 = moved ? 700 : 0;
     for (const p of G().wheels) for (const part of ['front', 'rear']) { const o = A.W[p.id]?.[part]; if (!o) continue; const d = destPair(p, part);
       if (!d) { o.visible = false; o.userData.dest = null; continue; } if (place(o, d.parent, d.pos, d.quat, AN && { ...AN, delay: d0 + i*110 })) i++; }
@@ -718,9 +724,11 @@ const Atelier = (() => {
     h.updateMatrixWorld(true); const cen = k => m.groups[k] ? new T.Box3().setFromObject(m.groups[k]).getCenter(V3()) : null, chB = m.groups.chain && new T.Box3().setFromObject(m.groups.chain);
     const bb = V3(...(m.meta.bb || [.4036, .2675, 0])).add(m.root.position), ht = V3(...(m.meta.ht_top || [.7956, .8275, 0])).add(m.root.position);
     m.local = { chain: chB ? V3(lerp(chB.min.x, chB.max.x, .42), chB.min.y + .012, chB.max.z) : bb.clone(), rd: cen('rd') || bb.clone(), brakeF: cen('brakeF') || ht.clone(), headset: ht.clone().add(V3(.012, -.06, .025)) };
-    A.B[b.id] = { ...m, holder: h, bike: b };
+    // pied d'atelier : la pince (x = -0,284, 0,90 m au-dessus du sol du vélo) serre la tige de selle ; tige du CLM plus droite → on recule le vélo
+    let standOff = V3(); const P = m.meta.post; if (P) { const t = clamp((.90 - P[0][1])/(P[1][1] - P[0][1]), 0, 1); standOff = V3(.216 - lerp(P[0][0], P[1][0], t), 0, 0); }
+    A.B[b.id] = { ...m, holder: h, bike: b, standOff };
   }
-  function makePair(p){ const mk = front => { const o = Bike3D.atelier.wheel({ front, depth: front ? p.depth : depthR(p), brakes: p.brakes, tire: p.tire, wall: p.wall, mark: 'FTP' }); o.add(hitDisc(.345, .03));
+  function makePair(p){ const mk = front => { const o = Bike3D.atelier.wheel({ front, depth: front ? p.depth : depthR(p), disc: !front && isDisc(p), brakes: p.brakes, tire: p.tire, wall: p.wall, mark: 'FTP' }); o.add(hitDisc(.345, .03));
       o.userData.pick = { kind: 'pair', id: p.id, part: front ? 'front' : 'rear' }; A.scene.add(o); A.pick.push(o); return o; };
     A.W[p.id] = { front: mk(true), rear: mk(false) }; }
   function makeCass(c){ const o = Bike3D.atelier.cassette({ speeds: c.speeds, big: bigOf(c), tint: c.tint }); o.userData.pick = { kind: 'cassette', id: c.id }; A.scene.add(o); o.updateMatrixWorld(true);
@@ -777,7 +785,7 @@ const Atelier = (() => {
       <div class="at-kv" style="margin-top:14px"><span>Cassette AR</span><b>${c ? esc(c.name) + ' · ' + c.range : 'Aucune'}</b><button type="button" data-at="pickcass:${p.id}">${c ? 'Changer' : 'Monter'}</button></div>
       <details${pairKm(p) ? '' : ' open'}><summary>Réglages de la paire</summary>
       <div class="at-kv at-wrap"><span>Jante avant</span><div class="at-chips">${DEPTHS.map(d => `<button type="button" class="${d === p.depth ? 'on' : ''}" data-at="depth:${p.id}:${d}" aria-pressed="${d === p.depth}">${d}</button>`).join('')}</div></div>
-      <div class="at-kv at-wrap"><span>Jante arrière</span><div class="at-chips">${DEPTHS.map(d => `<button type="button" class="${d === depthR(p) ? 'on' : ''}" data-at="depthr:${p.id}:${d}" aria-pressed="${d === depthR(p)}">${d}</button>`).join('')}</div></div>
+      <div class="at-kv at-wrap"><span>Jante arrière</span><div class="at-chips">${DEPTHS.map(d => { const on = !isDisc(p) && d === depthR(p); return `<button type="button" class="${on ? 'on' : ''}" data-at="depthr:${p.id}:${d}" aria-pressed="${on}">${d}</button>`; }).join('')}<button type="button" class="${isDisc(p) ? 'on' : ''}" data-at="depthr:${p.id}:disc" aria-pressed="${isDisc(p)}">Lenticulaire</button></div></div>
       <div class="at-kv at-wrap"><span>Flancs</span><div class="at-chips">${[['noir', 'Noirs'], ['beige', 'Beiges']].map(([k, l]) => `<button type="button" class="${(p.wall || 'noir') === k ? 'on' : ''}" data-at="wall:${p.id}:${k}" aria-pressed="${(p.wall || 'noir') === k}">${l}</button>`).join('')}</div></div>
       <div class="at-kv at-wrap"><span>Freinage</span><div class="at-chips"><button type="button" class="${p.brakes === 'rim' ? 'on' : ''}" data-at="brk:${p.id}:rim">Patins</button><button type="button" class="${p.brakes === 'disc' ? 'on' : ''}" data-at="brk:${p.id}:disc">Disques</button></div></div>
       <div class="at-kv at-wrap"><span>Pneus</span><div class="at-chips">${[25, 28, 30, 32].map(t => `<button type="button" class="${t === (p.tire || 28) ? 'on' : ''}" data-at="tire:${p.id}:${t}">${t} mm</button>`).join('')}</div></div>
@@ -919,9 +927,10 @@ const Atelier = (() => {
   function partsOf(b, keys){ if (!hasG()) return []; try { const all = Garage.allParts(b); return keys.map(k => all.find(i => i.k === k)).filter(Boolean); } catch (e) { return []; } }
   function points(id){
     const b = bikeOf(id); if (!b) return []; let care = []; try { care = Garage.careAll(b); } catch (e) {}
+    const one = vOf(b).oneby, lab = pt => one && pt.key === 'rd' ? 'Dérailleur et galets' : one && pt.key === 'cass' ? 'Cassette et plateau' : pt.l; // mono plateau : pas de dérailleur avant
     return POINTS.map(pt => { const parts = partsOf(b, pt.parts), cc = care.filter(c => pt.care.includes(c.k)), worst = parts.reduce((m, i) => Math.min(m, i.rem), 1), due = cc.reduce((m, c) => Math.max(m, c.ratio || 0), 0);
       const lvl = worst < .35 || due >= 1 ? 2 : worst < .6 || due >= .75 ? 1 : 0, dueC = cc.find(c => c.due);
-      return { ...pt, parts, care: cc, worst, due, lvl, col: ['#5ad19a', '#f5c542', '#ff8a4c'][lvl], txt: dueC ? dueC.l : ['Bon état', 'À surveiller', 'Intervention à prévoir'][lvl], done: !!st.done[pt.key] }; });
+      return { ...pt, l: lab(pt), parts, care: cc, worst, due, lvl, col: ['#5ad19a', '#f5c542', '#ff8a4c'][lvl], txt: dueC ? dueC.l : ['Bon état', 'À surveiller', 'Intervention à prévoir'][lvl], done: !!st.done[pt.key] }; });
   }
   function anchorOf(id, key){
     const b = A.B[id], p = pairOnBike(id);
@@ -1235,7 +1244,7 @@ const Atelier = (() => {
       case 'pickcass': return pickCassSheet(x);
       case 'pickpair': return pickPairSheet(x);
       case 'depth': return editPair(x, { depth: +y });
-      case 'depthr': return editPair(x, { depthR: +y });
+      case 'depthr': return editPair(x, { depthR: y === 'disc' ? 'disc' : +y });
       case 'wall': return editPair(x, { wall: y === 'beige' ? 'beige' : 'noir' });
       case 'brk': return editPair(x, { brakes: y });
       case 'tire': return editPair(x, { tire: +y });
@@ -1303,7 +1312,7 @@ const Atelier = (() => {
     seed(); save(); Object.assign(st, { mode: 'atelier', zone: 'home', onStand: null, sel: null, done: {}, logged: [], arrSel: null });
     A = { el: uiEl(), mats: {}, occ: [], pick: [], B: {}, W: {}, C: {}, K: {}, exp: [], bursts: [], groups: {}, seats: {} }; document.documentElement.classList.add('at-open');
     return ready = (async () => {
-      try { await Bike3D.atelier.kit(); } catch (e) { if (A) A.el.querySelector('.at-load small').textContent = "L'atelier 3D n'a pas pu se charger (connexion ?). Le reste du Garage fonctionne."; if (typeof Errors !== 'undefined') Errors.report?.(e, 'atelier'); return false; }
+      try { await Bike3D.atelier.kit([...new Set(bikesOn().map(b => Bike3D.shapeOf(b.model)))]); } catch (e) { if (A) A.el.querySelector('.at-load small').textContent = "L'atelier 3D n'a pas pu se charger (connexion ?). Le reste du Garage fonctionne."; if (typeof Errors !== 'undefined') Errors.report?.(e, 'atelier'); return false; }
       if (!A) return false; T = THREE; V3 = (x = 0, y = 0, z = 0) => new T.Vector3(x, y, z); Q = () => new T.Quaternion();
       try { build(); } catch (e) { if (A) A.el.querySelector('.at-load small').textContent = '3D indisponible sur cet appareil (WebGL). Le reste du Garage fonctionne.'; if (typeof Errors !== 'undefined') Errors.report?.(e, 'atelier'); return false; }
       return true; })();

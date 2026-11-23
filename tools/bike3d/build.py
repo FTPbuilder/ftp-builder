@@ -1,9 +1,14 @@
-"""Assemble la maquette du vélo (GLB). Usage : FTPB_APP=1 python3 build.py 1.0 all → build/bike_app.glb (version de l'app). Voir README.md."""
+"""Assemble la maquette du vélo (GLB). Usage : FTPB_APP=1 python3 build.py 1.0 all → build/bike_app.glb (version de l'app). Voir README.md.
+FTPB_MODEL=clm : vélo de contre-la-montre / triathlon → build/bike_clm_app.glb."""
 import sys, os, json, time, hashlib, inspect
 import numpy as np
 from sdf import mesh_sdf, catmull, nrm
 import frame as FR
 import parts as PT
+from geom import CLM
+if CLM:
+    import frame_clm as FR
+    import parts_clm as PC
 import mech as ME
 from mech import M, merge, lathe, fix_orientation, vertex_normals
 from geom import *
@@ -12,7 +17,7 @@ from glb import GLB
 Q = float(sys.argv[1]) if len(sys.argv) > 1 else 1.0   # resolution multiplier (1 = final)
 APP = os.environ.get('FTPB_APP') == '1'                  # lighter model for the FTP builder app (phones)
 TF = 0.52 if APP else 1.0
-SUF = '_app' if APP else ''
+SUF = ('_clm' if CLM else '') + ('_app' if APP else '')
 REBUILD = set(sys.argv[2:])
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'build')
 CACHE = os.path.join(OUT, 'cache')
@@ -20,7 +25,8 @@ os.makedirs(CACHE, exist_ok=True)
 
 
 def cached(name, fn, h, tf):
-    THIN = ('fd', 'rd_cage', 'rd_bolts', 'lever_1', 'lever_-1', 'rails', 'seatclamp', 'caliper_f_bolts', 'caliper_r_bolts', 'crank_r_bolts', 'crank_l_bolts')
+    THIN = ('fd', 'rd_cage', 'rd_bolts', 'lever_1', 'lever_-1', 'rails', 'seatclamp', 'caliper_f_bolts', 'caliper_r_bolts', 'crank_r_bolts', 'crank_l_bolts',
+            'shifter_1', 'shifter_-1', 'caps', 'cages')
     if APP:   # big sculpted parts get much lighter, medium ones a little; thin parts (cages, levers) keep their detail or they would alias
         tf = tf * TF if tf >= 30000 else tf if name in THIN or name.endswith(('_pads', '_shoes', '_bolt')) else tf * 0.72
     path = f'{CACHE}/{name}{SUF}_{Q:.2f}.npz'
@@ -118,11 +124,10 @@ def decal_from(mesh, sel_fn, uv_fn, offset=0.00028):
     return M(Vn, remap[Fk], N[used], UV)
 
 
-def downtube_decal(frame, side):
-    dt0 = FR.HTP(0.080, -0.010); dt1 = BB + np.array([0.006, 0.012, 0])
+def downtube_decal(frame, side, dt0=None, dt1=None, s0=0.13, s1=0.89, ulo=-0.0385, uhi=0.0170):
+    dt0 = FR.HTP(0.080, -0.010) if dt0 is None else dt0; dt1 = BB + np.array([0.006, 0.012, 0]) if dt1 is None else dt1
     L = np.linalg.norm(dt1 - dt0); T = (dt1 - dt0) / L
     U = np.array([1.0, 0, 0]) - T[0] * T; U /= np.linalg.norm(U)
-    s0, s1, ulo, uhi = 0.13, 0.89, -0.0385, 0.0170
 
     def coords(P):
         w = P - dt0
@@ -141,8 +146,7 @@ def downtube_decal(frame, side):
     return decal_from(frame, sel, uv), dict(length=float(L * (s1 - s0)), height=float(uhi - ulo))
 
 
-def headtube_decal(frame):
-    a0, a1, zw = 0.022, 0.112, 0.0185
+def headtube_decal(frame, a0=0.022, a1=0.112, zw=0.0185):
 
     def sel(V, F, N):
         c = V[F].mean(1); n = N[F].mean(1)
@@ -158,10 +162,9 @@ def headtube_decal(frame):
     return decal_from(frame, sel, uv), dict(width=2 * zw, height=a1 - a0)
 
 
-def fork_decal(fork, side):
-    A0, A1 = 0.105, 0.310
+def fork_decal(fork, side, leg=None, A0=0.105, A1=0.310, flo=-0.020, fhi=0.0085):
     # leg centre-line (forward offset) as function of A
-    leg = [FR.FKP(0.040, 0.0), FR.FKP(0.095, 0.001), FR.FKP(0.25, 0.017), FR.FKP(AXLE_TO_CROWN - 0.003, FORK_OFFSET - 0.0015)]
+    leg = [FR.FKP(0.040, 0.0), FR.FKP(0.095, 0.001), FR.FKP(0.25, 0.017), FR.FKP(AXLE_TO_CROWN - 0.003, FORK_OFFSET - 0.0015)] if leg is None else leg
     from sdf import bezier
     C = bezier(leg, 64)
     Ac = (C - HT_BOT) @ AX_DN; Fc = (C - HT_BOT) @ AX_FW
@@ -170,7 +173,6 @@ def fork_decal(fork, side):
         w = P - HT_BOT
         A = w @ AX_DN; f = w @ AX_FW - np.interp(A, Ac, Fc)
         return A, f
-    flo, fhi = -0.020, 0.0085
 
     def sel(V, F, N):
         c = V[F].mean(1); n = N[F].mean(1)
@@ -185,15 +187,15 @@ def fork_decal(fork, side):
 
 
 # ---------------------------------------------------------------- bottle-cage bolts
-def bottle_bolts(frame_sdf_node):
+def bottle_bolts(frame_sdf_node, dt0=None, dt1=None, seat=True):
     from sdf import grad as sgrad
-    dt0 = FR.HTP(0.080, -0.010); dt1 = BB + np.array([0.006, 0.012, 0])
+    dt0 = FR.HTP(0.080, -0.010) if dt0 is None else dt0; dt1 = BB + np.array([0.006, 0.012, 0]) if dt1 is None else dt1
     T = (dt1 - dt0) / np.linalg.norm(dt1 - dt0)
     U = np.array([1.0, 0, 0]) - T[0] * T; U /= np.linalg.norm(U)
     seeds = []
     for s in (0.50, 0.66):           # down tube, trailing (upper) face
         seeds.append((dt0 + s * (dt1 - dt0), -U))
-    for s in (0.20, 0.34):           # seat tube, leading (front) face
+    for s in ((0.20, 0.34) if seat else ()):           # seat tube, leading (front) face
         c = BB + s * ST_LEN * ST_DIR
         F = np.array([1.0, 0, 0]) - ST_DIR[0] * ST_DIR; F /= np.linalg.norm(F)
         seeds.append((c, F))
@@ -236,6 +238,15 @@ def rim_proxy(depth=0.050, seg=96):
         pts.append((rtop - s * depth, w))
     right = np.array(pts); left = right[::-1].copy(); left[:, 1] *= -1
     prof = np.vstack([right, left[1:]])
+    return lathe(prof, seg)
+
+
+DISC_DRIVE = [(0.3144, 0.0146), (0.300, 0.0145), (0.250, 0.0142), (0.150, 0.0140), (0.060, 0.0140), (0.026, 0.0140)]
+DISC_OTHER = [(0.3144, -0.0146), (0.280, -0.0168), (0.220, -0.0215), (0.150, -0.0262), (0.080, -0.0305), (0.026, -0.0335)]
+
+
+def disc_proxy(seg=96):
+    prof = np.vstack([np.array(DISC_DRIVE), np.array(DISC_OTHER[::-1])])
     return lathe(prof, seg)
 
 
@@ -292,6 +303,9 @@ def main():
     m('Anodized_Black', (0.025, 0.025, 0.028, 1), 0.6, 0.38)
     m('Decal', (1, 1, 1, 1), 0.0, 0.4, double=False)
     m('Brake_Pad', (0.055, 0.030, 0.022, 1), 0.0, 0.85)
+    if CLM:
+        m('Bottle_Plastic', (0.05, 0.055, 0.06, 1), 0.0, 0.35)
+        m('Pad_Foam', (0.03, 0.03, 0.032, 1), 0.0, 0.9)
 
     root = g.node('Bike', extras={'generator': 'ftp-builder', 'units': 'm'})
 
@@ -303,20 +317,36 @@ def main():
     print('SDF parts', flush=True)
     frame = cached('frame', FR.frame_sdf, 0.0011, 170000)
     fork = cached('fork', FR.fork_sdf, 0.0009, 52000)
-    cockpit = cached('cockpit', PT.cockpit_sdf, 0.0008, 60000)
-    hoods = [cached(f'hood_{s}', lambda s=s: PT.hood_sdf(s), 0.0006, 14000) for s in (1, -1)]
-    levers = [cached(f'lever_{s}', lambda s=s: PT.lever_sdf(s), 0.00045, 7000) for s in (1, -1)]
-    post = cached('seatpost', PT.seatpost_sdf, 0.0007, 12000)
-    clamp = cached('seatclamp', PT.seat_clamp_sdf, 0.0004, 5000)
-    shell = cached('saddle', PT.saddle_shell_sdf, 0.0008, 42000)
-    rails = cached('rails', PT.saddle_rails_sdf, 0.0005, 6000)
+    if CLM:   # poste de pilotage CLM : repose-bras, prolongateurs, manettes en bout ; ravitaillement
+        cockpit = cached('cockpit', PC.cockpit_sdf, 0.0008, 90000)
+        cups = cached('cups', PC.cups_sdf, 0.0007, 26000)
+        pads = cached('pads', PC.pads_sdf, 0.0008, 12000)
+        exts = cached('extensions', PC.extensions_sdf, 0.0006, 26000)
+        hoods = [cached(f'shifter_{s}', lambda s=s: PC.shifter_sdf(s), 0.0005, 5000) for s in (1, -1)]
+        levers = [cached(f'lever_{s}', lambda s=s: PC.lever_sdf(s), 0.00045, 7000) for s in (1, -1)]
+        post = cached('seatpost', PC.seatpost_sdf, 0.0007, 12000)
+        clamp = cached('seatclamp', PC.seat_clamp_sdf, 0.0004, 5000)
+        shell = cached('saddle', PC.saddle_shell_sdf, 0.0008, 36000)
+        rails = cached('rails', PC.saddle_rails_sdf, 0.0005, 6000)
+        bottles = cached('bottles', PC.bottles_sdf, 0.0008, 29000)
+        caps = cached('caps', PC.caps_sdf, 0.0005, 6000)
+        cages = cached('cages', PC.cages_sdf, 0.0005, 14000)
+        bento = cached('bento', PC.bento_sdf, 0.0008, 9000)
+    else:
+        cockpit = cached('cockpit', PT.cockpit_sdf, 0.0008, 60000)
+        hoods = [cached(f'hood_{s}', lambda s=s: PT.hood_sdf(s), 0.0006, 14000) for s in (1, -1)]
+        levers = [cached(f'lever_{s}', lambda s=s: PT.lever_sdf(s), 0.00045, 7000) for s in (1, -1)]
+        post = cached('seatpost', PT.seatpost_sdf, 0.0007, 12000)
+        clamp = cached('seatclamp', PT.seat_clamp_sdf, 0.0004, 5000)
+        shell = cached('saddle', PT.saddle_shell_sdf, 0.0008, 42000)
+        rails = cached('rails', PT.saddle_rails_sdf, 0.0005, 6000)
     calF = PT.caliper_sdf(AXLE_F, 138 * D2R, 0.0720, F_ROTOR_Z, 'fork')
     calR = PT.caliper_sdf(AXLE_R, 15 * D2R, 0.0620, R_ROTOR_Z, 'stay')
     cal_f = cached('caliper_f', lambda: calF[0], 0.00055, 12000)
     cal_fb = cached('caliper_f_bolts', lambda: calF[1], 0.0004, 1500)
     cal_r = cached('caliper_r', lambda: calR[0], 0.00055, 12000)
     cal_rb = cached('caliper_r_bolts', lambda: calR[1], 0.0004, 1500)
-    crR = PT.crank_sdf(1); crL = PT.crank_sdf(-1)
+    crR = PT.crank_sdf(1, spider=not MONO); crL = PT.crank_sdf(-1)
     crank_r = cached('crank_r', lambda: crR[0], 0.0006, 26000)
     crank_rb = cached('crank_r_bolts', lambda: crR[1], 0.0004, 2500)
     crank_l = cached('crank_l', lambda: crL[0], 0.0006, 14000)
@@ -327,7 +357,7 @@ def main():
     cage, cbolts = PT.rd_cage_sdf()
     rd_cage = cached('rd_cage', lambda: cage, 0.00035, 9000)
     rd_bolts = cached('rd_bolts', lambda: cbolts, 0.0003, 1200)
-    fd = cached('fd', PT.fd_sdf, 0.0005, 12000)
+    fd = None if MONO else cached('fd', PT.fd_sdf, 0.0005, 12000)   # CLM : mono plateau, pas de dérailleur avant
 
     print('mechanical parts', flush=True)
     tread, wall_r, wall_l = cached_mech('tyre', lambda: ME.tyre_meshes(128 if APP else 192))
@@ -339,7 +369,10 @@ def main():
     axle_r, = cached_mech('axle_r', lambda: ME.axle_ends(False))
     rot_f = cached_mech('rotor_f', lambda: ME.rotor_meshes(F_ROTOR_R, F_ROTOR_Z))
     rot_r = cached_mech('rotor_r', lambda: ME.rotor_meshes(R_ROTOR_R, R_ROTOR_Z))
-    ring_b, ring_s = cached_mech('rings', lambda: ME.chainrings(CRANK_ANGLE))
+    if MONO:
+        ring_b, ring_c = cached_mech('ring1x', ME.mono_chainring)
+    else:
+        ring_b, ring_s = cached_mech('rings', lambda: ME.chainrings(CRANK_ANGLE))
     cogs, core = cached_mech('cassette', ME.cassette)
     cogs11, core11 = cached_mech('cassette11', lambda: ME.cassette([11, 12, 13, 14, 15, 17, 19, 21, 23, 25, 28], 0.00395))
     ch_o, ch_i, ch_r = cached_mech('chain', lambda: ME.chain_meshes()[:3])
@@ -348,21 +381,22 @@ def main():
     # bar tape & plugs
     tapes, plugs = [], []
     for s in (1, -1):
-        tm, end, tg = tape_mesh(PT.bend_points(s), sgn=s)
-        tapes.append(tm); plugs.append(bar_plug(end, tg))
+        tm, end, tg = tape_mesh(PC.tape_points(s), sgn=s, nseg=140) if CLM else tape_mesh(PT.bend_points(s), sgn=s)
+        tapes.append(tm); plugs.append(None if CLM else bar_plug(end, tg))
 
     # ---------------- assemble
     nf = g.node('Frame', parent=root)
     add('Frame_Paint', frame, 'Paint_Frame', nf)
-    bb_path = f'{CACHE}/bolts_{Q:.2f}.npz'
+    bb_path = f'{CACHE}/bolts{"_clm" if CLM else ""}_{Q:.2f}.npz'
     if os.path.exists(bb_path) and not ({'all', 'frame', 'bolts'} & REBUILD):
         z = np.load(bb_path); bolts = M(z['V'], z['F'], z['N'])
     else:
-        bolts = bottle_bolts(FR.frame_sdf()); np.savez(bb_path, V=bolts.V, F=bolts.F, N=bolts.N)
+        bolts = bottle_bolts(FR.frame_sdf(), FR.DT0, FR.DT1, seat=False) if CLM else bottle_bolts(FR.frame_sdf()); np.savez(bb_path, V=bolts.V, F=bolts.F, N=bolts.N)
     add('Bottle_Bolts', bolts, 'Anodized_Black', nf)
     decals = {}
-    dR, infoR = downtube_decal(frame, 1); dL, infoL = downtube_decal(frame, -1)
-    dH, infoH = headtube_decal(frame)
+    DTD = dict(dt0=FR.DT0, dt1=FR.DT1, s0=0.15, s1=0.86, ulo=-0.0470, uhi=0.0140) if CLM else {}
+    dR, infoR = downtube_decal(frame, 1, **DTD); dL, infoL = downtube_decal(frame, -1, **DTD)
+    dH, infoH = headtube_decal(frame, **(dict(a0=0.006, a1=0.054, zw=0.0135) if CLM else {}))
     add('Decal_DownTube_R', dR, 'Decal', nf, uv=True)
     add('Decal_DownTube_L', dL, 'Decal', nf, uv=True)
     add('Decal_HeadTube', dH, 'Decal', nf, uv=True)
@@ -370,7 +404,8 @@ def main():
 
     nfo = g.node('Fork', parent=root)
     add('Fork_Paint', fork, 'Paint_Frame', nfo)
-    fR, infoF = fork_decal(fork, 1); fL, _ = fork_decal(fork, -1)
+    FKD = dict(leg=FR.LEG(0), A0=0.100, A1=0.300, flo=-0.0250, fhi=0.0070) if CLM else {}
+    fR, infoF = fork_decal(fork, 1, **FKD); fL, _ = fork_decal(fork, -1, **FKD)
     add('Decal_Fork_R', fR, 'Decal', nfo, uv=True)
     add('Decal_Fork_L', fL, 'Decal', nfo, uv=True)
     decals['fork'] = infoF
@@ -384,22 +419,37 @@ def main():
 
     nc = g.node('Cockpit', parent=root)
     add('Cockpit_Carbon', cockpit, 'Carbon_Black', nc)
+    if CLM:
+        add('Extensions', exts, 'Carbon_Black', nc)
+        add('Arm_Cups', cups, 'Carbon_Black', nc)
+        add('Arm_Pads', pads, 'Pad_Foam', nc)
     for i, s in enumerate(('R', 'L')):
         add(f'Bartape_{s}', tapes[i], 'Bar_Tape', nc, uv=True)
-        add(f'BarEnd_{s}', plugs[i], 'Anodized_Black', nc)
+        if plugs[i] is not None:
+            add(f'BarEnd_{s}', plugs[i], 'Anodized_Black', nc)
         add(f'Hood_{s}', hoods[i], 'Rubber_Hood', nc)
         add(f'Lever_{s}', levers[i], 'Carbon_Black', nc)
+    if CLM:
+        nr = g.node('Ravito', parent=root)
+        add('Bottles', bottles, 'Bottle_Plastic', nr)
+        add('Bottle_Caps', caps, 'Anodized_Black', nr)
+        add('Bottle_Cages', cages, 'Carbon_Black', nr)
+        add('Bento', bento, 'Bar_Tape', nr)
 
     nd = g.node('Drivetrain', parent=root)
     add('Crank_R', crank_r, 'Anodized_Black', nd)
     add('Crank_L', crank_l, 'Anodized_Black', nd)
     add('Crank_Bolts', merge([crank_rb, crank_lb]), 'Metal_Silver', nd)
     add('Chainring_Big', ring_b, 'Metal_Dark', nd)
-    add('Chainring_Small', ring_s, 'Metal_Dark', nd)
+    if MONO:
+        add('Chainring_Cover', ring_c, 'Carbon_Black', nd)
+    else:
+        add('Chainring_Small', ring_s, 'Metal_Dark', nd)
     add('Chain_Outer', ch_o, 'Metal_Silver', nd)
     add('Chain_Inner', ch_i, 'Metal_Steel', nd)
     add('Chain_Rollers', ch_r, 'Metal_Silver', nd)
-    add('FD', fd, 'Anodized_Black', nd)
+    if fd is not None:
+        add('FD', fd, 'Anodized_Black', nd)
     add('RD_Hanger', rd_hanger, 'Metal_Dark', nd)
     add('RD_Body', rd_body, 'Anodized_Black', nd)
     add('RD_Cage', rd_cage, 'Anodized_Black', nd)
@@ -412,7 +462,7 @@ def main():
     add('Caliper_F_Bolts', cal_fb, 'Metal_Silver', nb)
     add('Caliper_R', cal_r, 'Anodized_Black', nb)
     add('Caliper_R_Bolts', cal_rb, 'Metal_Silver', nb)
-    if APP:
+    if APP and not CLM:   # le gabarit CLM n'existe qu'à disques
         fsdf = FR.frame_sdf()
 
         def bolt_to_frame(axle, th, target):
@@ -458,7 +508,7 @@ def main():
     def world(it):
         m = it['mesh']
         return m if it['offset'] is None else M(m.V + it['offset'], m.F, m.N)
-    rims = [M(r.V + AXLE_F, r.F, r.N) for r in [rim_proxy()]] + [M(r.V + AXLE_R, r.F, r.N) for r in [rim_proxy()]]
+    rims = [M(r.V + AXLE_F, r.F, r.N) for r in [rim_proxy(0.080 if CLM else 0.050)]] + [M(r.V + AXLE_R, r.F, r.N) for r in [disc_proxy() if CLM else rim_proxy()]]
     DISC = ('Rotor_', 'Caliper_', 'Lockring_')
     solid = [it for it in queue if not it['name'].startswith('Decal')]
     is_rim = lambda n: n.startswith('RimBrake_')
@@ -482,12 +532,14 @@ def main():
 
     meta = {'decals': decals, 'axle_f': AXLE_F.tolist(), 'axle_r': AXLE_R.tolist(), 'bb': BB.tolist(),
             'ht_top': HT_TOP.tolist(), 'saddle_top': SADDLE_TOP.tolist(), 'r_bead': R_BEAD, 'r_tyre': R_TIRE,
-            'wheelbase': float(WHEELBASE), 'hub': HUB, 'rotor_z': {'front': F_ROTOR_Z, 'rear': R_ROTOR_Z}}
-    out = os.path.join(OUT, 'bike_app.glb' if APP else 'bike.glb')
+            'wheelbase': float(WHEELBASE), 'hub': HUB, 'rotor_z': {'front': F_ROTOR_Z, 'rear': R_ROTOR_Z}, 'ht_len': HT_LEN}
+    if CLM:   # tige de selle (pied d'atelier, batterie), roue AR lenticulaire, mono plateau
+        meta.update(model='clm', mono=bool(MONO), ring=int(BIG_T), post=[(FR.ST_END - 0.090 * POST_DIR).tolist(), PC.POST_TOP.tolist()], disc={'drive': DISC_DRIVE, 'other': DISC_OTHER})
+    out = os.path.join(OUT, f'bike{"_clm" if CLM else ""}{"_app" if APP else ""}.glb')
     size = g.save(out, extras=meta)
     tri = sum(a['count'] for a in g.accessors if a['type'] == 'SCALAR') // 3
     print(f'GLB {size / 1e6:.2f} MB, {tri} triangles, {time.time() - t0:.1f}s')
-    json.dump(meta, open(os.path.join(OUT, 'bike_meta.json'), 'w'), indent=1)
+    json.dump(meta, open(os.path.join(OUT, f'bike{"_clm" if CLM else ""}_meta.json'), 'w'), indent=1)
 
 
 if __name__ == '__main__':

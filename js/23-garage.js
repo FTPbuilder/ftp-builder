@@ -2,10 +2,10 @@
 // FTP Builder · Profil › GARAGE : carnet de vie des vélos — km route / home trainer, usure des composants, entretien, achats, pression, maquette 3D
 /* ============ Garage ============
    S.garage = { bikes:[Bike], log:[Entrée], assign:{ ref → bikeId | 'none' }, cond:{ ref → 'dry'|'wet'|'rain' }, sel }
-   - Bike = { id, name, brand, modelName, year, purchased, model (gabarit : 'aeroad-cfsl' | 'aeroad-cfr' | 'road'), variant:{ brakes, speeds, pm },
+   - Bike = { id, name, brand, modelName, year, purchased, model (gabarit : 'aeroad-cfsl' | 'aeroad-cfr' | 'road' | 'clm' (CLM / triathlon)), variant:{ brakes, speeds, pm, oneby (mono plateau) },
               since, km0:{ road, ht }, rule:{ out, ht, taf }, gearIds:[], trainer, tires:{…, maxF, maxR, rimMax, silca:{ f, r, date } }, parts:{ clé → { at, spec, life } },
               glb:{ id, name, size, rotY, map }, fit:{ date, src, title, v:{ clé → valeur }, file:{ id, name, type }, thumb },
-              look:{ paint, finish, custom, name, font, ink, rim, wall } (maquette FTP Builder : couleur, sticker, hauteur de jante, flancs) }
+              look:{ paint, finish, custom, name, font, ink, rim, wall, disc } (maquette FTP Builder : couleur, sticker, hauteur de jante, flancs, roue AR lenticulaire du gabarit CLM) }
    - Entrée = { id, bikeId, date, part, kind, label, brand, ref, supplier, buyDate, price, value, cat, note }
        kind : replace (pose → compteur à zéro) · buy · charge (value = % lu) · inspect (value = état constaté %) · check (allongement chaîne %)
               lube · degrease · clean · jockey · wipe · service
@@ -33,14 +33,17 @@ const Garage = (() => {
         cockpit: 'Canyon CP0048 PACE T-Bar', tape: 'Lizard Skins DSP V2 · 1,8 mm', di2: 'Shimano BT-DN300 (dans la tige de selle)', coin: 'Piles CR1632 des leviers ST-R9270', pm: 'Dura-Ace Powermeter · 165 mm', sealant: 'Liquide préventif' },
       life: { tireF: 3000 } },
     road: { brand: '', name: 'Vélo de route', kg: 8.5, di2: false, pm: false, speeds: 11, brakes: 'disc', tires: { f: 28, r: 28, internal: 21 }, spec: {} },
+    // gabarit CLM / triathlon : maquette models/velo-clm.js (prolongateurs, repose-bras, bidons, roue AR lenticulaire), freins à disque, mono plateau (oneby : pas de dérailleur avant)
+    clm: { brand: '', name: 'Vélo de CLM / triathlon', kg: 8.9, di2: false, pm: false, speeds: 12, brakes: 'disc', oneby: true, tires: { f: 25, r: 25, internal: 21 },
+      spec: { cockpit: 'Cintre de base, prolongateurs et repose-bras', tape: 'Guidoline du cintre de base', seatpost: 'Tige de selle aéro', rings: 'Plateau unique 54 dents (aéro, montage direct)' } },
   };
   const CATS = { trans: 'Transmission', roues: 'Roues et pneus', cadre: 'Cadre et direction', frein: 'Freinage', elec: 'Électronique', produits: 'Produits (lubrifiant, nettoyage…)', autre: 'Autre' };
   // basis : road = km dehors · all = dehors + HT × ht · time = jours · charge = km (ou h) depuis la recharge · inspect = jours entre deux contrôles
   const PARTS = [
     { k: 'chain', l: 'Chaîne', cat: 'trans', g: 'chain', basis: 'all', ht: 1, life: 4000, tip: 'Remplace à 0,5 % d\'allongement (12 v) ou 0,75 % (11 v). Le home trainer l\'use autant que la route.' },
     { k: 'cassette', l: 'Cassette', cat: 'trans', g: 'cassette', basis: 'road', life: 12000, tip: 'Environ 3 chaînes par cassette si la chaîne est changée à temps. Un saut de chaîne neuve sur les petits pignons = cassette finie.' },
-    { k: 'rings', l: 'Plateaux', cat: 'trans', g: 'crank', basis: 'all', ht: 1, life: 20000 },
-    { k: 'fd', l: 'Dérailleur avant', cat: 'trans', g: 'fd', basis: 'inspect', life: 365, tip: 'Contrôle : butées, position au-dessus du grand plateau, réglage E-Tube.' },
+    { k: 'rings', l: 'Plateaux', lab: b => variant(b).oneby ? 'Plateau' : 'Plateaux', cat: 'trans', g: 'crank', basis: 'all', ht: 1, life: 20000 },
+    { k: 'fd', l: 'Dérailleur avant', cat: 'trans', g: 'fd', basis: 'inspect', life: 365, only: b => !variant(b).oneby, tip: 'Contrôle : butées, position au-dessus du grand plateau, réglage E-Tube.' },
     { k: 'rd', l: 'Dérailleur arrière', cat: 'trans', g: 'rd', basis: 'inspect', life: 365, tip: 'Contrôle : patte droite, jeu de la chape, indexation.' },
     { k: 'jockey', l: 'Galets de dérailleur', cat: 'trans', g: 'rd', basis: 'all', ht: 1, life: 10000, tip: 'Dents en pointe ou jeu latéral : à remplacer.' },
     { k: 'tireF', l: 'Pneu avant', cat: 'roues', g: 'tireF', basis: 'road', life: 4000, tip: 'Inspecte la bande de roulement (témoin, méplat), les coupures et les flancs.' },
@@ -62,12 +65,13 @@ const Garage = (() => {
   // catalogue : cadre (b.frame = { k, gen }) et groupe (b.groupset = clé de déclinaison) ; le groupe décide freins, vitesses et électronique
   const grp = b => b.groupset ? BIKE_CAT.groupOf(b.groupset) : null;
   const frm = b => b.frame ? BIKE_CAT.frameOf(b.frame.k, b.frame.gen) : null;
-  const variant = b => { const x = grp(b), v = { brakes: model(b).brakes, speeds: model(b).speeds, pm: model(b).pm, group: model(b).di2 ? 'di2' : 'meca', ...(b.variant || {}) };
+  // oneby : mono plateau sans dérailleur avant (gabarit CLM) ; le groupe choisi garde ses manettes, son dérailleur arrière et ses freins
+  const variant = b => { const x = grp(b), v = { brakes: model(b).brakes, speeds: model(b).speeds, pm: model(b).pm, group: model(b).di2 ? 'di2' : 'meca', oneby: !!model(b).oneby, ...(b.variant || {}) };
     return x ? { ...v, brakes: x.v.brakes, speeds: x.g.speeds, group: x.group } : v; };
   const P = k => PARTS.find(p => p.k === k);
   const partsOf = b => PARTS.filter(p => !p.only || p.only(b));
   const lifeOf = (b, p) => +b.parts?.[p.k]?.life || model(b).life?.[p.k] || (variant(b).brakes === 'rim' && p.rimLife) || p.life;
-  const specOf = (b, k) => b.parts?.[k]?.spec || grp(b)?.spec[k] || frm(b)?.g.spec?.[k] || (k.startsWith('pads') && variant(b).brakes !== model(b).brakes ? (variant(b).brakes === 'rim' ? 'Patins de frein' : 'Plaquettes de frein') : model(b).spec[k]) || '';
+  const specOf = (b, k) => b.parts?.[k]?.spec || (k === 'rings' && variant(b).oneby ? model(b).spec.rings || 'Plateau unique' : null) || grp(b)?.spec[k] || frm(b)?.g.spec?.[k] || (k.startsWith('pads') && variant(b).brakes !== model(b).brakes ? (variant(b).brakes === 'rim' ? 'Patins de frein' : 'Plaquettes de frein') : model(b).spec[k]) || '';
 
   /* ---------- état et migration douce (v0.37 → v0.38) ---------- */
   function G(){
@@ -205,7 +209,7 @@ const Garage = (() => {
   /* ---------- vélos ---------- */
   function newBike(m = 'aeroad-cfsl'){
     const first = rides().filter(r => !r.taf).map(r => r.date).sort()[0] || todayISO(), M = MODELS[m] || MODELS.road;
-    return { id: rid(), name: m === 'road' ? M.name : 'Vélo de tri', brand: M.brand, modelName: M.name, year: null, purchased: null, model: m, variant: {}, since: first, km0: { road: 0, ht: 0 },
+    return { id: rid(), name: m === 'road' ? M.name : m === 'clm' ? 'Vélo de CLM' : 'Vélo de tri', brand: M.brand, modelName: M.name, year: null, purchased: null, model: m, variant: {}, since: first, km0: { road: 0, ht: 0 },
       rule: { out: true, ht: true, taf: false }, gearIds: [], trainer: 'direct', tires: { ...M.tires, setup: 'tube', surface: 'worn', hookless: false }, parts: {}, added: todayISO() };
   }
   const cur = () => { const g = G(); return g.bikes.find(b => b.id === g.sel) || g.bikes.find(b => !b.retired) || g.bikes[0] || null; };
@@ -214,7 +218,7 @@ const Garage = (() => {
   // zones du vélo : un toucher sur la maquette montée rapproche la caméra de la zone et en détaille les pièces
   const ZONES = { trans: ['Transmission', ['chain', 'cassette', 'crank', 'rd', 'fd', 'bb']], rear: ['Roue arrière', ['wheelR', 'tireR', 'cassette']], front: ['Roue avant', ['wheelF', 'tireF', 'fork']],
     cockpit: ['Poste de pilotage', ['cockpit', 'levers', 'headset']], seat: ['Selle et batterie', ['saddle', 'seatpost', 'battery']], brakes: ['Freins', ['calipers', 'rotors']], frame: ['Cadre', ['frame', 'headset', 'bb', 'fork']] };
-  const zoneOfG = g => g === 'frame' ? 'frame' : Object.keys(ZONES).find(z => ZONES[z][1].includes(g)) || 'frame';
+  const zoneOfG = g => g === 'frame' ? 'frame' : g === 'ravito' ? 'cockpit' : Object.keys(ZONES).find(z => ZONES[z][1].includes(g)) || 'frame'; // bidons du CLM : poste de pilotage
   const explode = () => mode === 'explode';
 
   // synthèse : état général, composants à surveiller, prochaine opération
@@ -260,7 +264,7 @@ const Garage = (() => {
           <button type="button" class="gr-chip" data-gr="tab" data-v="parts"><b>${sm.att}</b> à surveiller</button>
           ${sm.next ? `<button type="button" class="gr-chip gr-next" data-gr="${sm.next.care ? 'tab' : 'part'}" data-v="care" data-k="${sm.next.part || ''}"><span class="muted">Prochaine</span> <b>${esc(sm.next.l)}</b> <span style="color:${sm.next.col}">${esc(sm.next.txt)}</span></button>` : ''}</div>
         ${typeof Atelier !== 'undefined' && !b.retired ? Atelier.button() : ''}
-        <div class="gr-fid tiny">${glb ? `🧩 Ton modèle 3D « ${esc(b.glb.name)} »` : '◇ Maquette FTP Builder : géométrie et implantation fidèles, cadre aéro sans marque · couleur, sticker et jantes dans l\'onglet Vélo'}</div>
+        <div class="gr-fid tiny">${glb ? `🧩 Ton modèle 3D « ${esc(b.glb.name)} »` : `◇ Maquette FTP Builder : géométrie et implantation fidèles, cadre ${Bike3D.shapeOf(b.model) === 'clm' ? 'de CLM' : 'aéro'} sans marque · couleur, sticker et jantes dans l\'onglet Vélo`}</div>
       </section>
       <div class="seg gr-tabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" class="${tab === k ? 'on' : ''}" data-gr="tab" data-v="${k}">${l}</button>`).join('')}</div>
       <div class="gr-panel">${({ parts: partsTab, care: careTab, fit: fitTab, buy: buyTab, pressure: pressTab, rides: ridesTab, bike: bikeTab })[tab](b, rs, s, sm)}</div></div>`;
@@ -336,7 +340,8 @@ const Garage = (() => {
       <label class="f" for="grLookName">Sticker</label><div class="row" style="gap:8px"><input id="grLookName" type="text" maxlength="22" data-grlookt value="${esc(L.name)}" placeholder="FTP builder" style="flex:1;min-width:0"><button class="btn sm ghost" data-grlook="name" data-v="FTP builder" aria-label="Remettre FTP builder">↺</button></div>
       <div class="seg gr-lseg">${Object.entries(Bike3D.FONTS).map(([k, f]) => btn('font', k, L.font === k, `<span style="font-family:'${f.fam}',sans-serif;font-style:${f.style};font-weight:${f.w}">Aa</span> ${f.l}`)).join('')}</div>
       <div class="gr-ink">${Bike3D.INKS.map(i => btn('ink', i.id, L.ink === i.id, `<i class="${i.id}" style="--c:${i.hex || 'transparent'}"></i><span>${i.name}</span>`, ` title="${esc(i.name)}"`)).join('')}</div>
-      <label class="f">Hauteur de jante</label><div class="seg gr-lseg">${Bike3D.RIMS.map(r => btn('rim', r, L.rim === r, `${r} mm`)).join('')}</div>
+      ${Bike3D.shapeOf(b.model) === 'clm' ? `<label class="f">Roue arrière</label><div class="seg gr-lseg">${btn('disc', 1, L.disc, 'Lenticulaire')}${btn('disc', 0, !L.disc, 'À rayons')}</div>` : ''}
+      <label class="f">${L.disc ? 'Hauteur de jante avant' : 'Hauteur de jante'}</label><div class="seg gr-lseg">${Bike3D.RIMS.map(r => btn('rim', r, L.rim === r, `${r} mm`)).join('')}</div>
       <label class="f">Flancs des pneus</label><div class="seg gr-lseg">${[['noir', 'Noirs'], ['beige', 'Beiges']].map(([k, l]) => btn('wall', k, L.wall === k, l)).join('')}</div></div>`;
   }
   /* --- onglet Vélo --- */
@@ -480,9 +485,10 @@ const Garage = (() => {
   /* ---------- catalogue : questionnaire cadre → transmission (et lecture de facture) ---------- */
   let wz = null; // { mode: 'add' | 'frame' | 'group', step, fk, gk, q, inv }
   const SHIFT_L = { elec: 'Électronique', meca: 'Mécanique' }, BRAKE_L = { disc: 'Disques', rim: 'Patins (sur jante)' };
-  const genOf = () => wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk)?.g : null;
+  const TT_GEN = { brakes: ['disc'], tire: 28, spec: {} }; // gabarit générique CLM / triathlon : freins à disque
+  const genOf = () => wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk)?.g : wz.tt ? TT_GEN : null;
   function addAskDlg(){ wz = { mode: 'add', step: 'frame', q: {} }; wzRender(); }
-  function wzOpen(mode){ const b = cur(); wz = { mode, step: mode === 'group' ? 'brand' : 'frame', fk: b?.frame?.k, gk: b?.frame?.gen, q: {} }; if (mode === 'group') wzSkip(); wzRender(); }
+  function wzOpen(mode){ const b = cur(); wz = { mode, step: mode === 'group' ? 'brand' : 'frame', fk: b?.frame?.k, gk: b?.frame?.gen, tt: !b?.frame && b?.model === 'clm', q: {} }; if (mode === 'group') wzSkip(); wzRender(); }
   // passe les questions qui n'ont qu'une réponse possible
   function wzSkip(){
     for (let i = 0; i < 4; i++) { const o = BIKE_CAT.options(wz.q, genOf());
@@ -494,18 +500,18 @@ const Garage = (() => {
   function wzRender(){
     const el = sheetEl(), F = BIKE_CAT.FRAMES, o = BIKE_CAT.options(wz.q, genOf()), fr = wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk) : null;
     const btn = (act, v, l, sub = '', on = false) => `<button class="btn gr-wzb${on ? ' primary' : ''}" data-wz="${act}" data-v="${esc(v)}"><b>${esc(l)}</b>${sub ? `<span class="tiny muted">${esc(sub)}</span>` : ''}</button>`;
-    const crumbs = [fr && wz.mode !== 'group' ? [`${fr.f.brand} ${fr.f.model}`, 'frame'] : null, wz.q.brand ? [wz.q.brand, 'brand'] : null, wz.q.shift ? [SHIFT_L[wz.q.shift], 'shift'] : null, wz.q.brakes ? [BRAKE_L[wz.q.brakes].replace(/ \(.*/, ''), 'brakes'] : null].filter(Boolean);
+    const crumbs = [fr && wz.mode !== 'group' ? [`${fr.f.brand} ${fr.f.model}`, 'frame'] : !fr && wz.tt && wz.mode !== 'group' ? ['CLM / triathlon', 'frame'] : null, wz.q.brand ? [wz.q.brand, 'brand'] : null, wz.q.shift ? [SHIFT_L[wz.q.shift], 'shift'] : null, wz.q.brakes ? [BRAKE_L[wz.q.brakes].replace(/ \(.*/, ''), 'brakes'] : null].filter(Boolean);
     let h = '';
     if (wz.step === 'frame') h = `<h3>${wz.mode === 'add' ? 'Ajouter un vélo' : 'Changer le cadre'}</h3><p class="small muted">Choisis ton cadre, puis la transmission. Tout reste modifiable pièce par pièce ensuite.</p>
       ${wz.mode === 'add' ? `<button class="btn" data-wz="inv" style="width:100%;margin-bottom:10px">📄 Lire une facture (PDF)</button>` : ''}
-      <div class="gr-wzg">${F.map(f => btn('frame', f.k, `${f.brand} ${f.model}`, f.gens.length > 1 ? `${f.gens.length} générations` : f.gens[0].l, f.k === wz.fk)).join('')}${btn('frame', '', 'Autre vélo de route', 'gabarit générique')}</div>
+      <div class="gr-wzg">${F.map(f => btn('frame', f.k, `${f.brand} ${f.model}`, f.gens.length > 1 ? `${f.gens.length} générations` : f.gens[0].l, f.k === wz.fk)).join('')}${btn('frame', '', 'Autre vélo de route', 'gabarit générique')}${btn('frame', 'clm', 'Vélo de CLM / triathlon', 'gabarit générique : prolongateurs, roue lenticulaire', !wz.fk && wz.tt)}</div>
       <button class="btn sm ghost" data-wz="req" style="width:100%">📮 Mon vélo n'est pas dans la liste</button>`;
     else if (wz.step === 'gen') h = `<h3>${esc(fr.f.brand)} ${esc(fr.f.model)} : quelle génération ?</h3><div class="gr-wzg">${fr.f.gens.map(g => btn('gen', g.k, g.l, `${g.brakes.map(x => BRAKE_L[x].replace(/ \(.*/, '').toLowerCase()).join(' ou ')} · pneus ≤ ${g.tire} mm`, g.k === wz.gk)).join('')}</div>`;
     else if (wz.step === 'brand') h = `<h3>Transmission : quelle marque ?</h3><div class="gr-wzg">${o.brands.map(b => btn('brand', b, b)).join('')}${btn('none', '', 'Je ne sais pas', 'réglage manuel plus tard')}</div>`;
     else if (wz.step === 'shift') { const s = BIKE_CAT.options({ brand: wz.q.brand }, genOf()).shifts; h = `<h3>Électronique ou mécanique ?</h3><div class="gr-wzg">${s.map(x => btn('shift', x, SHIFT_L[x], x === 'elec' ? (wz.q.brand === 'SRAM' ? 'eTap AXS' : 'Di2') : 'câbles')).join('')}</div>`; }
     else if (wz.step === 'brakes') { const s = BIKE_CAT.options({ brand: wz.q.brand, shift: wz.q.shift }, genOf()).brakes; h = `<h3>Freins ?</h3><div class="gr-wzg">${s.map(x => btn('brakes', x, BRAKE_L[x])).join('')}</div>`; }
     else if (wz.step === 'list') h = `<h3>Quelle déclinaison ?</h3><div class="gr-wzg">${o.list.map(x => btn('pick', x.key, `${x.g.brand} ${x.g.l}`, x.v.l)).join('')}</div>
-      ${genOf()?.elecOnly ? '<p class="tiny muted">Ce cadre ne prévoit que les transmissions électroniques.</p>' : ''}`;
+      ${genOf()?.elecOnly ? '<p class="tiny muted">Ce cadre ne prévoit que les transmissions électroniques.</p>' : ''}${!wz.fk && wz.tt ? '<p class="tiny muted">Vélo de CLM : monté en mono plateau, sans dérailleur avant.</p>' : ''}`;
     else if (wz.step === 'req') { const i = wz.inv || {}, gl = (i.groupLine || '').replace(/^groupe\s+/, '').replace(/\s+\S*\d{4,}.*$/, '');
       const inp = (id, l, v, ph = '') => `<div><label class="f" for="${id}">${l}</label><input type="text" id="${id}" value="${esc(v || '')}" placeholder="${esc(ph)}" maxlength="80"></div>`;
       h = `<h3>Demander l'ajout au catalogue</h3><p class="small muted">L'admin ajoute le cadre ou le groupe au catalogue, avec ses références. En attendant, ton vélo peut être créé avec la maquette générique.</p>
@@ -525,7 +531,7 @@ const Garage = (() => {
   }
   async function wzClick(e){
     const x = e.target.closest('[data-wz]'); if (!x) return; const a = x.dataset.wz, v = x.dataset.v;
-    if (a === 'frame') { wz.fk = v || null; wz.gk = null; const f = v && BIKE_CAT.FRAMES.find(y => y.k === v); if (f && f.gens.length > 1) wz.step = 'gen'; else { wz.gk = f?.gens[0].k || null; wz.step = 'brand'; } }
+    if (a === 'frame') { wz.tt = v === 'clm'; wz.fk = v && v !== 'clm' ? v : null; wz.gk = null; const f = wz.fk && BIKE_CAT.FRAMES.find(y => y.k === wz.fk); if (f && f.gens.length > 1) wz.step = 'gen'; else { wz.gk = f?.gens[0].k || null; wz.step = 'brand'; } }
     else if (a === 'gen') { wz.gk = v; wz.step = 'brand'; }
     else if (a === 'brand') { wz.q = { brand: v }; wz.step = 'shift'; }
     else if (a === 'shift') { wz.q = { brand: wz.q.brand, shift: v }; wz.step = 'brakes'; }
@@ -563,9 +569,9 @@ const Garage = (() => {
     wz.sent = true; wz.step = wz.back || 'frame'; wzRender(); toast("Demande envoyée à l'admin 📮");
   }
   // applique le cadre et le groupe choisis (création ou modification)
-  function applyFrame(b, fk, gk){
+  function applyFrame(b, fk, gk, tt){
     const fr = fk ? BIKE_CAT.frameOf(fk, gk) : null;
-    if (!fr) { delete b.frame; b.model = 'road'; return; }
+    if (!fr) { delete b.frame; b.model = tt ? 'clm' : 'road'; if (tt) b.variant = { ...(b.variant || {}), brakes: 'disc' }; return; }
     const old = model(b); b.frame = { k: fr.f.k, gen: fr.g.k }; b.model = fr.g.m3d || 'road';
     if (!b.brand || b.brand === old.brand || BIKE_CAT.FRAMES.some(f => f.brand === b.brand)) b.brand = fr.f.brand;
     b.modelName = fr.f.model; b.variant = { ...(b.variant || {}), brakes: fr.g.brakes.includes(variant(b).brakes) ? variant(b).brakes : fr.g.brakes[0] };
@@ -575,8 +581,8 @@ const Garage = (() => {
   function wzFinish(key){
     const g = G(), inv = wz.inv;
     if (wz.mode === 'add') {
-      const fr = wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk) : null, nb = newBike(fr?.g.m3d || 'road'), others = g.bikes.some(x => !x.retired);
-      applyFrame(nb, wz.fk, wz.gk); const gs = !fr && inv?.guess; nb.name = fr ? `${fr.f.brand} ${fr.f.model}` : gs ? `${gs.brand} ${gs.model}` : 'Vélo de route';
+      const fr = wz.fk ? BIKE_CAT.frameOf(wz.fk, wz.gk) : null, tt = !fr && wz.tt, nb = newBike(fr?.g.m3d || (tt ? 'clm' : 'road')), others = g.bikes.some(x => !x.retired);
+      applyFrame(nb, wz.fk, wz.gk, tt); const gs = !fr && inv?.guess; nb.name = fr ? `${fr.f.brand} ${fr.f.model}` : gs ? `${gs.brand} ${gs.model}` : tt ? 'Vélo de CLM' : 'Vélo de route';
       if (gs) { nb.brand = gs.brand; nb.modelName = gs.model; }
       if (others) nb.rule = { out: false, ht: false, taf: false };
       if (inv?.date) { nb.purchased = inv.date; if (others) nb.since = inv.date; }
@@ -587,7 +593,7 @@ const Garage = (() => {
       return done(`${nb.name} ajouté au garage${others ? ' · coche « Ce vélo reçoit » dans l\'onglet Vélo' : ''}`);
     }
     const b = cur(); if (!b) return;
-    if (wz.mode === 'frame' || wz.step === 'confirm') applyFrame(b, wz.fk, wz.gk);
+    if (wz.mode === 'frame' || wz.step === 'confirm') applyFrame(b, wz.fk, wz.gk, !wz.fk && wz.tt);
     if (key) { b.groupset = key; b.variant = { pm: b.variant?.pm }; } else if (wz.mode === 'group') delete b.groupset;
     if (inv?.date && !b.purchased) b.purchased = inv.date;
     mode = 'view'; wz = null; done(key ? `Transmission : ${BIKE_CAT.groupOf(key).name}` : 'Cadre mis à jour');
@@ -627,7 +633,7 @@ const Garage = (() => {
     for (const i of parts) { if (!tags[i.g] || i.rem < tags[i.g].rem) tags[i.g] = { k: i.k, l: i.l, rem: i.rem, charge: i.charge, col: col(i.rem), txt: (i.charge ? '🔋 ' : '') + pct(i.rem) }; }
     let glb = null;
     if (b.glb) { const blob = await Media.get(b.glb.id).catch(() => null); if (blob) glb = { blob, rotY: b.glb.rotY || 0, map: b.glb.map || {} }; }
-    const V = variant(b), look = Bike3D.lookOf(b.look, b.model), key = [b.id, b.model, V.brakes, V.speeds, b.tires?.f, b.tires?.r, glb ? b.glb.id + ':' + (b.glb.rotY || 0) + ':' + JSON.stringify(b.glb.map || {}) : 'ftp' + look.rim].join('|');
+    const V = variant(b), look = Bike3D.lookOf(b.look, b.model), key = [b.id, b.model, V.brakes, V.speeds, b.tires?.f, b.tires?.r, glb ? b.glb.id + ':' + (b.glb.rotY || 0) + ':' + JSON.stringify(b.glb.map || {}) : 'ftp' + look.rim + (look.disc ? 'd' : '')].join('|');
     try {
       const info = await Bike3D.mount(el, { key, model: b.model, variant: { ...V, tireF: b.tires?.f, tireR: b.tires?.r }, glb, look, exploded: explode(), allTags, tags, onTap: g => {
         if (!explode()) { const z = g ? zoneOfG(g) : null; if (!zoneK || !ZONES[zoneK][1].includes(g)) { if (z) setZone(z); return; } }
@@ -658,7 +664,7 @@ const Garage = (() => {
   const setLook = (b, patch) => { b.look = { ...(b.look || {}), ...patch }; save(); };
   document.addEventListener('click', e => {
     const x = e.target.closest('[data-grlook]'), b = cur(); if (!x || !b) return; const k = x.dataset.grlook, v = x.dataset.v;
-    setLook(b, k === 'paint' ? { paint: v, custom: null, finish: null } : k === 'rim' ? { rim: +v } : { [k]: v }); render();
+    setLook(b, k === 'paint' ? { paint: v, custom: null, finish: null } : k === 'rim' ? { rim: +v } : k === 'disc' ? { disc: v === '1' } : { [k]: v }); render();
   });
   document.addEventListener('input', e => {
     const t = e.target, b = cur(); if (!b || !(t.dataset.grlookt != null || t.dataset.grlookc != null)) return;

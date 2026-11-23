@@ -3,8 +3,10 @@
 /* ============ Bike3D ============
    Trois sources de maquette :
    - « glb » : le vrai modèle de l'utilisateur (fichier .glb importé), découpé en composants d'après le nom de ses objets (ou le réglage manuel) ;
-   - « ftp » (par défaut) : le vélo aéro modélisé pour FTP Builder (models/velo-aero.js), cadre original sans marque aux cotes d'un vélo aéro
-     taille M, personnalisable (couleur, finition, sticker, hauteur de jante, flancs) ;
+   - « ftp » (par défaut) : le vélo modélisé pour FTP Builder, cadre original sans marque, personnalisable (couleur, finition, sticker, hauteur de jante, flancs) :
+     gabarit aéro de route (models/velo-aero.js, taille M) ou gabarit CLM / triathlon (models/velo-clm.js, taille M : prolongateurs, repose-bras,
+     cintre de base à crochets, bidons entre les prolongateurs et derrière la selle, boîte sur le tube horizontal, mono plateau sans dérailleur avant,
+     roue arrière lenticulaire au choix) ;
    - « proc » : maquette générique procédurale aux mêmes cotes (empattement 99 cm, stack 57, reach 38) — repli si la maquette FTP ne se charge pas.
    Repère : x vers l'avant, y vers le haut, z côté transmission, en mètres. Chaque composant est un groupe (clé `g`) avec un décalage d'éclaté. */
 const Bike3D = (() => {
@@ -16,7 +18,8 @@ const Bike3D = (() => {
   const loadGltf = () => gltfLibs ||= (async () => { await loadLibs(); if (!THREE.GLTFLoader) await script(CDN + 'examples/js/loaders/GLTFLoader.js'); if (!THREE.DRACOLoader) await script(CDN + 'examples/js/loaders/DRACOLoader.js').catch(() => {}); })().catch(e => { gltfLibs = null; throw e; });
 
   const LABEL = { frame: 'Cadre', fork: 'Fourche', wheelF: 'Roue AV', wheelR: 'Roue AR', tireF: 'Pneu AV', tireR: 'Pneu AR', chain: 'Chaîne', cassette: 'Cassette', crank: 'Pédalier',
-    fd: 'Dérailleur AV', rd: 'Dérailleur AR', calipers: 'Freins', rotors: 'Disques', headset: 'Direction', bb: 'Boîtier', cockpit: 'Cockpit', levers: 'Leviers', seatpost: 'Tige de selle', saddle: 'Selle', battery: 'Batterie Di2' };
+    fd: 'Dérailleur AV', rd: 'Dérailleur AR', calipers: 'Freins', rotors: 'Disques', headset: 'Direction', bb: 'Boîtier', cockpit: 'Cockpit', levers: 'Leviers', seatpost: 'Tige de selle', saddle: 'Selle', battery: 'Batterie Di2',
+    ravito: 'Ravitaillement' };
   // reconnaissance des composants d'un GLB d'après le nom des objets (français / anglais)
   const NAME_RX = [
     ['tireF', /(front|avant|_f\b|\bf_).*(tire|tyre|pneu)|(tire|tyre|pneu).*(front|avant)/i], ['tireR', /(rear|arri|_r\b|\br_).*(tire|tyre|pneu)|(tire|tyre|pneu).*(rear|arri)/i],
@@ -32,7 +35,7 @@ const Bike3D = (() => {
   const clean = n => String(n || '').replace(/[_.\-]+/g, ' ').replace(/\s\d+$/, ''); // GLTFLoader remplace les espaces par « _ »
   const OFF = { frame: [0, 0, 0], fork: [.17, -.05, 0], wheelF: [.36, -.02, 0], tireF: [.6, .1, .12], rotors: [0, 0, -.3], wheelR: [-.28, -.02, 0], tireR: [-.52, .1, .12],
     cassette: [-.17, 0, .34], rd: [-.11, -.15, .38], chain: [.05, -.34, .28], crank: [.15, -.2, .46], bb: [0, -.34, 0], fd: [.07, .02, .32], seatpost: [-.05, .22, 0], saddle: [-.08, .42, 0],
-    battery: [-.26, .12, 0], cockpit: [.17, .27, 0], levers: [.34, .36, 0], headset: [.03, .15, .32], calipers: [0, .02, -.42] };
+    battery: [-.26, .12, 0], cockpit: [.17, .27, 0], levers: [.34, .36, 0], headset: [.03, .15, .32], calipers: [0, .02, -.42], ravito: [-.04, .3, -.36] };
   let R = null; // scène courante
   const st = { t: 0, target: 0, opts: null, el: null, raf: 0, last: 0, sel: null, idle: 0, intro: null, introDone: false, focus: null, busy: 0, zone: null, zlast: null, zt: 0 };
   const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3)/2;
@@ -239,7 +242,14 @@ const Bike3D = (() => {
     return { root, groups, len: 1.66, names: names.slice(0, 120), glb: true };
   }
 
-  /* ---------- maquette FTP Builder : vélo aéro modélisé (models/velo-aero.js), personnalisable ----------
+  // pièces internes (éclaté) : direction, boîtier, batterie — cotes lues dans le GLB (longueur de douille, tige de selle du gabarit CLM)
+  function inner(T, meta){
+    const BB = new T.Vector3(...(meta.bb || [.4036, .2675, 0])), HT = new T.Vector3(...(meta.ht_top || [.7956, .8275, 0])), HA = 73*Math.PI/180, SA = 73.5*Math.PI/180;
+    const dn = new T.Vector3(Math.cos(HA), -Math.sin(HA), 0), HB = HT.clone().addScaledVector(dn, meta.ht_len || .15);
+    if (meta.post) { const a = new T.Vector3(...meta.post[0]), b = new T.Vector3(...meta.post[1]); return { BB, HT, dn, HB, battAt: a.clone().lerp(b, .45), battDir: b.clone().sub(a).normalize() }; }
+    const sd = new T.Vector3(-Math.cos(SA), Math.sin(SA), 0); return { BB, HT, dn, HB, battAt: BB.clone().addScaledVector(sd, .49), battDir: sd };
+  }
+  /* ---------- maquette FTP Builder : vélo modélisé (models/velo-aero.js ou velo-clm.js), personnalisable ----------
      Cadre original FTP Builder (aucune marque), géométrie taille M dans le même repère que la maquette procédurale. Les objets du GLB sont
      nommés : chacun rejoint un composant (vue éclatée, zones, témoins d'usure). Jantes, rayons et stickers sont générés ici (hauteur de jante,
      texte, couleurs au choix) ; freins à patins ou à disques et cassette 11 ou 12 vitesses suivent le vélo. Repli : maquette procédurale. */
@@ -264,24 +274,30 @@ const Bike3D = (() => {
   const FONTS = { sport: { l: 'Sport', fam: 'FTPB Sport', style: 'italic', w: 800, track: .035 }, tech: { l: 'Tech', fam: 'FTPB Tech', style: 'normal', w: 800, track: .1 },
     bloc: { l: 'Bloc', fam: 'FTPB Bloc', style: 'normal', w: 400, track: .01 }, script: { l: 'Script', fam: 'FTPB Script', style: 'normal', w: 400, track: 0 } };
   const RIMS = [35, 45, 50, 62, 80];
-  const LOOK0 = { paint: 'graphite', finish: null, custom: null, name: 'FTP builder', font: 'sport', ink: 'auto', rim: null, wall: 'noir' };
-  const lookOf = (l, model) => { const x = { ...LOOK0, ...(l || {}) }; if (!RIMS.includes(+x.rim)) x.rim = model === 'road' ? 35 : 50; x.rim = +x.rim; if (!PAINTS.some(p => p.id === x.paint)) x.paint = LOOK0.paint;
+  // gabarits de la maquette FTP : un fichier par gabarit (GLB + polices des stickers), chargé à la demande
+  const SHAPES = { aero: { src: 'models/velo-aero.js', key: 'FTPB_BIKE' }, clm: { src: 'models/velo-clm.js', key: 'FTPB_BIKE_CLM' } };
+  const shapeOf = model => /^clm/.test(String(model || '')) ? 'clm' : 'aero';
+  const LOOK0 = { paint: 'graphite', finish: null, custom: null, name: 'FTP builder', font: 'sport', ink: 'auto', rim: null, wall: 'noir', disc: null };
+  // CLM : jante avant de 80 et roue arrière lenticulaire par défaut (disc: false → roue à rayons)
+  const lookOf = (l, model) => { const x = { ...LOOK0, ...(l || {}) }, clm = shapeOf(model) === 'clm'; if (!RIMS.includes(+x.rim)) x.rim = clm ? 80 : model === 'road' ? 35 : 50; x.rim = +x.rim; x.disc = clm && x.disc !== false; if (!PAINTS.some(p => p.id === x.paint)) x.paint = LOOK0.paint;
     if (!FONTS[x.font]) x.font = 'sport'; if (!INKS.some(i => i.id === x.ink)) x.ink = 'auto'; if (typeof x.name !== 'string') x.name = LOOK0.name; return x; };
   // objet du GLB → composant
   const FTP_G = {};
   for (const [k, ns] of Object.entries({ frame: 'Frame_Paint Bottle_Bolts Decal_DownTube_R Decal_DownTube_L Decal_HeadTube', fork: 'Fork_Paint Decal_Fork_R Decal_Fork_L',
-    seatpost: 'Seatpost_Paint Seat_Clamp', saddle: 'Saddle_Cover Saddle_Rails', cockpit: 'Cockpit_Carbon Bartape_R Bartape_L BarEnd_R BarEnd_L', levers: 'Hood_R Hood_L Lever_R Lever_L',
-    crank: 'Crank_R Crank_L Crank_Bolts Chainring_Big Chainring_Small', chain: 'Chain_Outer Chain_Inner Chain_Rollers', fd: 'FD', rd: 'RD_Hanger RD_Body RD_Cage RD_Bolts RD_Pulleys RD_PulleyHubs',
+    seatpost: 'Seatpost_Paint Seat_Clamp', saddle: 'Saddle_Cover Saddle_Rails', cockpit: 'Cockpit_Carbon Bartape_R Bartape_L BarEnd_R BarEnd_L Extensions Arm_Cups Arm_Pads', levers: 'Hood_R Hood_L Lever_R Lever_L',
+    ravito: 'Bottles Bottle_Caps Bottle_Cages Bento',
+    crank: 'Crank_R Crank_L Crank_Bolts Chainring_Big Chainring_Small Chainring_Cover', chain: 'Chain_Outer Chain_Inner Chain_Rollers', fd: 'FD', rd: 'RD_Hanger RD_Body RD_Cage RD_Bolts RD_Pulleys RD_PulleyHubs',
     calipers: 'Caliper_F Caliper_F_Bolts Caliper_R Caliper_R_Bolts RimBrake_F RimBrake_F_Pads RimBrake_F_Shoes RimBrake_R RimBrake_R_Pads RimBrake_R_Shoes',
     rotors: 'Rotor_F_Band Rotor_F_Spider Rotor_F_Rivets Rotor_R_Band Rotor_R_Spider Rotor_R_Rivets', wheelF: 'Hub_F Lockring_F Axle_F', wheelR: 'Hub_R Lockring_R Axle_R',
     tireF: 'Tyre_F_Tread Tyre_F_Wall_R Tyre_F_Wall_L', tireR: 'Tyre_R_Tread Tyre_R_Wall_R Tyre_R_Wall_L', cassette: 'Cassette_Cogs Cassette_Cogs_11 Cassette_Core' })) for (const n of ns.split(' ')) FTP_G[n] = k;
   const b64 = s => { const bin = atob(s), n = bin.length, u = new Uint8Array(n); for (let i = 0; i < n; i++) u[i] = bin.charCodeAt(i); return u; };
-  let ftpGl = null;
-  const loadFtp = () => ftpGl ||= (async () => {
+  const ftpGl = {};
+  const loadFtp = (shape = 'aero') => ftpGl[shape] ||= (async () => {
+    const SH = SHAPES[shape] || SHAPES.aero;
     await loadGltf();
     if (!window.MeshoptDecoder) await script(CDN + 'examples/js/libs/meshopt_decoder.js');
-    if (!window.FTPB_BIKE) await script('models/velo-aero.js?v=' + (typeof APP_VERSION === 'string' ? APP_VERSION : '0'));
-    const d = window.FTPB_BIKE; if (!d?.glb) throw new Error('maquette absente');
+    if (!window[SH.key]) await script(SH.src + '?v=' + (typeof APP_VERSION === 'string' ? APP_VERSION : '0'));
+    const d = window[SH.key]; if (!d?.glb) throw new Error('maquette absente');
     for (const [k, f] of Object.entries(FONTS)) if (d.fonts?.[k] && !f.ok) { try { const ff = new FontFace(f.fam, b64(d.fonts[k]).buffer, { style: f.style, weight: String(f.w) }); await ff.load(); document.fonts.add(ff); f.ok = true; } catch (e) { /* police par défaut */ } }
     await MeshoptDecoder.ready;
     const loader = new THREE.GLTFLoader(); loader.setMeshoptDecoder(MeshoptDecoder);
@@ -289,7 +305,7 @@ const Bike3D = (() => {
     // occultation ambiante précalculée (COLOR_0 du GLB) : attribut à part, pour qu'elle n'agisse que sur l'éclairage indirect
     gl.scene.traverse(o => { const a = o.geometry?.attributes?.color; if (a) { o.geometry.setAttribute('bakeAO', a); o.geometry.deleteAttribute('color'); } });
     return gl;
-  })().catch(e => { ftpGl = null; throw e; });
+  })().catch(e => { delete ftpGl[shape]; throw e; });
   function withAO(m){
     m.onBeforeCompile = sh => {
       sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nattribute vec4 bakeAO;\nvarying float vBakeAO;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvBakeAO = bakeAO.r;');
@@ -346,6 +362,20 @@ const Bike3D = (() => {
         for (const E of [P, Q]) for (const c of [ca, cb]) { const v = E.clone().addScaledVector(wa, c[0]*hw).addScaledVector(ta, c[1]*ht); pos.push(v.x, v.y, v.z); nor.push(n.x, n.y, n.z); }
         idx.push(off, off + 1, off + 3, off, off + 3, off + 2); } }
     const g = new T.BufferGeometry(); g.setAttribute('position', new T.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new T.Float32BufferAttribute(nor, 3)); g.setIndex(idx); return wind(T, g); }
+  // roue lenticulaire (CLM) : crochets de jante, flanc côté transmission presque plat (place de la cassette), flanc opposé bombé — mêmes cotes que l'ombrage du GLB
+  const DISC_D = [[.3144, .0146], [.300, .0145], [.250, .0142], [.150, .0140], [.060, .0140], [.026, .0140]], DISC_O = [[.3144, -.0146], [.280, -.0168], [.220, -.0215], [.150, -.0262], [.080, -.0305], [.026, -.0335]];
+  function discProfile(){ const hook = [[R_TOP - .0007, HOOK_IN], [R_TOP - .0001, HOOK_IN + .0004], [R_TOP + .00015, HOOK_IN + .0015], [R_TOP - .0001, W_TOP - .0004]];
+    return [...hook, ...DISC_D, [.0245, .009], [.0245, -.030], ...DISC_O.slice().reverse(), ...hook.slice().reverse().map(([r, z]) => [r, -z]),
+      [R_TOP - .0025, -HOOK_IN + .0006], [R_TOP - .004, -.006], [R_TOP - .0062, 0], [R_TOP - .004, .006], [R_TOP - .0025, HOOK_IN - .0006]]; }
+  const faceZ = (F, r) => { for (let i = 1; i < F.length; i++) { const [r0, z0] = F[i - 1], [r1, z1] = F[i]; if (r <= r0 && r >= r1) return z0 + (z1 - z0)*(r - r0)/(r1 - r0); } return F[F.length - 1][1]; };
+  // anneaux des stickers sur les deux flancs du disque (texte lisible des deux côtés)
+  function discBands(T, off = .00022){ const n = 10, r0 = .212, r1 = .288, D = [], O = [], vv = [];
+    for (let i = 0; i <= n; i++) { const r = r1 - (r1 - r0)*i/n; D.push([r, faceZ(DISC_D, r)]); vv.push(1 - i/n); }
+    for (let i = 0; i <= n; i++) { const r = r0 + (r1 - r0)*i/n; O.push([r, faceZ(DISC_O, r)]); }
+    return [latheGeo(T, D, 160, { flipU: true, vVals: vv, offset: off }), latheGeo(T, O, 160, { vVals: vv.slice().reverse(), offset: off })]; }
+  function discText(cv, ini){ const { c, x, t } = cv, H = c.height; x.clearRect(0, 0, c.width, H); x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
+    setFont(x, FONTS.sport, H*.62); let px = c.width*.05; x.fillText(ini, px, H*.53); px += x.measureText(ini).width + H*.3; x.fillRect(px, H*.22, H*.045, H*.6); px += H*.34;
+    setFont(x, FONTS.tech, H*.3); x.fillText('DISC', px, H*.4); setFont(x, FONTS.tech, H*.15); x.globalAlpha = .75; x.fillText('CARBON  ·  TLR  ·  CLM', px, H*.72); x.globalAlpha = 1; t.needsUpdate = true; }
   // textes des stickers : taille réglée sur l'encombrement réel des lettres, pour que chaque style remplisse le tube de la même façon
   const setFont = (x, F, px) => { x.font = `${F.style} ${F.w} ${px}px "${F.fam}", "Arial Black", sans-serif`; if ('letterSpacing' in x) x.letterSpacing = `${(F.track*px).toFixed(1)}px`; };
   function fitText(x, txt, F, maxW, maxH){ setFont(x, F, 100); const m = x.measureText(txt), w = (m.actualBoundingBoxLeft + m.actualBoundingBoxRight) || m.width || 1, h = (m.actualBoundingBoxAscent + m.actualBoundingBoxDescent) || 75; setFont(x, F, 100*Math.min(maxW/w, maxH/h)); }
@@ -354,14 +384,14 @@ const Bike3D = (() => {
   const lin = (T, hex) => new T.Color(hex).convertSRGBToLinear();
 
   async function buildFTP(T, opts){
-    const gl = await loadFtp(), V = opts.variant || {}, rimBrake = V.brakes === 'rim', s11 = +V.speeds === 11;
+    const shape = shapeOf(opts.model), gl = await loadFtp(shape), V = opts.variant || {}, rimBrake = V.brakes === 'rim', s11 = +V.speeds === 11, LK = lookOf(opts.look, opts.model);
     const scene = gl.scene.clone(true), meta = gl.scene.userData || {}; scene.updateMatrixWorld(true);
     const skip = n => (rimBrake ? /^(Rotor_|Caliper_|Lockring_)/.test(n) : /^RimBrake_/.test(n)) || n === (s11 ? 'Cassette_Cogs' : 'Cassette_Cogs_11');
     const root = new T.Group(), groups = {}, grp = k => { if (!groups[k]) { const g = new T.Group(); g.userData.g = k; groups[k] = g; root.add(g); } return groups[k]; };
     const cv = (w, h, rep = 1) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8;
       if (rep > 1) { t.wrapS = T.RepeatWrapping; t.repeat.set(rep, 1); } return { c, x: c.getContext('2d'), t }; };
     const dc = meta.decals || {}, cvs = { down: cv(2048, Math.round(2048*(dc.downtube?.height || .055)/(dc.downtube?.length || .5))), fork: cv(1024, Math.round(1024*(dc.fork?.height || .03)/(dc.fork?.length || .2))),
-      head: cv(256, Math.round(256*(dc.headtube?.height || .09)/(dc.headtube?.width || .037))), rim: cv(1024, 64, 2), wall: cv(1024, 48, 2) };
+      head: cv(256, Math.round(256*(dc.headtube?.height || .09)/(dc.headtube?.width || .037))), rim: cv(1024, 64, 2), wall: cv(1024, 48, 2), disc: cv(1024, 92, 2) };
     const ph = (o, ao = true) => { const m = new T.MeshPhysicalMaterial({ envMapIntensity: .95, ...o }); for (const k of ['color', 'sheenColor']) if (o[k] != null) m[k] = lin(T, o[k]); return ao ? withAO(m) : m; };
     const KIND = { // matériaux du GLB → rendu (une instance par composant : l'estompage du mode ingénieur agit composant par composant)
       Paint_Frame: () => ph({ color: '#3b3f45', roughness: .6 }), Carbon_Black: () => ph({ color: '#0c0c0d', roughness: .42, clearcoat: .35, clearcoatRoughness: .35 }),
@@ -369,7 +399,8 @@ const Bike3D = (() => {
       Saddle_Cover: () => ph({ color: '#0f0f10', roughness: .62, sheen: .35, sheenRoughness: .5, sheenColor: '#2a2a2a' }), Saddle_Rails: () => ph({ color: '#1a1a1c', roughness: .3, metalness: .4, clearcoat: .6 }),
       Tyre_Tread: () => ph({ color: '#151515', roughness: .74 }), Tyre_Wall: () => ph({ map: cvs.wall.t, roughness: .76 }), Metal_Silver: () => ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }),
       Metal_Steel: () => ph({ color: '#9a9da3', roughness: .34, metalness: 1 }), Metal_Dark: () => ph({ color: '#2a2b2f', roughness: .34, metalness: .9 }),
-      Anodized_Black: () => ph({ color: '#0e0e10', roughness: .36, metalness: .55, clearcoat: .3, clearcoatRoughness: .3 }), Brake_Pad: () => ph({ color: '#3a221a', roughness: .85 }) };
+      Anodized_Black: () => ph({ color: '#0e0e10', roughness: .36, metalness: .55, clearcoat: .3, clearcoatRoughness: .3 }), Brake_Pad: () => ph({ color: '#3a221a', roughness: .85 }),
+      Bottle_Plastic: () => ph({ color: '#3a3f46', roughness: .36, clearcoat: .45, clearcoatRoughness: .22 }), Pad_Foam: () => ph({ color: '#1b1c1e', roughness: .92, sheen: .5, sheenRoughness: .7, sheenColor: '#3a3a3a' }) }; // bidons et mousses du gabarit CLM
     const decalMat = t => ph({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8, roughness: .32, clearcoat: .7, clearcoatRoughness: .08, alphaTest: .02 }, false);
     const DECAL = { Decal_DownTube_R: cvs.down, Decal_DownTube_L: cvs.down, Decal_Fork_R: cvs.fork, Decal_Fork_L: cvs.fork, Decal_HeadTube: cvs.head };
     const mats = {}, paints = [], decals = [], walls = [];
@@ -384,13 +415,15 @@ const Bike3D = (() => {
       m.material = matFor(k, DECAL[n] ? n : m.material?.name); m.userData.g = k; m.castShadow = !DECAL[n]; m.receiveShadow = true; if (DECAL[n]) m.renderOrder = 2;
       grp(k).attach(m); if (k === 'tireF' || k === 'tireR') { const f = tw[k === 'tireF' ? 'F' : 'R']; m.position.z *= f; m.scale.z *= f; } }
     // jantes, rayons, valves (hauteur de jante au choix) et piste de freinage pour les patins
-    const D = lookOf(opts.look, opts.model).rim/1000, AF = meta.axle_f || [.9919, .3395, 0], AR = meta.axle_r || [0, .3395, 0], HUB = meta.hub || {};
+    const D = LK.rim/1000, AF = meta.axle_f || [.9919, .3395, 0], AR = meta.axle_r || [0, .3395, 0], HUB = meta.hub || {};
     const rimMat = ph({ color: '#0b0b0c', roughness: .36, clearcoat: .45, clearcoatRoughness: .22 }, false), spokeMat = ph({ color: '#18181a', roughness: .32, metalness: .7 }, false);
     const trackMat = ph({ color: '#202023', roughness: .72, metalness: .15 }, false), rimDecal = decalMat(cvs.rim.t); rimDecal.polygonOffsetFactor = -2; decals.push(rimDecal);
+    const discDecal = decalMat(cvs.disc.t); discDecal.polygonOffsetFactor = -2; discDecal.userData.disc = true; decals.push(discDecal);
     const valveMat = ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }, false), capMat = ph({ color: '#0e0e10', roughness: .36, metalness: .55 }, false);
     for (const [k, A, front] of [['wheelF', AF, true], ['wheelR', AR, false]]) {
       const w = new T.Group(); w.position.set(A[0], A[1], A[2] || 0); w.userData.g = k;
       const add = (geo, mat, ro = 0) => { const m = new T.Mesh(geo, mat); m.userData.g = k; m.castShadow = true; m.receiveShadow = true; m.renderOrder = ro; w.add(m); return m; };
+      if (!front && LK.disc) { add(latheGeo(T, discProfile(), 160, { closed: true }), rimMat); discBands(T).forEach(x => { add(x, discDecal, 2).userData.noEdges = true; }); grp(k).add(w); continue; }
       add(latheGeo(T, rimProfile(D), 128, { closed: true }), rimMat);
       const band = (s0, s1, off, mat, ro, flipV) => { const n = 10, pr = [], vv = []; for (let i = 0; i <= n; i++) { const s = s0 + (s1 - s0)*i/n; pr.push([R_TOP - .0008 - s*(D - .0008), rimHalf(s, D)]); vv.push(flipV ? 1 - i/n : i/n); }
         add(latheGeo(T, pr, 128, { flipU: true, vVals: vv, offset: off }), mat, ro).userData.noEdges = true; add(latheGeo(T, pr.map(([r, z]) => [r, -z]).reverse(), 128, { vVals: vv.slice().reverse(), offset: off }), mat, ro).userData.noEdges = true; };
@@ -401,15 +434,14 @@ const Bike3D = (() => {
       vb.position.y = rIn - .004; vc.position.y = rIn - .013; for (const m of [vb, vc]) { m.userData.g = k; m.castShadow = true; vg.add(m); } vg.rotation.z = -Math.PI*.62; w.add(vg);
       grp(k).add(w); }
     // pièces internes, visibles en éclaté : roulements de direction, boîtier de pédalier, batterie Di2 (dans la tige de selle)
-    const BB = new T.Vector3(...(meta.bb || [.4036, .2675, 0])), HT = new T.Vector3(...(meta.ht_top || [.7956, .8275, 0])), HA = 73*Math.PI/180, SA = 73.5*Math.PI/180;
-    const dn = new T.Vector3(Math.cos(HA), -Math.sin(HA), 0), sd = new T.Vector3(-Math.cos(SA), Math.sin(SA), 0), HB = HT.clone().addScaledVector(dn, .15);
+    const { BB, HT, dn, HB, battAt, battDir } = inner(T, meta);
     const polished = ph({ color: '#9aa1aa', roughness: .12, metalness: 1 }, false), dark = ph({ color: '#2c2f35', roughness: .32, metalness: .85 }, false), batt = ph({ color: '#1f6feb', roughness: .35, metalness: .3 }, false);
     const extra = (k, geo, mat, pos, q) => { const m = new T.Mesh(geo, mat); m.position.copy(pos); if (q) m.quaternion.copy(q); m.userData.g = k; m.castShadow = true; grp(k).add(m); grp(k).userData.hideAssembled = true; return m; };
     const qd = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), dn);
     for (const p of [HT.clone().addScaledVector(dn, .008), HB.clone().addScaledVector(dn, -.008)]) extra('headset', new T.TorusGeometry(.0175, .0052, 12, 40), polished, p, qd);
     extra('bb', new T.CylinderGeometry(.0205, .0205, .088, 32), polished, BB, new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI/2));
     for (const z of [1, -1]) extra('bb', new T.CylinderGeometry(.023, .023, .006, 32), dark, BB.clone().add(new T.Vector3(0, 0, .044*z)), new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI/2));
-    extra('battery', new T.CylinderGeometry(.011, .011, .12, 20), batt, BB.clone().addScaledVector(sd, .49), new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), sd));
+    extra('battery', new T.CylinderGeometry(.011, .011, .12, 20), batt, battAt, new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), battDir));
     root.position.set(-.5, 0, 0);
 
     // apparence (couleur, finition, sticker, flancs) : modifiable sans reconstruire la scène
@@ -421,7 +453,7 @@ const Bike3D = (() => {
         const U = m.userData.flip; if (U) { U.ftpbFlip.value = flip ? 1 : 0; if (flip) [U.ftpbC0, U.ftpbC1, U.ftpbC2].forEach((u, i) => u.value.copy(lin(T, P.flip[i]))); } m.needsUpdate = true; }
       const lum = .2126*pc.r + .7152*pc.g + .0722*pc.b, ink = INKS.find(i => i.id === L.ink) || INKS[0], auto = !L.custom && P.ink ? INKS.find(i => i.id === P.ink) : null;
       const spec = ink.id === 'auto' ? auto || { hex: lum > .32 ? '#141414' : '#f4f4f2' } : ink.id === 'ton' ? { hex, gloss: true, tone: true } : ink;
-      for (const m of decals) { const onRim = m === rimDecal, s2 = onRim ? (ink.id === 'auto' ? auto || { hex: '#e9e9e9' } : ink.id === 'ton' || ink.id === 'noir' ? { hex: '#2b2b2d', gloss: true } : ink) : spec;
+      for (const m of decals) { const onRim = m === rimDecal || m === discDecal, s2 = onRim ? (ink.id === 'auto' ? auto || { hex: '#e9e9e9' } : ink.id === 'ton' || ink.id === 'noir' ? { hex: '#2b2b2d', gloss: true } : ink) : spec;
         m.color.copy(lin(T, s2.hex)); if (s2.tone) m.color.offsetHSL(0, 0, lum > .3 ? -.06 : .05); m.metalness = s2.metal ? .75 : 0; m.roughness = s2.metal ? .26 : s2.gloss ? .12 : .34;
         m.iridescence = s2.irid ? 1 : 0; m.iridescenceIOR = 1.9; m.iridescenceThicknessRange = [200, 900]; m.needsUpdate = true; }
       const name = L.name.trim() || 'FTP builder', Fo = FONTS[L.font] || FONTS.sport, Fb = L.font === 'script' ? FONTS.bloc : Fo;
@@ -434,6 +466,7 @@ const Bike3D = (() => {
       { const { c, x, t } = cvs.rim, H = c.height, ini = initials(name); x.clearRect(0, 0, c.width, H); x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
         setFont(x, Fb, H*.62*(Fb === FONTS.tech ? .8 : 1.05)); let px = c.width*.06; x.fillText(ini, px, H*.53); px += x.measureText(ini).width + H*.35; x.fillRect(px, H*.24, H*.05, H*.56); px += H*.4;
         setFont(x, FONTS.tech, H*.26); x.fillText(`AERO ${L.rim}`, px, H*.4); setFont(x, FONTS.tech, H*.17); x.globalAlpha = .75; x.fillText(rimBrake ? 'CARBON  RIM  BRAKE' : 'CARBON  DISC  TLR', px, H*.7); x.globalAlpha = 1; t.needsUpdate = true; }
+      if (L.disc) discText(cvs.disc, initials(name));
       { const { c, x, t } = cvs.wall, W = c.width, H = c.height, tan = L.wall === 'beige'; x.fillStyle = tan ? '#ae8a5e' : '#161616'; x.fillRect(0, 0, W, H); x.globalAlpha = tan ? .12 : .18; x.fillStyle = tan ? '#7d5d3a' : '#262626';
         for (let y = 4; y < H; y += 7) x.fillRect(0, y, W, 1); x.globalAlpha = 1; x.fillStyle = tan ? '#6e5032' : '#3a3a3a'; x.textBaseline = 'middle'; x.textAlign = 'left'; setFont(x, FONTS.bloc, H*.4); x.fillText('FTP RACE', W*.08, H*.52);
         setFont(x, FONTS.tech, H*.2); x.fillText(`700 × ${V.tireR || 28}C   ·   TUBELESS READY   ·   4–6 BAR`, W*.33, H*.5); t.needsUpdate = true; for (const m of walls) m.roughness = tan ? .82 : .76; }
@@ -445,13 +478,18 @@ const Bike3D = (() => {
 
   /* ---------- Atelier (js/23-atelier.js) : la même maquette FTP, mais le vélo SANS roues ni cassette ----------
      Roues (une paire = roue AV + roue AR) et cassettes deviennent des objets indépendants qu'on accroche au mur, au home trainer ou à un vélo.
-     Matériaux partagés entre toutes les maquettes de l'atelier, sauf la peinture et les stickers propres à chaque vélo. */
-  let atK = null;
+     Matériaux partagés entre toutes les maquettes de l'atelier, sauf la peinture et les stickers propres à chaque vélo.
+     Un kit par gabarit (aéro, CLM) ; roues et cassettes viennent du premier kit chargé (moyeux, pneus et cassettes identiques d'un gabarit à l'autre). */
+  const atKs = {}; let atK = null;
   const atCv = (T, w, h, rep = 1) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const t = new T.CanvasTexture(c); t.encoding = T.sRGBEncoding; t.anisotropy = 8;
     if (rep > 1) { t.wrapS = T.RepeatWrapping; t.repeat.set(rep, 1); } return { c, x: c.getContext('2d'), t }; };
-  async function atKit(){
-    if (atK) return atK;
-    const gl = await loadFtp(), T = THREE, meta = gl.scene.userData || {}; // loadFtp charge three.js : THREE n'existe qu'après
+  async function atKit(shapes){
+    const list = [...new Set([].concat(shapes || []).map(x => SHAPES[x] ? x : 'aero'))]; if (!list.length) list.push('aero');
+    for (const sh of list) await atKitOf(sh); return atK;
+  }
+  async function atKitOf(shape){
+    if (atKs[shape]) return atKs[shape];
+    const gl = await loadFtp(shape), T = THREE, meta = gl.scene.userData || {}; // loadFtp charge three.js : THREE n'existe qu'après
     gl.scene.updateMatrixWorld(true);
     const byName = {}; gl.scene.traverse(o => { if (o.name && !byName[o.name]) byName[o.name] = o; });
     const ph = (o, ao = true) => { const m = new T.MeshPhysicalMaterial({ envMapIntensity: .95, ...o }); for (const k of ['color', 'sheenColor']) if (o[k] != null) m[k] = lin(T, o[k]); return ao ? withAO(m) : m; };
@@ -466,11 +504,12 @@ const Bike3D = (() => {
       Saddle_Cover: () => ph({ color: '#0f0f10', roughness: .62, sheen: .35, sheenRoughness: .5, sheenColor: '#2a2a2a' }), Saddle_Rails: () => ph({ color: '#1a1a1c', roughness: .3, metalness: .4, clearcoat: .6 }),
       Tyre_Tread: () => ph({ color: '#151515', roughness: .74 }), Tyre_Wall: () => wallMat(false), Metal_Silver: () => ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }),
       Metal_Steel: () => ph({ color: '#9a9da3', roughness: .34, metalness: 1 }), Metal_Dark: () => ph({ color: '#2a2b2f', roughness: .34, metalness: .9 }),
-      Anodized_Black: () => ph({ color: '#0e0e10', roughness: .36, metalness: .55, clearcoat: .3, clearcoatRoughness: .3 }), Brake_Pad: () => ph({ color: '#3a221a', roughness: .85 }) };
+      Anodized_Black: () => ph({ color: '#0e0e10', roughness: .36, metalness: .55, clearcoat: .3, clearcoatRoughness: .3 }), Brake_Pad: () => ph({ color: '#3a221a', roughness: .85 }),
+      Bottle_Plastic: () => ph({ color: '#3a3f46', roughness: .36, clearcoat: .45, clearcoatRoughness: .22 }), Pad_Foam: () => ph({ color: '#1b1c1e', roughness: .92, sheen: .5, sheenRoughness: .7, sheenColor: '#3a3a3a' }) }; // bidons et mousses du gabarit CLM
     const shared = {}, mat = kind => shared[kind] ||= (KIND[kind] || KIND.Anodized_Black)();
     const decalMat = t => ph({ map: t, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -8, roughness: .32, clearcoat: .7, clearcoatRoughness: .08, alphaTest: .02 }, false);
-    atK = { T, gl, meta, byName, ph, KIND, mat, shared, decalMat, wallMat, geo: {}, cv: (w, h, rep) => atCv(T, w, h, rep) };
-    return atK;
+    const kit = atKs[shape] = { shape, T, gl, meta, byName, ph, KIND, mat, shared, decalMat, wallMat, geo: {}, cv: (w, h, rep) => atCv(T, w, h, rep) };
+    atK ||= kit; return kit;
   }
   // copie des maillages d'objets du GLB, exprimés par rapport à un point (axe de roue…) ; la géométrie est partagée
   function atClone(names, origin, matFor){
@@ -482,30 +521,29 @@ const Bike3D = (() => {
   }
   // vélo sans roues : groupes nommés comme ceux du Garage (frein AV et AR séparés), ancres des axes ; repère du GLB recentré (empattement au milieu)
   function atBike(opts){
-    const { T, gl, meta, KIND } = atK, V = opts.variant || {}, rimBrake = V.brakes === 'rim';
+    const K = atKs[shapeOf(opts.model)] || atK, { T, gl, meta, KIND } = K, V = opts.variant || {}, rimBrake = V.brakes === 'rim';
     const skip = n => /^(Hub_|Lockring_|Axle_|Rotor_|Tyre_|Cassette_)/.test(n) || (rimBrake ? /^Caliper_/.test(n) : /^RimBrake_/.test(n));
     const scene = gl.scene.clone(true); scene.updateMatrixWorld(true);
     const root = new T.Group(), groups = {}, grp = k => { if (!groups[k]) { const g = new T.Group(); g.userData.g = k; groups[k] = g; root.add(g); } return groups[k]; };
-    const dc = meta.decals || {}, cvs = { down: atK.cv(2048, Math.round(2048*(dc.downtube?.height || .055)/(dc.downtube?.length || .5))), fork: atK.cv(1024, Math.round(1024*(dc.fork?.height || .03)/(dc.fork?.length || .2))),
-      head: atK.cv(256, Math.round(256*(dc.headtube?.height || .09)/(dc.headtube?.width || .037))) };
+    const dc = meta.decals || {}, cvs = { down: K.cv(2048, Math.round(2048*(dc.downtube?.height || .055)/(dc.downtube?.length || .5))), fork: K.cv(1024, Math.round(1024*(dc.fork?.height || .03)/(dc.fork?.length || .2))),
+      head: K.cv(256, Math.round(256*(dc.headtube?.height || .09)/(dc.headtube?.width || .037))) };
     const paint = withFlip(KIND.Paint_Frame()); paint.name = 'Paint_Frame';
-    const dm = { down: atK.decalMat(cvs.down.t), fork: atK.decalMat(cvs.fork.t), head: atK.decalMat(cvs.head.t) }, decals = Object.values(dm);
+    const dm = { down: K.decalMat(cvs.down.t), fork: K.decalMat(cvs.fork.t), head: K.decalMat(cvs.head.t) }, decals = Object.values(dm);
     const DECAL = { Decal_DownTube_R: 'down', Decal_DownTube_L: 'down', Decal_Fork_R: 'fork', Decal_Fork_L: 'fork', Decal_HeadTube: 'head' };
     const nameOf = o => { for (let p = o; p; p = p.parent) if (FTP_G[p.name]) return p.name; return null; };
     const meshes = []; scene.traverse(o => { if (o.isMesh) meshes.push(o); });
     for (const m of meshes) { const n = nameOf(m); if (!n || skip(n)) continue; let k = FTP_G[n]; if (k === 'calipers') k = /_F(_|$)/.test(n) ? 'brakeF' : 'brakeR';
-      const kind = m.material?.name; m.material = DECAL[n] ? dm[DECAL[n]] : kind === 'Paint_Frame' ? paint : atK.mat(kind);
+      const kind = m.material?.name; m.material = DECAL[n] ? dm[DECAL[n]] : kind === 'Paint_Frame' ? paint : K.mat(kind);
       m.userData.part = n; m.castShadow = !DECAL[n]; m.receiveShadow = true; if (DECAL[n]) m.renderOrder = 2; grp(k).attach(m); }
     // pièces internes, visibles seulement en éclaté : roulements de direction, boîtier, batterie Di2
-    const BB = new T.Vector3(...(meta.bb || [.4036, .2675, 0])), HT = new T.Vector3(...(meta.ht_top || [.7956, .8275, 0])), HA = 73*Math.PI/180, SA = 73.5*Math.PI/180;
-    const dn = new T.Vector3(Math.cos(HA), -Math.sin(HA), 0), sd = new T.Vector3(-Math.cos(SA), Math.sin(SA), 0), HB = HT.clone().addScaledVector(dn, .15), sh = atK.shared;
-    const polished = sh.polished ||= atK.ph({ color: '#9aa1aa', roughness: .12, metalness: 1 }, false), dark = sh.darkm ||= atK.ph({ color: '#2c2f35', roughness: .32, metalness: .85 }, false), batt = sh.batt ||= atK.ph({ color: '#1f6feb', roughness: .35, metalness: .3 }, false);
+    const { BB, HT, dn, HB, battAt, battDir } = inner(T, meta), sh = K.shared;
+    const polished = sh.polished ||= K.ph({ color: '#9aa1aa', roughness: .12, metalness: 1 }, false), dark = sh.darkm ||= K.ph({ color: '#2c2f35', roughness: .32, metalness: .85 }, false), batt = sh.batt ||= K.ph({ color: '#1f6feb', roughness: .35, metalness: .3 }, false);
     const extra = (k, geo, mat, pos, q) => { const m = new T.Mesh(geo, mat); m.position.copy(pos); if (q) m.quaternion.copy(q); m.castShadow = true; grp(k).add(m); grp(k).userData.hideAssembled = true; return m; };
     const qd = new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 0, 1), dn), qx = new T.Quaternion().setFromAxisAngle(new T.Vector3(1, 0, 0), Math.PI/2);
     for (const p of [HT.clone().addScaledVector(dn, .008), HB.clone().addScaledVector(dn, -.008)]) extra('headset', new T.TorusGeometry(.0175, .0052, 12, 40), polished, p, qd);
     extra('bb', new T.CylinderGeometry(.0205, .0205, .088, 32), polished, BB, qx);
     for (const z of [1, -1]) extra('bb', new T.CylinderGeometry(.023, .023, .006, 32), dark, BB.clone().add(new T.Vector3(0, 0, .044*z)), qx);
-    if (V.di2) extra('battery', new T.CylinderGeometry(.011, .011, .12, 20), batt, BB.clone().addScaledVector(sd, .49), new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), sd));
+    if (V.di2) extra('battery', new T.CylinderGeometry(.011, .011, .12, 20), batt, battAt, new T.Quaternion().setFromUnitVectors(new T.Vector3(0, 1, 0), battDir));
     for (const g of Object.values(groups)) if (g.userData.hideAssembled) g.visible = false;
     const AF = meta.axle_f || [.9919, .3395, 0], AR = meta.axle_r || [0, .3395, 0], anchorF = new T.Object3D(), anchorR = new T.Object3D();
     anchorF.position.set(AF[0], AF[1], AF[2] || 0); anchorR.position.set(AR[0], AR[1], AR[2] || 0); root.add(anchorF, anchorR); root.position.set(-.5, 0, 0);
@@ -528,11 +566,12 @@ const Bike3D = (() => {
       return true; },
       dispose(){ for (const k in cvs) cvs[k].t.dispose(); } };
     ft.set(opts.look);
-    return { root, groups, ft, anchorF, anchorR, meta };
+    return { root, groups, ft, anchorF, anchorR, meta, shape: K.shape };
   }
-  // roue indépendante (origine = axe) : jante profilée à la hauteur choisie, rayons, valve ; moyeu, pneu (flancs noirs ou beiges) et disque du GLB
+  // roue indépendante (origine = axe) : jante profilée à la hauteur choisie, rayons, valve — ou roue lenticulaire (o.disc, roue AR) ;
+  // moyeu, pneu (flancs noirs ou beiges) et disque de frein du GLB
   function atWheel(o){
-    const { T, meta, ph } = atK, front = !!o.front, rimBrake = o.brakes === 'rim', D = clamp(+o.depth || 50, 20, 90)/1000, tw = clamp((+o.tire || 28)/28, .93, 1.15);
+    const { T, meta, ph } = atK, front = !!o.front, rimBrake = o.brakes === 'rim', D = clamp(+o.depth || 50, 20, 90)/1000, tw = clamp((+o.tire || 28)/28, .93, 1.15), disc = !front && !!o.disc;
     const A = new T.Vector3(...(front ? (meta.axle_f || [.9919, .3395, 0]) : (meta.axle_r || [0, .3395, 0]))), S = front ? 'F' : 'R';
     const names = [`Hub_${S}`, `Axle_${S}`, `Tyre_${S}_Tread`, `Tyre_${S}_Wall_R`, `Tyre_${S}_Wall_L`];
     if (!rimBrake) names.push(`Lockring_${S}`, `Rotor_${S}_Band`, `Rotor_${S}_Spider`, `Rotor_${S}_Rivets`);
@@ -540,7 +579,9 @@ const Bike3D = (() => {
     for (const m of atClone(names, A, kind => kind === 'Tyre_Wall' ? atK.wallMat(o.wall === 'beige', Math.round(+o.tire || 28)) : atK.mat(kind))) { if (/^Tyre_/.test(m.userData.part)) { m.position.z *= tw; m.scale.z *= tw; } w.add(m); }
     const sh = atK.shared, rimMat = sh.rim ||= ph({ color: '#0b0b0c', roughness: .36, clearcoat: .45, clearcoatRoughness: .22 }, false), spokeMat = sh.spoke ||= ph({ color: '#18181a', roughness: .32, metalness: .7 }, false);
     const trackMat = sh.track ||= ph({ color: '#202023', roughness: .72, metalness: .15 }, false), valveMat = sh.valve ||= ph({ color: '#c9cbcf', roughness: .26, metalness: 1 }, false), capMat = sh.cap ||= ph({ color: '#0e0e10', roughness: .36, metalness: .55 }, false);
-    const cv = atK.cv(1024, 64, 2), rimDecal = atK.decalMat(cv.t); rimDecal.polygonOffsetFactor = -2; rimDecal.color.copy(lin(T, '#e9e9e9'));
+    const cv = atK.cv(1024, disc ? 92 : 64, 2), rimDecal = atK.decalMat(cv.t); rimDecal.polygonOffsetFactor = -2; rimDecal.color.copy(lin(T, '#e9e9e9'));
+    if (disc) { discText(cv, o.mark || 'FTP'); const add = (geo, mat, ro = 0) => { const m = new T.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; m.renderOrder = ro; w.add(m); return m; };
+      const g = atK.geo.disc ||= { body: latheGeo(T, discProfile(), 160, { closed: true }), bands: discBands(T) }; add(g.body, rimMat); g.bands.forEach(x => add(x, rimDecal, 2)); w.userData.disc = true; return w; }
     { const { c, x, t } = cv, H = c.height, ini = o.mark || 'FTP'; x.clearRect(0, 0, c.width, H); x.fillStyle = '#fff'; x.textBaseline = 'middle'; x.textAlign = 'left';
       setFont(x, FONTS.sport, H*.65); let px = c.width*.06; x.fillText(ini, px, H*.53); px += x.measureText(ini).width + H*.35; x.fillRect(px, H*.24, H*.05, H*.56); px += H*.4;
       setFont(x, FONTS.tech, H*.26); x.fillText(`AERO ${Math.round(D*1000)}`, px, H*.4); setFont(x, FONTS.tech, H*.17); x.globalAlpha = .75; x.fillText(rimBrake ? 'CARBON  RIM  BRAKE' : 'CARBON  DISC  TLR', px, H*.7); x.globalAlpha = 1; t.needsUpdate = true; }
@@ -748,5 +789,5 @@ const Bike3D = (() => {
   function zoom(f){ if (!R) return; st.focus = null; const off = R.cam.position.clone().sub(R.ctl.target); off.setLength(clamp(off.length()*f, R.ctl.minDistance, R.ctl.maxDistance)); R.cam.position.copy(R.ctl.target).add(off); idleNow(); wake(600); }
   // apparence de la maquette FTP (couleur, sticker…) : mise à jour immédiate, sans reconstruire la scène
   function setLook(look){ if (R?.ft?.set(look)) wake(300); }
-  return { mount, explode, select, snapshot, stop, labels, zone, zoom, setLook, lookOf, PAINTS, FINISHES, INKS, FONTS, RIMS, atelier: { kit: atKit, bike: atBike, wheel: atWheel, cassette: atCassette }, resetView: () => home(false), LABEL, NAME_RX, KEYS: Object.keys(LABEL), get R(){ return R; }, get t(){ return st.t; }, get sel(){ return st.sel; }, get zoneKeys(){ return st.zone ? [...st.zone] : null; } };
+  return { mount, explode, select, snapshot, stop, labels, zone, zoom, setLook, lookOf, shapeOf, PAINTS, FINISHES, INKS, FONTS, RIMS, atelier: { kit: atKit, bike: atBike, wheel: atWheel, cassette: atCassette }, resetView: () => home(false), LABEL, NAME_RX, KEYS: Object.keys(LABEL), get R(){ return R; }, get t(){ return st.t; }, get sel(){ return st.sel; }, get zoneKeys(){ return st.zone ? [...st.zone] : null; } };
 })();

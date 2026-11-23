@@ -15,7 +15,7 @@ const ev = f => pg.evaluate(f), wz = async (a, v) => { await pg.tap(`[data-wz="$
 const sheet = () => pg.locator('#grSheet').innerText();
 await pg.tap('#tabs [data-tab="profile"]'); await pg.waitForTimeout(150); await pg.tap('.gr-tile'); await pg.waitForTimeout(150);
 await pg.tap('[data-gr="addask"]'); await pg.waitForTimeout(150);
-assert(await pg.locator('[data-wz="frame"]').count() === 12, '11 cadres + « Autre vélo de route »');
+assert(await pg.locator('[data-wz="frame"]').count() === 13, '11 cadres + « Autre vélo de route » + gabarit « Vélo de CLM / triathlon »');
 await wz('frame', 'pinarello-dogma'); assert(/quelle génération/i.test(await sheet()), 'Dogma : choix de la génération');
 await wz('gen', 'f');
 const brands = await pg.locator('[data-wz="brand"]').allInnerTexts(); assert(brands.join() === 'Shimano,SRAM', `Dogma F (électronique seulement) : pas de Campagnolo mécanique (${brands})`);
@@ -90,5 +90,5 @@ await pg.tap('[data-gr="addask"]'); await pg.waitForTimeout(150);
 const fc2 = pg.waitForEvent('filechooser'); await wz('inv'); (await fc2).setFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: mkPdf([]) });
 await pg.waitForSelector('text=Facture lue', { timeout: 15000 });
 const sc = await sheet(); assert(/image/.test(sc) && /à la main/i.test(sc) && !/Créer ce vélo/.test(sc), 'PDF scanné : message clair, pas de création à l\'aveugle');
-await wz('fix'); assert(await pg.locator('[data-wz="frame"]').count() === 12, '« Choisir à la main » ramène au catalogue');
+await wz('fix'); assert(await pg.locator('[data-wz="frame"]').count() === 13, '« Choisir à la main » ramène au catalogue');
 console.log(ok && !errs.length ? 'OK' : 'ÉCHEC', errs); await b.close(); process.exit(ok && !errs.length ? 0 : 1);
