@@ -197,7 +197,7 @@ def crank_dir(a):
     return V3(np.cos(a), np.sin(a))
 
 
-def crank_sdf(side):
+def crank_sdf(side, spider=True):
     a = CRANK_ANGLE if side > 0 else CRANK_ANGLE + np.pi
     d = crank_dir(a)
     perp = V3(-d[1], d[0])
@@ -209,7 +209,9 @@ def crank_sdf(side):
     root = Cylinder(BB + (z0 + side * 0.001) * Z, Z, 0.0210, 0.0080, 0.0030)
     parts = [arm, eye, root]
     bolts = []
-    if side > 0:
+    if side > 0 and not spider:   # montage direct : pas d'araignée, écrou du plateau au pied de la manivelle
+        bolts.append(Cylinder(BB + 0.0718 * Z, Z, 0.0112, 0.0010, 0.0005))
+    elif side > 0:
         for k in range(4):
             aa = a + (45 + 90 * k) * D2R
             dd = crank_dir(aa)
@@ -265,7 +267,8 @@ def rd_cage_sdf():
     return Union(outer, inner, axles, k=0.0), bolts
 
 
-def fd_sdf():
+def fd_sdf(stc=None):
+    """front derailleur; stc = seat-tube point the braze-on bracket reaches (default: straight seat tube)"""
     zc = BIG_Z
     a0, a1 = 92 * D2R, 130 * D2R
 
@@ -294,7 +297,7 @@ def fd_sdf():
     links = [Tube([bodyc + V3(s, -0.006, 0.0), BB + 0.1305 * V3(np.cos(ang_b + s * 3), np.sin(ang_b + s * 3)) + V3(0, 0, zc + 0.002)], Z,
                   [(0, dict(af=.0030, ab=.0030, b=.0050, n=2.6)), (1, dict(af=.0026, ab=.0026, b=.0045, n=2.6))], nseg=6, caprad=0.0015) for s in (-0.007, 0.007)]
     # braze-on bracket to the seat tube (drive side face)
-    stc = BB + 0.1524 * ST_DIR
+    stc = BB + 0.1524 * ST_DIR if stc is None else stc
     bracket = Tube([bodyc + V3(0.003, 0.002, -0.004), stc + V3(0.006, 0.002, 0.018)], Y,
                    [(0, dict(af=.0060, ab=.0060, b=.0045, n=3)), (1, dict(af=.0090, ab=.0090, b=.0030, n=3))], nseg=6, caprad=0.002)
     return Union(cg, Union(body, *links, bracket, k=0.004), k=0.003)
