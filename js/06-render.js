@@ -124,6 +124,7 @@ function todayHTML(){
   if (TODAY_PANE === 'forme') { const lc = loadCardHTML(); h += (Health.todayCard() || (lc ? '' : ll ? `<div class="card"><h2>Forme</h2><div class="grid3"><div class="kpi"><div class="v num">${Math.round(ll.ctl)}</div><div class="l">Fitness (CTL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.atl)}</div><div class="l">Fatigue (ATL)</div></div><div class="kpi"><div class="v num">${Math.round(ll.tsb)}</div><div class="l">Forme (TSB)</div></div></div><p class="tiny muted" style="margin:10px 0 0">Connecte Apple Santé (Profil › Réglages) pour l'indice de forme du jour.</p></div>` : `<div class="card"><h2>Forme</h2><p class="muted small" style="margin:0">Pas encore de données : importe des séances ou connecte Apple Santé (Profil › Réglages).</p></div>`)) + lc + Health.progressCards(); }
   if (TODAY_PANE === 'prog') {
   h += phaseHTML(true);
+  h += todayCardHTML(); // séances du jour, tous sports (nat / course faites remontées d'Intervals / Apple Santé)
   h += arcsHTML(); let pre = '';
   for (const n of notes) pre += `<div class="note ${n.cls}">${esc(n.t)}${n.action?` <button class="btn sm" data-coach="${notes.indexOf(n)}" style="margin-left:6px">${esc(n.action.label)}</button>`:''}${n.plan?` <button class="btn sm" data-open="${n.plan}" style="margin-left:6px">Ouvrir</button>`:''}</div>`;
   window._coach = notes;
@@ -153,8 +154,12 @@ function todayHTML(){
   h += progCard + pre;
   h += `<div class="card"><h2>Ajouter une activité</h2><p class="muted small" style="margin-top:0">Fichier .fit (Garmin Connect : Exporter l'original · Strava : Exporter l'original) ou saisie manuelle.</p>
     <div class="row"><button class="btn primary" data-log="">Importer / saisir une séance</button></div></div>`;
-  const recent = S.activities.slice().sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3);
-  if (recent.length) h += `<div class="card"><h2>Dernières séances</h2>${recent.map(actRow).join('')}</div>`;
+  // vélo (S.activities) + nat / course (Intervals.icu / Apple Santé), du plus récent au plus ancien
+  const tsA = a => a.startTs || Date.parse(a.date + 'T12:00:00') / 1000;
+  const recent = [...S.activities.map(a => ({ ts: tsA(a), d: a.date, html: () => actRow(a) })),
+    ...Health.extraWorkouts().filter(e => (e.sport === 'swim' || e.sport === 'run') && (+e.w.duration_min || 0) >= 5).map(e => ({ ts: Date.parse(e.w.start_at) / 1000, d: e.date, html: () => wRow(e) }))]
+    .sort((x, y) => y.d.localeCompare(x.d) || y.ts - x.ts).slice(0, 3);
+  if (recent.length) h += `<div class="card"><h2>Dernières séances</h2>${recent.map(x => x.html()).join('')}</div>`;
   }
   return h + `</div>`;
 }
@@ -605,6 +610,12 @@ function sportSessionDlg(ref){
 }
 document.addEventListener('click', e => { const r = e.target.closest('[data-ssess]'); if (r) sportSessionDlg(r.dataset.ssess); });
 document.addEventListener('keydown', e => { if (e.key !== 'Enter' && e.key !== ' ') return; const r = e.target.closest?.('[data-ssess]'); if (r) { e.preventDefault(); sportSessionDlg(r.dataset.ssess); } });
+// ligne « Dernières séances » pour une nat / course importée (ouvre la fiche du jour)
+function wRow(e){
+  const w = e.w, km = +w.distance_km || 0, t = new Date(w.start_at);
+  const dist = km ? (e.sport === 'swim' ? ` · ${Math.round(km * 1000)} m` : ` · ${km.toFixed(1).replace('.', ',')} km`) : '';
+  return `<div class="hist" data-dayitem="${esc('w:' + w.start_at)}" data-day="${e.date}" style="cursor:pointer"><div style="flex:1;min-width:0"><b>${e.sport === 'swim' ? '🏊' : '🏃'} ${esc(w.type || 'Séance')}</b><div class="tiny muted">${fmtDate(e.date)} · ${t.getHours()}h${pad(t.getMinutes())} · ${fmtDur((+w.duration_min || 0) * 60)}${dist}${w.avg_hr ? ` · ${Math.round(w.avg_hr)} bpm` : ''}${e.tss ? ` · TSS ~${e.tss}` : ''}</div></div></div>`;
+}
 function actRow(a){
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
   const ev = pl ? sessionEval(a, pl) : null;
