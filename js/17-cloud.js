@@ -144,6 +144,7 @@ const Cloud = (() => {
   //  · l'état local n'a jamais été relié à ce compte, qui contient déjà des données (questionnaire refait sur un nouveau
   //    téléphone puis connexion) : on prend le compte si le téléphone est vierge, sinon on demande.
   let hold = false;   // envois suspendus tant qu'un choix est en attente
+  let seenAt = 0;     // updated_at du compte au dernier pull / push : un envoi ne doit pas écraser un état plus récent qu'il n'a pas vu
   let pulled = false; // le compte a été lu au moins une fois : aucun envoi avant (on n'écrase pas ce qu'on n'a pas regardé)
   const linked = () => S.syncedUser === user()?.id;
   function link(){ if (S.syncedUser === user().id && !S.syncLegacy) return; S.syncedUser = user().id; delete S.syncLegacy; save({ remote:true }); }
@@ -162,7 +163,7 @@ const Cloud = (() => {
   async function doPull(){
     const { data, error } = await sb.from('user_state').select('data, updated_at').maybeSingle();
     if (error) { console.warn(error); return; }
-    pulled = true;
+    pulled = true; if (data?.updated_at) seenAt = Math.max(seenAt, Date.parse(data.updated_at) || 0);
     if (APP_STALE) return stale();
     const m = data?.data ? migrateState(data.data) : null;
     if (!m) { if (S.profile) await push(); return; }
@@ -184,8 +185,31 @@ const Cloud = (() => {
   async function push(){
     if (!sb || !user() || !S.profile || APP_STALE || hold) return;
     if (!pulled) return pull(); // premier envoi de la session : on lit d'abord le compte, pull() décide
-    const uid = user().id, { error } = await sb.from('user_state').upsert({ user_id: uid, data: { ...S, syncedUser: uid, syncLegacy: undefined }, updated_at: new Date().toISOString() });
+    const cur = await sb.from('user_state').select('updated_at').maybeSingle();
+    if (!cur.error && cur.data && (Date.parse(cur.data.updated_at) || 0) > seenAt) { // un autre appareil a écrit depuis notre dernière lecture
+      const full = await sb.from('user_state').select('data, updated_at').maybeSingle();
+      const m = full.data?.data ? migrateState(full.data.data) : null;
+      if (m?.newer) return stale();
+      if (m && mergeRemote(m.state)) { save({ remote:true }); try { render(); } catch(e){} }
+      seenAt = Math.max(seenAt, Date.parse(full.data?.updated_at) || 0);
+    }
+    const now = new Date().toISOString();
+    const uid = user().id, { error } = await sb.from('user_state').upsert({ user_id: uid, data: { ...S, syncedUser: uid, syncLegacy: undefined }, updated_at: now });
+    if (!error) seenAt = Math.max(seenAt, Date.parse(now));
     if (error) { console.warn('push', error); if (++pushFails === 3) Errors.report(new Error('Synchro du compte en échec : ' + (error.message || error.code || '')), 'push'); } else { pushFails = 0; link(); }
+  }
+  // séances enregistrées sur un autre appareil et absentes d'ici (fusion : on n'en perd aucune)
+  function mergeRemote(remote){
+    let n = 0;
+    const same = (x, a) => x.id === a.id || (a.stravaId && x.stravaId === a.stravaId) || (a.extId && x.extId === a.extId) || (a.healthStart && x.healthStart === a.healthStart) || (a.startTs && x.startTs && x.source !== 'health' && a.source !== 'health' && Math.abs(x.startTs - a.startTs) < 120);
+    for (const a of remote.activities || []) {
+      if (S.activities.some(x => same(x, a))) continue;
+      S.activities.push(a); n++;
+      const pl = a.planId && S.plan.find(s => s.id === a.planId);
+      if (pl && pl.status === 'planned') { pl.status = 'done'; pl.activityId = a.id; }
+    }
+    if (n) S.activities.sort((x, y) => x.date.localeCompare(y.date));
+    return n;
   }
   function schedulePush(){ if (!user()) return; clearTimeout(pushTimer); pushTimer = setTimeout(push, 1500); }
 
@@ -414,6 +438,6 @@ const Cloud = (() => {
     else if (a.dataset.strava === 'off') disconnectStrava();
     else if (a.dataset.feelact) feelDlg(a.dataset.feelact);
   });
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) { importInbox().then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } }); autoIcu(); } });
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && user()) pull().then(() => { render(); return importInbox(); }).then(n => { if (n) { render(); toast(`${n} sortie${n>1?'s':''} Strava importée${n>1?'s':''}`); } return autoIcu(); }); });
   return { init, signIn, signUp, signInGoogle, get authKnown(){ return authKnown; }, schedulePush, accountHTML, importInbox, importExt, pushPlan, autoIcu, icuText, connectIcuOAuth, connectStrava, authDlg, get ready(){ return ready; }, get icu(){ return icu; }, get strava(){ return strava; }, get user(){ return user(); }, get sb(){ return sb; } };
 })();
