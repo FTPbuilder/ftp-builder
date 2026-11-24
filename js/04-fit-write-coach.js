@@ -63,6 +63,41 @@ function exportWorkout(planOrWid){
   toast('Fichier .fit téléchargé : copie-le dans Garmin/NewFiles de ton Edge');
 }
 
+// Séance au format .zwo (Zwift, MyWhoosh, TrainerRoad, Rouvy…) : puissances relatives à la FTP de l'app
+// (ajustement de la séance et intensité du profil compris). Bloc de 2 étapes répété → IntervalsT, le reste déplié.
+function encodeZwo(wid, k=1){
+  const W = WORKOUTS[wid], x = s => esc(s), f = k * adj(), r2 = v => Math.round(v*1000)/1000;
+  const cad = s => s.cad ? ` Cadence="${s.cad}"` : '';
+  const one = s => s.max ? `    <FreeRide Duration="${s.d}"${cad(s)}><textevent timeoffset="0" message="${x('À FOND : ' + s.label)}"/></FreeRide>`
+    : `    <SteadyState Duration="${s.d}" Power="${r2(s.p/100*f)}"${cad(s)}>${s.label ? `<textevent timeoffset="0" message="${x(s.label)}"/>` : ''}</SteadyState>`;
+  const out = [];
+  const walk = list => { for (const s of list) {
+    if (!s.repeat) { out.push(one(s)); continue; }
+    const [on, off] = s.steps;
+    if (s.steps.length === 2 && !on.repeat && !off.repeat && !on.max && !off.max && s.repeat > 1)
+      out.push(`    <IntervalsT Repeat="${s.repeat}" OnDuration="${on.d}" OffDuration="${off.d}" OnPower="${r2(on.p/100*f)}" OffPower="${r2(off.p/100*f)}"${on.cad ? ` Cadence="${on.cad}"` : ''}${off.cad ? ` CadenceResting="${off.cad}"` : ''}/>`);
+    else for (let i = 0; i < s.repeat; i++) walk(s.steps);
+  } };
+  walk(W.steps);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<workout_file>
+  <author>FTP Builder</author>
+  <name>${x(W.name)}</name>
+  <description>${x(W.goal || '')}</description>
+  <sportType>bike</sportType>
+  <tags><tag name="FTPBuilder"/></tags>
+  <workout>
+${out.join('\n')}
+  </workout>
+</workout_file>
+`;
+}
+function exportZwo(planOrWid){
+  const lib = typeof planOrWid === 'string', wid = lib ? planOrWid : planOrWid.workoutId, date = lib ? todayISO() : planOrWid.date;
+  download(`${date}_${ascii(WORKOUTS[wid].name).replace(/[^A-Za-z0-9]+/g,'-')}.zwo`, encodeZwo(wid, lib ? 1 : sAdj(planOrWid)), 'application/xml');
+  toast(`Fichier .zwo téléchargé : importe-le dans Zwift (Documents/Zwift/Workouts) ou MyWhoosh. Vérifie que ta FTP y est bien de ${ftp()} W`);
+}
+
 /* ============ coach ============ */
 function coachNotes(){
   const notes = [];
