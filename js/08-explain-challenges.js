@@ -51,7 +51,8 @@ const INFO = {
   sleep: () => ({ t:'Sommeil', body:`${sleepDetail()}<p>Le temps réellement endormi la nuit dernière. C'est pendant le sommeil profond que le corps assimile l'entraînement : sous <b>6 h</b>, la séance clé du jour rapportera moins et coûtera plus.</p><p>Profond = récupération physique ; paradoxal = récupération nerveuse et mémoire.</p>` }),
   weight: () => ({ t:'Poids', body:`${trendChart('weight')}<p>Ta dernière pesée Apple Santé (Withings). Il sert au calcul des W/kg. Si elle diffère de ton profil, l'app te propose de le mettre à jour.</p>` }),
   score: () => { const sc = Health.score(); if (!sc) return { t:'Énergie', body:'<p>Pas encore assez de données Santé.</p>' };
-    return { t:`Énergie · ${sc.v}/100`, body:`${trendChart('score')}<p>Ton état de récupération du jour, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
+    const B = dayBattery();
+    return { t:`Énergie · ${B ? B.now : sc.v}/100`, body:`${energyDayHTML()}<h3 style="margin:16px 0 0">Au réveil · ${sc.v}/100</h3>${trendChart('score')}<p>Ton état de récupération au réveil, calculé à partir de <b>tes propres habitudes</b> (60 derniers jours), pas d'une norme générale.</p>
       <div class="infoscale">${sc.parts.map(p => `<div><b>${p.k} · ${Math.round(p.s)}</b><span>${esc(p.d)} <span class="muted">(poids ${Math.round(p.w*100)} %)</span></span></div>`).join('')}</div>
       <ul><li><b>VFC</b> : comparée à ta moyenne et ta variabilité habituelles (échelle logarithmique, méthode utilisée en recherche sur l'entraînement).</li><li><b>FC repos</b> : chaque bpm au-dessus de ta moyenne fait baisser l'indice.</li><li><b>Sommeil</b> : la nuit dernière (60 %) et les 3 dernières (40 %) ; 8 h = plein score, 5 h = zéro.</li><li><b>Charge</b> : ta forme (TSB) ; très fatigué = pénalité.</li></ul>
       ${scale([[75,101,'75 – 100','Prêt : bon jour pour pousser'],[55,75,'55 – 75','Correct : séance prévue'],[40,55,'40 – 55','Prudence : cibles −3 à −5 %'],[0,40,'< 40','Récupère : endurance ou repos']], sc.v)}
@@ -185,3 +186,78 @@ function challengesHTML(){
       return `<div class="dcard${open ? ' open' : ' shut'}" style="--tint:${x.tint}"${open ? '' : ` data-dsel="${x.id}" role="button" tabindex="0" aria-label="Ouvrir ${x.id}"`}>${x.head(open)}${open ? `<div class="dbody">${x.body}</div>` : ''}</div>`; }).join('')}</div></div>` + archivedChallengesHTML();
 }
 document.addEventListener('click', e => { const s = e.target.closest('[data-dsel]'); if (s) { DSEL = s.dataset.dsel; render(); } });
+
+/* ============ Batterie de la journée ============ */
+// Part de l'Énergie au réveil, se vide doucement en journée (1 pt / h éveillé) et à chaque séance selon sa charge
+// (≈ 0,3 pt par point de TSS, réparti sur la durée de la séance). Un modèle simple, pas une mesure.
+const DRAIN_H = 1.0, DRAIN_TSS = 0.3;
+function daySessions(t = todayISO()){
+  const out = [];
+  for (const a of S.activities.filter(a => a.date === t && a.startTs)) {
+    const vt = isVelotaf(a);
+    out.push({ s: a.startTs, d: a.durationS || 0, tss: a.tss || 0, ic: vt ? '🚲' : '🚴', l: vt ? 'Vélotaf' : isIndoor(a) ? 'Home trainer' : 'Sortie vélo', sport:'bike', vt });
+  }
+  for (const e of Health.extraWorkouts().filter(e => e.date === t)) {
+    const L = { swim:['🏊','Natation'], run:['🏃','Course'], bike:['🚴','Vélo'], strength:['🏋️','Renfo'], walk:['🚶','Marche'], mobility:['🧘','Mobilité'] }[e.sport] || ['⏱️', e.w.type || 'Séance'];
+    const vt = e.sport === 'bike' && isVelotafW(e.w);
+    out.push({ s: Math.floor(Date.parse(e.w.start_at)/1000), d: Math.round((+e.w.duration_min || 0)*60), tss: e.tss || 0, ic: vt ? '🚲' : L[0], l: vt ? 'Vélotaf' : L[1], sport: e.sport, vt });
+  }
+  return out.filter(x => x.d >= 60).sort((a, b) => a.s - b.s).map(x => ({ ...x, cost: Math.max(1, Math.round(x.tss * DRAIN_TSS)) }));
+}
+function dayBattery(t = todayISO(), nowS = Math.floor(Date.now()/1000)){
+  const sc = Health.score(t); if (!sc) return null;
+  const ses = daySessions(t), d0 = Math.floor(Date.parse(t + 'T00:00:00')/1000);
+  const sl = Health.H.sleep.find(s => s.night === t), be = sl?.bed_end ? Math.floor(Date.parse(sl.bed_end)/1000) : null;
+  let wake = be && be > d0 && be < d0 + 14*3600 ? be : d0 + 7*3600;
+  if (ses.length && ses[0].s - 1800 < wake) wake = ses[0].s - 1800;
+  const end = Math.min(nowS, d0 + 24*3600 - 60);
+  const at = x => { let v = sc.v - DRAIN_H * Math.max(0, x - wake)/3600;
+    for (const s of ses) v -= s.cost * clamp((x - s.s)/(s.d || 1), 0, 1);
+    return clamp(v, 0, 100); };
+  const pts = []; for (let x = wake; x < end; x += 600) pts.push([x, at(x)]); pts.push([end, at(end)]);
+  return { v0: sc.v, now: Math.round(at(end)), wake, end, ses, pts, at, sleepMin: sl?.asleep_min || null };
+}
+const hm = s => { const d = new Date(s*1000); return `${d.getHours()}h${pad(d.getMinutes())}`; };
+const momentOf = s => { const h = new Date(s*1000).getHours(); return h < 12 ? 'ce matin' : h < 14 ? 'ce midi' : h < 18 ? 'cet après-midi' : 'ce soir'; };
+// Conseils selon la journée : coût des séances, ce qui reste à faire, la séance clé qui arrive, la nuit
+function energyTips(B){
+  const t = todayISO(), tips = [], kg = S.profile?.weightKg || 75, big = B.ses.filter(s => s.cost >= 10 && !s.vt), done = B.ses.filter(s => s.s + s.d <= B.end);
+  const left = typeof todayItems === 'function' ? todayItems(t).filter(i => !i.done && i.hard) : [];
+  const tom = addDays(t, 1), nextHard = [...S.plan.filter(s => s.status === 'planned' && s.date === tom && isHard(s.workoutId)).map(s => WORKOUTS[s.workoutId].name),
+    ...(triOn() ? (S.triPlan || []).filter(x => x.date === tom && triStatus(x) === 'planned' && /qual|seuil|vma|interv/i.test(x.wid || '')).map(x => triWorkout(x).name) : [])][0];
+  const last = [...big].reverse().find(s => s.s + s.d <= B.end);
+  if (left.length) tips.push(B.now < 40
+    ? `Il te reste « ${left[0].name} » avec une batterie à ${B.now} : passe-la en version facile ou décale-la, tu en tireras plus demain.`
+    : `Avant « ${left[0].name} » : une collation riche en glucides 1 à 2 h avant (banane, pain, compote) pour arriver avec du jus.`);
+  if (last) tips.push(nextHard
+    ? `Demain, « ${nextHard} » : recharge en glucides ce soir (féculents au dîner) et ~${Math.round(kg*0.3)} g de protéines pour réparer ta séance de ${momentOf(last.s).replace(/^ce(t)? /, '')} (${last.l.toLowerCase()}).`
+    : `Après ta séance de ${momentOf(last.s).replace(/^ce(t)? /, '')} (${last.l.toLowerCase()}), un repas avec glucides et ~${Math.round(kg*0.3)} g de protéines dans les 2 h aide la récupération.`);
+  const minS = done.filter(s => !s.vt).reduce((a, s) => a + s.d, 0)/60;
+  if (done.filter(s => !s.vt).length >= 2 && minS >= 75) tips.push(`${Math.round(minS)} min de sport aujourd'hui : bois régulièrement ce soir, avec un peu de sel si tu as beaucoup transpiré.`);
+  if (B.sleepMin && B.sleepMin < 390) tips.push(`Nuit courte (${fmtDur(B.sleepMin*60)}) : vise 8 h cette nuit, c'est elle qui rechargera la batterie de demain.`);
+  else if (B.now < 40) tips.push(`Batterie à ${B.now} : couche-toi tôt, le sommeil est la meilleure recharge.`);
+  if (!tips.length) tips.push(B.ses.some(s => !s.vt) ? 'Journée bien gérée : rien de spécial, garde ton rythme habituel ce soir.' : 'Journée calme : ta batterie se garde pour la prochaine séance.');
+  return tips.slice(0, 3);
+}
+function energyDayHTML(){
+  const B = dayBattery(); if (!B) return '';
+  const W = 320, Hh = 150, L = 26, R = 10, T = 14, Bt = 22, x0 = B.wake, x1 = Math.max(B.end, B.wake + 6*3600);
+  const X = x => L + (x - x0)/(x1 - x0)*(W - L - R), Y = v => T + (Hh - T - Bt)*(1 - v/100);
+  const line = B.pts.map(([x, v]) => `${X(x).toFixed(1)},${Y(v).toFixed(1)}`).join(' ');
+  const area = `${X(B.pts[0][0]).toFixed(1)},${Y(0)} ${line} ${X(B.end).toFixed(1)},${Y(0)}`;
+  let g = [75, 55, 40].map(v => `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${L - 4}" y="${Y(v) + 3}" text-anchor="end" style="font-size:9px">${v}</text>`).join('');
+  for (let h = Math.ceil(x0/10800)*10800; h <= x1; h += 10800) g += `<text x="${X(h)}" y="${Hh - 6}" text-anchor="middle" style="font-size:9px">${new Date(h*1000).getHours()}h</text>`;
+  g += `<polygon points="${area}" fill="${battCol(B.now)}" opacity=".16"/><polyline points="${line}" fill="none" stroke="${battCol(B.now)}" stroke-width="2.5" stroke-linejoin="round"/>`;
+  let px = -99, lift = 0; // icônes rapprochées (vélotaf puis nat) : empilées au lieu de se chevaucher
+  for (const s of B.ses.filter(s => s.s <= B.end)) { const x = X(s.s); lift = x - px < 16 ? lift + 15 : 0; px = x;
+    g += `<text x="${x}" y="${Math.max(12, Y(B.at(s.s)) - 8 - lift)}" text-anchor="middle" style="font-size:13px">${s.ic}</text>`; }
+  g += `<circle cx="${X(B.end)}" cy="${Y(B.now)}" r="4.5" fill="${battCol(B.now)}" stroke="var(--card)" stroke-width="2"/><text x="${Math.min(X(B.end), W - R - 12)}" y="${Y(B.now) - 9}" text-anchor="middle" style="fill:var(--text);font-weight:700;font-size:12px">${B.now}</text>`;
+  const rows = B.ses.filter(s => s.s <= B.end).map(s => `<div><b>${s.ic} ${hm(s.s)}</b><span>${esc(s.l)} · ${fmtDur(s.d)} : <b style="color:var(--bad)">−${s.cost} pts</b></span></div>`).join('');
+  const awake = Math.round(DRAIN_H * Math.max(0, B.end - B.wake)/3600);
+  const lab = B.now >= 75 ? 'Prêt' : B.now >= 55 ? 'Correct' : B.now >= 40 ? 'Prudence' : 'Récupère';
+  return `<div class="eday"><div class="row between" style="align-items:baseline"><h3 style="margin:0">Batterie de la journée</h3><span class="small"><b style="color:${battCol(B.now)}">${B.now}</b> maintenant · <span class="muted">${B.v0} au réveil</span></span></div>
+    <svg class="chart" viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Énergie de ${B.v0} au réveil à ${B.now} maintenant (${lab})" style="margin:6px 0 4px">${g}</svg>
+    ${rows ? `<div class="infoscale">${rows}<div><b>⏳ éveillé</b><span>${fmtDur(B.end - B.wake)} debout : <b style="color:var(--bad)">−${awake} pts</b></span></div></div>` : '<p class="small muted" style="margin:4px 0">Pas encore de séance aujourd\'hui.</p>'}
+    <div class="note eday-tips"><b>Pour la suite</b><ul>${energyTips(B).map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>
+    <p class="tiny muted" style="margin:6px 0 0">Estimation : l'énergie au réveil, moins une petite usure par heure éveillé et le coût de chaque séance selon sa charge (TSS).</p></div>`;
+}
