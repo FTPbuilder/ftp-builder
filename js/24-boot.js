@@ -19,4 +19,4 @@ async function checkUpdate(){
 checkUpdate(); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkUpdate(); });
 setTimeout(() => { const ts = $('#themeSel'); if (ts) ts.value = S.settings.theme; }, 0);
 // accès pour les tests
-window.FTPB = { FIT, WORKOUTS, Levels, WLVL, WFAM, applyWarmupPref, wuSec, generatePlan, encodeWorkout, activityFromFit, powerSeries, defaultProfile, compliance, sessionEval, render, save, get S(){ return S; } };
+window.FTPB = { FIT, WORKOUTS, Levels, WLVL, WFAM, applyWarmupPref, wuSec, generatePlan, encodeWorkout, encodeZwo, activityFromFit, powerSeries, defaultProfile, compliance, sessionEval, render, save, get S(){ return S; } };

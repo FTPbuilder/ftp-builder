@@ -24,7 +24,7 @@ function sessionDlg(id){
     </div>
     ${W.type==='test' && s.status==='planned' ? `<button class="btn sm ghost" data-proto="${s.workoutId==='ramp'?'20min':'ramp'}" style="margin-top:8px">${s.workoutId==='ramp'?'Revenir au test 20 min':'Passer au test rampe (ERG)'}</button>` : ''}
     <details class="more" style="margin-top:14px"><summary>⋯ Autres actions : saisir, déplacer, remplacer, passer</summary>
-    <div class="row" style="margin-top:8px;gap:6px">${s.status !== 'done' ? `<button class="btn sm" data-log="${s.id}">Saisir la séance à la main</button>` : ''}${Cloud.icu?.connected || s.status === 'done' ? `<button class="btn sm" data-export="${s.id}">Fichier .fit pour l'Edge</button>` : ''}</div>
+    <div class="row" style="margin-top:8px;gap:6px">${s.status !== 'done' ? `<button class="btn sm" data-log="${s.id}">Saisir la séance à la main</button>` : ''}${Cloud.icu?.connected || s.status === 'done' ? `<button class="btn sm" data-export="${s.id}">Fichier .fit pour l'Edge</button>` : ''}${s.status !== 'done' ? `<button class="btn sm" data-zwo="${s.id}">Fichier .zwo (Zwift, MyWhoosh)</button>` : ''}</div>
     <label class="f">Déplacer au</label><div class="row"><input type="date" id="mvDate" value="${s.date}" style="flex:1"><button class="btn" id="mvBtn">Déplacer</button></div>
     <div id="mvWarn" class="tiny" style="color:var(--warn);margin-top:4px"></div>
     <label class="f">Remplacer par</label><div class="row"><select id="rpSel" style="flex:1">${opts}</select><button class="btn" id="rpBtn">Remplacer</button></div>

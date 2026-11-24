@@ -36,6 +36,7 @@ assert(await pg.locator('#dlg details.more').count() === 1 && !(await pg.locator
 assert(await pg.locator('#dlg [data-log]').isHidden(), '« saisir à la main » rangé dans le menu');
 await pg.evaluate(() => document.querySelector('#dlg').close());
 // Profil : « Ma semaine » avec nat / course
+await pg.evaluate(() => window.scrollTo(0, 0)); await pg.waitForTimeout(150); // barre d'onglets ré-affichée (masquée au défilement)
 await pg.tap('button[data-tab="profile"]'); await pg.waitForTimeout(300);
 assert(await pg.locator('.card h2', { hasText: 'Ma semaine' }).count() === 1, 'Profil : carte « Ma semaine »');
 const sp = await pg.$$eval('.day .sp.on', x => x.map(e => e.dataset.sp + e.dataset.v));

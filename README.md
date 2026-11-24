@@ -27,3 +27,6 @@ La CI (`.github/workflows/tests.yml`) les lance à chaque push. `tests/quarantin
 
 ## Envoyer une séance sur l'Edge 530
 Exporter la séance (.fit) → brancher l'Edge en USB → copier dans `Garmin/NewFiles` → Entraînement › Entraînements. L'Edge pilote le Tacx Flux 2 en ERG.
+
+## Zwift, MyWhoosh, TrainerRoad
+Fiche séance › Autres actions › « Fichier .zwo » : séance en % de FTP (régler la même FTP dans l'app de home trainer). Zwift : copier dans `Documents/Zwift/Workouts/<id>`.
