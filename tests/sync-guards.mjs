@@ -4,6 +4,7 @@
 //  C · état d'avant la v2 (déjà en service) → ancienne règle : le plus récent l'emporte, puis l'état est relié au compte
 //  D · le compte a été écrit par une app plus récente → rien n'est envoyé ni remplacé
 //  E · stockage local illisible → copie de secours conservée, pas de plantage
+//  F · deux appareils : un onglet resté ouvert (PC) n'efface pas la séance importée entre-temps par le téléphone
 const pw = (await import('module')).createRequire(process.env.PW_REQUIRE || '/opt/npm-tools/node_modules/x.js')('playwright');
 const SC = process.env.SCRATCH || '.'; let ok = true; const assert = (c, m) => { if (!c) { ok = false; console.error('ÉCHEC', m); } else console.log('ok', m); };
 const b = await pw.chromium.launch();
@@ -17,7 +18,7 @@ async function scenario(name, { local, rawLocal, remote }, run){
   await pg.route('**/supabase.js', r => r.fulfill({ path: SC + '/node_modules/@supabase/supabase-js/dist/umd/supabase.js', contentType:'application/javascript' }));
   await pg.route('**/*.supabase.co/**', async r => { const u = new URL(r.request().url()), m = r.request().method(); const j = (body, s = 200) => r.fulfill({ status:s, contentType:'application/json', body: JSON.stringify(body) });
     if (u.pathname.includes('/auth/v1/user')) return j({ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' });
-    if (u.pathname.endsWith('/user_state')) { if (m === 'GET') return j(remote ? [{ data: remote, updated_at: new Date(T0).toISOString() }] : []); const body = JSON.parse(r.request().postData()); posts.push(Array.isArray(body) ? body[0] : body); return j([], 201); }
+    if (u.pathname.endsWith('/user_state')) { if (m === 'GET') return j(remote ? [{ data: remote, updated_at: new Date(remote._at || T0).toISOString() }] : []); const body = JSON.parse(r.request().postData()); posts.push(Array.isArray(body) ? body[0] : body); return j([], 201); }
     return j([]); });
   await pg.addInitScript(({ local, rawLocal }) => { if (sessionStorage.getItem('seeded')) return; sessionStorage.setItem('seeded', '1');
     localStorage.setItem('sb-jhemwfhmohqncywjixgh-auth-token', JSON.stringify({ access_token:'x.y.z', refresh_token:'r', token_type:'bearer', expires_in:3600, expires_at:Math.floor(Date.now()/1000)+3600, user:{ id:'u1', email:'a@b.c', aud:'authenticated', role:'authenticated' } }));
@@ -73,5 +74,19 @@ await scenario('E', { rawLocal: '{"version":1,"profile":{"name":"cass', remote: 
   assert(s.name == null && s.backup === 'illisible' && await pg.locator('.onb').count() === 1, 'E · stockage illisible : questionnaire affiché, copie de secours conservée');
   assert(await pg.evaluate(() => backupInfo().raw.startsWith('{"version":1,"profile":{"name":"cass') && Errors.list().some(e => /illisible/.test(e.msg))), 'E · contenu brut gardé et erreur signalée');
   assert(posts.length === 0, 'E · rien envoyé');
+});
+// F : le PC a lu le compte ; le téléphone importe ensuite une séance (compte plus récent) ; le PC enregistre quelque chose → la séance du téléphone est conservée
+const REM_F = { version:2, updatedAt:T0, syncedUser:'u1', profile:{ ...profile, name:'Compte' }, plan:[{ id:'p1', date:'2026-11-23', status:'planned', workoutId:'end_60', kind:'optional', week:5, block:'Base' }], activities:[act('r1','2026-10-22')], ftpHistory:[], settings:{ theme:'auto', tourSeen:true } };
+await scenario('F', { local: { ...REM_F, profile:{ ...profile, name:'Compte' } }, remote: REM_F }, async ({ pg, posts, state }) => {
+  await settled(pg);
+  REM_F.activities.push({ ...act('ht','2026-11-23'), planId:'p1', stravaId: 42, startTs: 1795431398 }); REM_F.plan[0].status = 'done'; REM_F.plan[0].activityId = 'ht'; REM_F.updatedAt = REM_F._at = Date.now() + 60e3;
+  await pg.evaluate(() => { S.settings.x = 1; save(); }); await pg.waitForTimeout(2600);
+  const last = posts[posts.length - 1];
+  assert(last && last.data.activities.some(a => a.id === 'ht') && last.data.settings.x === 1, "F · envoi depuis un onglet en retard : la séance de l'autre appareil est fusionnée, rien n'est perdu");
+  assert(await pg.evaluate(() => S.activities.some(a => a.id === 'ht') && S.plan[0].status === 'done'), 'F · séance visible ici et séance prévue cochée');
+  REM_F.activities.push(act('ht2','2026-11-24')); REM_F.updatedAt = REM_F._at = Date.now() + 120e3; const nPosts = posts.length;
+  await pg.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value:'visible', configurable:true }); document.dispatchEvent(new Event('visibilitychange')); }); await pg.waitForTimeout(1200);
+  assert(await pg.evaluate(() => S.activities.some(a => a.id === 'ht2')), "F · retour sur l'onglet : le compte est relu avant tout import");
+  assert(posts.slice(nPosts).every(p => p.data.activities.some(a => a.id === 'ht2')), "F · aucun envoi n'efface la nouvelle séance");
 });
 console.log(ok ? 'OK' : 'ÉCHEC'); await b.close(); process.exit(ok ? 0 : 1);
