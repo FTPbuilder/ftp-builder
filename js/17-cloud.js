@@ -209,6 +209,20 @@ const Cloud = (() => {
       if (pl && pl.status === 'planned') { pl.status = 'done'; pl.activityId = a.id; }
     }
     if (n) S.activities.sort((x, y) => x.date.localeCompare(y.date));
+    // défis : saisies faites sur l'autre appareil (journal horodaté) ajoutées à ce jour-là
+    for (const rc of remote.challenges || []) {
+      const c = (S.challenges || []).find(x => x.id === rc.id);
+      if (!c) continue; // défi supprimé ici : on ne le ressuscite pas
+      const have = new Set((c.log || []).map(e => e.ts + ':' + e.v));
+      for (const e of rc.log || []) {
+        if (have.has(e.ts + ':' + e.v)) continue;
+        (c.log ||= []).push(e); c.entries ||= {};
+        const d = iso(new Date(e.ts)), v = +(((c.entries[d] || 0) + e.v)).toFixed(2);
+        if (v > 0) c.entries[d] = v; else delete c.entries[d];
+        n++;
+      }
+      c.log?.sort((x, y) => x.ts - y.ts);
+    }
     return n;
   }
   function schedulePush(){ if (!user()) return; clearTimeout(pushTimer); pushTimer = setTimeout(push, 1500); }

@@ -76,14 +76,16 @@ await scenario('E', { rawLocal: '{"version":1,"profile":{"name":"cass', remote: 
   assert(posts.length === 0, 'E · rien envoyé');
 });
 // F : le PC a lu le compte ; le téléphone importe ensuite une séance (compte plus récent) ; le PC enregistre quelque chose → la séance du téléphone est conservée
-const REM_F = { version:2, updatedAt:T0, syncedUser:'u1', profile:{ ...profile, name:'Compte' }, plan:[{ id:'p1', date:'2026-11-23', status:'planned', workoutId:'end_60', kind:'optional', week:5, block:'Base' }], activities:[act('r1','2026-10-22')], ftpHistory:[], settings:{ theme:'auto', tourSeen:true } };
+const REM_F = { version:2, updatedAt:T0, syncedUser:'u1', challenges:[{ id:'chaise', name:'Chaise', unit:'min', target:300, start:'2026-10-21', end:'2027-03-15', entries:{ '2026-11-22':3 }, log:[{ v:3, ts:Date.parse('2026-11-22T18:00:00') }] }], profile:{ ...profile, name:'Compte' }, plan:[{ id:'p1', date:'2026-11-23', status:'planned', workoutId:'end_60', kind:'optional', week:5, block:'Base' }], activities:[act('r1','2026-10-22')], ftpHistory:[], settings:{ theme:'auto', tourSeen:true } };
 await scenario('F', { local: { ...REM_F, profile:{ ...profile, name:'Compte' } }, remote: REM_F }, async ({ pg, posts, state }) => {
   await settled(pg);
+  REM_F.challenges = [{ id:'chaise', name:'Chaise', unit:'min', target:300, start:'2026-10-21', end:'2027-03-15', entries:{ '2026-11-22':3, '2026-11-23':1 }, log:[{ v:3, ts:Date.parse('2026-11-22T18:00:00') }, { v:1, ts:Date.parse('2026-11-23T21:00:00') }] }];
   REM_F.activities.push({ ...act('ht','2026-11-23'), planId:'p1', stravaId: 42, startTs: 1795431398 }); REM_F.plan[0].status = 'done'; REM_F.plan[0].activityId = 'ht'; REM_F.updatedAt = REM_F._at = Date.now() + 60e3;
   await pg.evaluate(() => { S.settings.x = 1; save(); }); await pg.waitForTimeout(2600);
   const last = posts[posts.length - 1];
   assert(last && last.data.activities.some(a => a.id === 'ht') && last.data.settings.x === 1, "F · envoi depuis un onglet en retard : la séance de l'autre appareil est fusionnée, rien n'est perdu");
   assert(await pg.evaluate(() => S.activities.some(a => a.id === 'ht') && S.plan[0].status === 'done'), 'F · séance visible ici et séance prévue cochée');
+  assert(await pg.evaluate(() => { const c = S.challenges.find(x => x.id === 'chaise'); return c.entries['2026-11-23'] === 1 && c.entries['2026-11-22'] === 3 && c.log.length === 2; }), "F · minute de chaise saisie sur l'autre appareil conservée, sans doublon");
   REM_F.activities.push(act('ht2','2026-11-24')); REM_F.updatedAt = REM_F._at = Date.now() + 120e3; const nPosts = posts.length;
   await pg.evaluate(() => { Object.defineProperty(document, 'visibilityState', { value:'visible', configurable:true }); document.dispatchEvent(new Event('visibilitychange')); }); await pg.waitForTimeout(1200);
   assert(await pg.evaluate(() => S.activities.some(a => a.id === 'ht2')), "F · retour sur l'onglet : le compte est relu avant tout import");
