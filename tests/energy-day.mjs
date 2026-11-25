@@ -39,6 +39,8 @@ assert(await ed.count() === 1, 'courbe « Batterie de la journée » affichée')
 const tx = await ed.innerText();
 assert(/🏊/.test(tx) && /🏃/.test(tx) && /−\d+ pts/.test(tx), 'coût de chaque séance en points');
 assert(await ed.locator('polyline').count() === 1, 'courbe tracée');
+const below = await pg.evaluate(() => { const e = document.querySelector('.eday'), t = [...document.querySelectorAll('#todayPane .card')].find(c => /Énergie du jour/i.test(c.textContent) && !c.querySelector('.eday')); return !t || !!(t.compareDocumentPosition(e) & Node.DOCUMENT_POSITION_FOLLOWING); });
+assert(below, 'volet Énergie : batterie sous le bloc « Énergie du jour »');
 await ed.scrollIntoViewIfNeeded(); await pg.screenshot({ path: out + '/energy-day.png', fullPage: false });
 assert(!errs.length, 'aucune erreur JS ' + errs.join(' | '));
 await b.close();
