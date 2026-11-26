@@ -73,6 +73,25 @@ export async function verifyToken() {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode("ftpb-webhook:" + SECRET()));
   return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+// Identifiant de notre abonnement aux webhooks Strava (mis en cache) : un événement qui ne le porte pas ne vient pas de Strava
+let SUB_ID: number | null = null;
+export async function subscriptionId(): Promise<number | null> {
+  if (SUB_ID) return SUB_ID;
+  const q = new URLSearchParams({ client_id: CID(), client_secret: SECRET() });
+  const r = await fetch(`https://www.strava.com/api/v3/push_subscriptions?${q}`).catch(() => null);
+  const list = r?.ok ? await r.json().catch(() => []) : [];
+  SUB_ID = Array.isArray(list) && list[0]?.id ? Number(list[0].id) : null;
+  return SUB_ID;
+}
+// L'accès est-il vraiment révoqué ? (on vérifie auprès de Strava avant d'effacer quoi que ce soit)
+export async function stravaRevoked(db: SupabaseClient, athlete_id: number): Promise<boolean> {
+  try {
+    const tk = await accessTokenFor(db, { athlete_id });
+    if (!tk) return true;
+    const r = await fetch("https://www.strava.com/api/v3/athlete", { headers: { Authorization: `Bearer ${tk.token}` } });
+    return r.status === 401;
+  } catch { return true; } // jeton de rafraîchissement refusé : accès bien retiré
+}
 // S'abonne aux événements Strava (une seule fois par application Strava) ; renvoie l'état
 export async function ensureSubscription() {
   const q = new URLSearchParams({ client_id: CID(), client_secret: SECRET() });

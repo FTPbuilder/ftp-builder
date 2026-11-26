@@ -1,8 +1,10 @@
 // Webhook Strava (public, sans JWT) :
 //  GET  : validation de l'abonnement (hub.challenge) avec STRAVA_VERIFY_TOKEN
 //  POST : événement -> nouvelle activité rapatriée dans strava_inbox, désautorisation -> tokens supprimés
+//  Sécurité : l'URL est publique, donc on ignore tout événement qui ne porte pas notre subscription_id,
+//  et une désautorisation n'efface les jetons que si Strava confirme que l'accès est révoqué.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { admin, accessTokenFor, ingestActivity, verifyToken } from "../_shared/strava.ts";
+import { admin, accessTokenFor, ingestActivity, verifyToken, subscriptionId, stravaRevoked } from "../_shared/strava.ts";
 
 Deno.serve(async (req) => {
   const url = new URL(req.url);
@@ -15,11 +17,13 @@ Deno.serve(async (req) => {
   const ev = await req.json().catch(() => null);
   // Strava exige une réponse < 2 s : on répond tout de suite et on traite en tâche de fond
   const work = (async () => {
-    if (!ev) return;
+    if (!ev || typeof ev !== "object") return;
+    const sub = await subscriptionId(); // introuvable (Strava injoignable) : on continue, la désautorisation reste vérifiée auprès de Strava
+    if (sub && Number(ev.subscription_id) !== sub) { console.warn("webhook : événement ignoré (subscription_id)"); return; }
     const db = admin();
     try {
       if (ev.object_type === "athlete" && ev.updates?.authorized === "false") {
-        await db.from("strava_tokens").delete().eq("athlete_id", ev.owner_id);
+        if (await stravaRevoked(db, Number(ev.owner_id))) await db.from("strava_tokens").delete().eq("athlete_id", ev.owner_id);
         return;
       }
       if (ev.object_type === "activity" && (ev.aspect_type === "create" || ev.aspect_type === "update")) {
@@ -28,7 +32,8 @@ Deno.serve(async (req) => {
         await ingestActivity(db, tk.token, tk.user_id, ev.object_id);
       }
       if (ev.object_type === "activity" && ev.aspect_type === "delete") {
-        await db.from("strava_inbox").delete().eq("strava_id", ev.object_id).eq("imported", false);
+        const tk = await accessTokenFor(db, { athlete_id: ev.owner_id });
+        if (tk) await db.from("strava_inbox").delete().eq("user_id", tk.user_id).eq("strava_id", ev.object_id).eq("imported", false);
       }
     } catch (e) { console.error("webhook", e); }
   })();
