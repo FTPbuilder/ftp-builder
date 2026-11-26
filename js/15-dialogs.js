@@ -165,7 +165,7 @@ function showLogResult(){
     S.activities.push(a); save();
     const cal = acc && acc.checked ? Levels.calibrate('test') : null; // nouvelle FTP : on recale les séances à venir sur les niveaux
     closeDlg(); render();
-    toast(acc && acc.checked ? `Nouvelle FTP : ${S.profile.ftp} W 🎯${cal?.changes.length ? ` · ${cal.changes.length} séance${cal.changes.length > 1 ? 's' : ''} recalée${cal.changes.length > 1 ? 's' : ''}` : ''}` : 'Séance enregistrée 💪');
+    toast(acc && acc.checked ? `Nouvelle FTP : ${S.profile.ftp} W 🎯${cal?.changes.length ? ` · ${cal.changes.length} séance${cal.changes.length > 1 ? 's' : ''} recalée${cal.changes.length > 1 ? 's' : ''}` : ''}` : 'Séance enregistrée 💪', { label: 'Partager', fn: () => Share.open(a.id) });
   };
 }
 const fmtKmh = v => v ? `${(+v).toFixed(1).replace('.', ',')}<small> km/h</small>` : '—';
@@ -214,7 +214,7 @@ function activityDlg(id){
   const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null;
   const fe = a.feel || {};
   openDlg(`<span class="muted small">${fmtDate(a.date)} · ${ {fit:'fichier .fit', manual:'saisie manuelle', strava:'Strava', intervals:'Intervals.icu', health:'Apple Santé'}[a.source] || a.source }</span>
-    <h2 style="margin:6px 0">${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</h2>
+    <div class="row" style="gap:8px;align-items:center;justify-content:space-between;flex-wrap:nowrap"><h2 style="margin:6px 0">${esc(pl ? WORKOUTS[pl.workoutId].name : a.name)}</h2><button class="btn sm shr-btn" id="shareAct" aria-label="Partager la séance">📤 Partager</button></div>
     ${a.source==='health' ? `<p class="tiny muted" style="margin:0 0 6px">Venue d'Apple Santé (${isIndoor(a)?'home trainer':'extérieur'}, sans puissance). Si tu importes le .fit de cette sortie, il la remplacera automatiquement.</p><div class="row" style="margin-bottom:8px"><button class="btn sm" data-toggleindoor="${a.id}">Marquer comme ${isIndoor(a)?'extérieur':'home trainer'}</button></div>` : ''}
     ${!isIndoor(a) ? `<div class="row" style="gap:8px"><button class="btn primary" data-track3d="${a.id}" style="margin:4px 0 2px">🗺️ Tracé 3D · ▶</button>${Library.addBtnHTML(a)}</div>` : ''}
     <div class="grid4" style="margin:8px 0">${actKpis(a).map(([l,v])=>`<div class="kpi"><div class="v num" style="font-size:22px">${v}</div><div class="l">${l}</div></div>`).join('')}</div>
@@ -224,6 +224,7 @@ function activityDlg(id){
     <p class="small">${fe.rpe?`RPE <b>${fe.rpe}</b>`:'Pas de ressenti'}${fe.legs?` · jambes ${fe.legs}/5`:''}${fe.breath?` · souffle ${fe.breath}/5`:''}${fe.motivation?` · motivation ${fe.motivation}/5`:''}${fe.sleep?` · ${fe.sleep} h de sommeil`:''}</p>
     ${fe.note?`<p class="small muted">« ${esc(fe.note)} »</p>`:''}
     <div class="row" style="margin-top:12px"><button class="btn sm" id="editAct">Modifier</button><button class="btn sm" data-feelact="${a.id}">${fe.rpe ? 'Modifier mon ressenti' : 'Ajouter mon ressenti'}</button><button class="btn sm danger" id="delAct">Supprimer l'activité</button></div>`);
+  $('#shareAct').onclick = () => Share.open(a.id);
   $('#editAct').onclick = () => editActDlg(a.id);
   $('#delAct').onclick = () => { if (pl) { pl.status = 'planned'; pl.activityId = null; } if (a.healthStart) (S.dismissedHealth ||= []).push(a.healthStart); S.activities = S.activities.filter(x=>x.id!==a.id); save(); closeDlg(); render(); toast('Activité supprimée'); };
 }

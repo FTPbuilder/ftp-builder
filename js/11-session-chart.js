@@ -132,5 +132,5 @@ const ActChart = (() => {
     tip.innerHTML = parts.join(' · ');
   };
   document.addEventListener('pointermove', move); document.addEventListener('touchmove', move, { passive: true }); document.addEventListener('pointerdown', move);
-  return { html };
+  return { html, target };
 })();

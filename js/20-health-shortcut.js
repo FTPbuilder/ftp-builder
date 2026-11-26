@@ -278,5 +278,5 @@ function feelDlg(id){
   dlgBody.querySelectorAll('.seg[data-feel]').forEach(seg => seg.querySelectorAll('button').forEach(b => { if (feel[seg.dataset.feel] === +b.dataset.v) b.classList.add('on'); b.onclick = () => { feel[seg.dataset.feel] = +b.dataset.v; seg.querySelectorAll('button').forEach(x=>x.classList.toggle('on', x===b)); }; }));
   $('#fSave').onclick = () => { a.feel = { ...feel, note: $('#fNote').value.trim() || null }; if (!a.np) computeLoad(a); save(); closeDlg(); render();
     const pl = a.planId ? S.plan.find(s=>s.id===a.planId) : null, e = pl ? sessionEval(a, pl) : null;
-    toast(e ? `${e.icon} ${e.title}` : 'Ressenti enregistré'); };
+    toast(e ? `${e.icon} ${e.title}` : 'Ressenti enregistré', { label: 'Partager', fn: () => Share.open(a.id) }); };
 }

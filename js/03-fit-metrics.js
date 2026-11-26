@@ -258,7 +258,7 @@ function measureUnits(wid, scale, pw, hr, dt){
     }
     const span = last.t0 + last.d - u.steps[0].t0, u0 = Math.round(u.steps[0].t0/dt)+off, u1 = u0 + Math.round(span/dt);
     const e0 = u0 + Math.round(Math.max(60, span/3)/dt); // la FC met du temps à monter : on la lit sur la fin du bloc
-    const r = { label:u.label, d:D, sd: D/u.steps.length, target:Math.round(ts/D), got: cov ? Math.round(gs/cov) : 0, cover:+(cov/D).toFixed(2) };
+    const r = { label:u.label, d:D, sd: D/u.steps.length, target:Math.round(ts/D), got: cov ? Math.round(gs/cov) : 0, cover:+(cov/D).toFixed(2), i0:u0, i1:u1 };
     if (hr && span >= 300) { const h = avg(hr, e0, u1, 1), p = avg(pw, e0, u1); if (h > 60 && p) { r.he = Math.round(h); r.pe = Math.round(p); } }
     if (hr && span >= 1200) { const mid = Math.round((u0+u1)/2), s0 = u0 + Math.round(120/dt);
       const h1 = avg(hr, s0, mid, 1), h2 = avg(hr, mid, u1, 1), p1 = avg(pw, s0, mid), p2 = avg(pw, mid, u1);

@@ -45,7 +45,9 @@ const fmtDur = sec => { sec = Math.round(sec); const h = Math.floor(sec/3600), m
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const round5 = w => Math.round(w / 5) * 5;
-function toast(msg){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2600); }
+function toast(msg, act){ const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  if (act) { const b = document.createElement('button'); b.type = 'button'; b.textContent = act.label + ' ›'; b.onclick = () => { t.remove(); act.fn(); }; t.appendChild(b); t.classList.add('act'); }
+  document.body.appendChild(t); setTimeout(() => t.remove(), act ? 6000 : 2600); }
 
 /* ============ état ============ */
 function blank(){ return { version:SCHEMA, profile:null, plan:[], activities:[], ftpHistory:[], settings:{ theme:'auto' } }; }
