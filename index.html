@@ -488,6 +488,12 @@ svg.chart text{fill:var(--muted);font-size:10px;font-family:Inter}
 .drop:hover{border-color:var(--accent);color:var(--text)}
 .hidden{display:none!important}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:14px;z-index:99;max-width:90%;box-shadow:0 6px 24px rgba(0,0,0,.25)}
+.toast.act{display:flex;align-items:center;gap:12px}
+.toast button{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;padding:4px 0;cursor:pointer;white-space:nowrap}
+.shr-btn{flex:none}
+.shr-prev{margin-top:12px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:var(--bg2);min-height:120px;display:flex;align-items:center;justify-content:center}
+.shr-prev img{display:block;width:100%;height:auto;max-height:58vh;object-fit:contain}
+.shr-prev.chk{background:repeating-conic-gradient(#3a3f4b 0 25%,#272b34 0 50%) 0 0/24px 24px}
 .onb{max-width:640px;margin:0 auto}
 .hero{padding:6px 2px 14px}
 .hero h1{font-size:40px;font-weight:700;text-transform:uppercase;line-height:.95}
@@ -814,35 +820,36 @@ html.at-open,html.at-open body{overflow:hidden}
 <input type="file" id="fileIn" class="hidden">
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script>"use strict"; const APP_VERSION = '0.57.1';</script>
-<script src="js/00-schema.js?v=0.57.1"></script>
-<script src="js/01-core.js?v=0.57.1"></script>
-<script src="js/02-plan.js?v=0.57.1"></script>
-<script src="js/03-fit-metrics.js?v=0.57.1"></script>
-<script src="js/04-fit-write-coach.js?v=0.57.1"></script>
-<script src="js/05-charts.js?v=0.57.1"></script>
-<script src="js/06-render.js?v=0.57.1"></script>
-<script src="js/07-health-import.js?v=0.57.1"></script>
-<script src="js/08-explain-challenges.js?v=0.57.1"></script>
-<script src="js/09-mobility.js?v=0.57.1"></script>
-<script src="js/10-test-absences.js?v=0.57.1"></script>
-<script src="js/11-session-chart.js?v=0.57.1"></script>
-<script src="js/12-tracks.js?v=0.57.1"></script>
-<script src="js/13-climbs.js?v=0.57.1"></script>
-<script src="js/14-adjust.js?v=0.57.1"></script>
-<script src="js/15-dialogs.js?v=0.57.1"></script>
-<script src="js/16-clicks.js?v=0.57.1"></script>
-<script src="js/17-cloud.js?v=0.57.1"></script>
-<script src="js/18-social.js?v=0.57.1"></script>
-<script src="js/18-survey.js?v=0.57.1"></script>
-<script src="js/19-onboarding.js?v=0.57.1"></script>
-<script src="js/20-health-shortcut.js?v=0.57.1"></script>
-<script src="js/21-library.js?v=0.57.1"></script>
-<script src="js/22-bike3d.js?v=0.57.1"></script>
-<script src="js/22-swim3d.js?v=0.57.1"></script>
-<script src="js/23-garage-catalog.js?v=0.57.1"></script>
-<script src="js/23-garage.js?v=0.57.1"></script>
-<script src="js/23-atelier.js?v=0.57.1"></script>
-<script src="js/24-boot.js?v=0.57.1"></script>
+<script>"use strict"; const APP_VERSION = '0.58.0';</script>
+<script src="js/00-schema.js?v=0.58.0"></script>
+<script src="js/01-core.js?v=0.58.0"></script>
+<script src="js/02-plan.js?v=0.58.0"></script>
+<script src="js/03-fit-metrics.js?v=0.58.0"></script>
+<script src="js/04-fit-write-coach.js?v=0.58.0"></script>
+<script src="js/05-charts.js?v=0.58.0"></script>
+<script src="js/06-render.js?v=0.58.0"></script>
+<script src="js/07-health-import.js?v=0.58.0"></script>
+<script src="js/08-explain-challenges.js?v=0.58.0"></script>
+<script src="js/09-mobility.js?v=0.58.0"></script>
+<script src="js/10-test-absences.js?v=0.58.0"></script>
+<script src="js/11-session-chart.js?v=0.58.0"></script>
+<script src="js/12-tracks.js?v=0.58.0"></script>
+<script src="js/13-climbs.js?v=0.58.0"></script>
+<script src="js/14-adjust.js?v=0.58.0"></script>
+<script src="js/15-dialogs.js?v=0.58.0"></script>
+<script src="js/15-share.js?v=0.58.0"></script>
+<script src="js/16-clicks.js?v=0.58.0"></script>
+<script src="js/17-cloud.js?v=0.58.0"></script>
+<script src="js/18-social.js?v=0.58.0"></script>
+<script src="js/18-survey.js?v=0.58.0"></script>
+<script src="js/19-onboarding.js?v=0.58.0"></script>
+<script src="js/20-health-shortcut.js?v=0.58.0"></script>
+<script src="js/21-library.js?v=0.58.0"></script>
+<script src="js/22-bike3d.js?v=0.58.0"></script>
+<script src="js/22-swim3d.js?v=0.58.0"></script>
+<script src="js/23-garage-catalog.js?v=0.58.0"></script>
+<script src="js/23-garage.js?v=0.58.0"></script>
+<script src="js/23-atelier.js?v=0.58.0"></script>
+<script src="js/24-boot.js?v=0.58.0"></script>
 </body>
 </html>
